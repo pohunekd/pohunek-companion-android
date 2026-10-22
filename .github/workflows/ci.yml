@@ -30,5 +30,21 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # The staged libghostty-vt output is keyed by everything that determines
+      # it: the pins in the config, the build script and the toolchain image.
+      - name: Restore libghostty-vt
+        id: libghostty-vt
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: vendor/libghostty-vt
+          key: libghostty-vt-${{ hashFiles('config/libghostty-vt.toml', 'scripts/build-libghostty-vt', 'container/Containerfile') }}
+
+      - name: Build libghostty-vt
+        if: steps.libghostty-vt.outputs.cache-hit != 'true'
+        run: scripts/build-libghostty-vt
+
+      - name: Verify libghostty-vt
+        run: scripts/build-libghostty-vt --verify
+
       - name: Gates
         run: scripts/gates

@@ -6,8 +6,8 @@
 #   (no flag)  build both ABIs from a fresh checkout and empty Zig caches
 #   --verify   check the staged output against its manifest and the config
 #
-# Runs in the toolchain container; outside it the script re-executes itself
-# through scripts/dev.
+# A build runs in the toolchain container; outside it the script re-executes
+# itself through scripts/dev.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -23,8 +23,9 @@ case "${1:-}" in
 esac
 [ "$#" -le 1 ] || die "usage: scripts/build-libghostty-vt [--verify]"
 
-# /run/.containerenv exists inside every Podman container.
-if [ ! -e /run/.containerenv ]; then
+# /run/.containerenv exists inside every Podman container. --verify needs only
+# sha256sum, so it runs wherever it is called.
+if [ "$mode" = build ] && [ ! -e /run/.containerenv ]; then
   exec "$root/scripts/dev" "$root/scripts/build-libghostty-vt" "$@"
 fi
 
