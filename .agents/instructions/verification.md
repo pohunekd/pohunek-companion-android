@@ -98,6 +98,19 @@ scripts/ui-agent health | log [app|daemon|emulator]
   fixed ones; `--showcase` replaces them with a realistic dataset of synthetic
   `claude` and `codex` profiles that run a harmless shell program. `type` cannot
   enter a literal `%s` (`input text` turns it into a space).
+- **Install and restart.** `install` builds the debug APK and installs it; it
+  then compares the SHA-256 of the installed `base.apk` with the built file and
+  fails if they differ, so a success always means the device runs the current
+  build. `restart` is `install` followed by a force-stop and launch. Builds are
+  signed with a debug key in the Android home volume, the same for every
+  worktree; an app on a device that carries another key fails with
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE` and is never uninstalled automatically
+  (that would erase its data); an app installed before the shared key existed needs one manual `adb uninstall dev.pohunek.companion`.
+- **libghostty-vt.** `start`, `install`, and `restart` verify
+  `vendor/libghostty-vt` (`scripts/build-libghostty-vt --verify`) and run
+  `scripts/build-libghostty-vt` when it is missing or stale, as CI does. In a
+  fresh worktree the first `start` therefore spends about a minute on that
+  build and fetches the pinned ghostty commit.
 - **Commands.** `tree` prints one JSON array of the nodes that have a test tag
   (`id`), text, or description, with `bounds` and `center` in screen pixels;
   `find TAG` filters by exact tag and `click TAG [N]` taps the centre of the Nth

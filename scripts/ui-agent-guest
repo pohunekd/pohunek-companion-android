@@ -553,6 +553,31 @@ apk_path() {
   printf '%s' "$apk"
 }
 
+# Installs the debug APK and proves the device runs it: the installed base.apk
+# must hash like the file just built. A signature mismatch is reported as such
+# and never resolved by uninstalling, which would erase the app's data (and the
+# owner's, on a phone).
+install_app() {
+  local apk package out installed built running
+  apk="$(apk_path)"
+  package="$(config_value app_package)"
+  if ! out="$(adbd install -r -t "$apk" 2>&1)" || [[ "$out" == *Failure* ]]; then
+    echo "$out" >&2
+    case "$out" in
+      *INSTALL_FAILED_UPDATE_INCOMPATIBLE*)
+        die "the installed $package was signed with another key; remove it with 'adb uninstall $package' (this erases its data)" ;;
+    esac
+    die "adb install failed"
+  fi
+  installed="$(adbd shell pm path "$package" | tr -d '\r' | sed -n 's/^package://p' | grep '/base\.apk$' | head -n 1 || true)"
+  [ -n "$installed" ] || die "$package is not installed after adb install"
+  built="$(sha256sum "$apk" | cut -d' ' -f1)"
+  running="$(adbd shell sha256sum "$installed" | tr -d '\r' | cut -d' ' -f1)" \
+    || die "could not hash the installed $installed on the device"
+  [ "$running" = "$built" ] || die "the device runs a different build of $package than $apk"
+  echo "installed $package ${built:0:12}"
+}
+
 launch_app() {
   local component
   component="$(config_value app_package)/$(config_value launch_activity)"
@@ -724,7 +749,7 @@ case "$cmd" in
   clean-avd-locks) clean_avd_locks ;;
   up) up "$@" ;;
   shutdown) shutdown ;;
-  install) load_run; adbd install -r -t "$(apk_path)" ;;
+  install) load_run; install_app ;;
   launch) load_run; launch_app ;;
   screenshot) load_run; adbd exec-out screencap -p ;;
   tree) load_run; ui_nodes ;;

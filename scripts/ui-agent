@@ -6,8 +6,8 @@
 #
 #   scripts/ui-agent start [--sessions N] [--showcase] [--device phone] [--owner-daemon]
 #                                          claim a slot, boot, build, install, launch
-#   scripts/ui-agent install               build and install the debug APK
-#   scripts/ui-agent restart               force-stop and launch the app again
+#   scripts/ui-agent install               build the debug APK and install it (fails if the device runs another build)
+#   scripts/ui-agent restart               install, then force-stop and launch the app again
 #   scripts/ui-agent stop                  stop the run and remove its container
 #   scripts/ui-agent status                slot, ports, publishability, device and daemon state
 #   scripts/ui-agent screenshot OUT.png    save the screen as PNG
@@ -32,6 +32,11 @@
 # emulator size come from config/dev.toml. The slots are claimed under a host
 # flock, and the owner of a slot is recorded in the container's labels, so no
 # state file can go stale.
+#
+# Every build is signed with the debug key kept in the shared Android home
+# volume, so a rebuilt APK replaces the installed one. libghostty-vt is built
+# on first use (and rebuilt when its pins change), because the app does not
+# compile without it.
 #
 # --device phone targets the owner's phone over adb Wi-Fi instead of an
 # emulator; its address is read from UI_AGENT_PHONE_ADB (HOST:PORT). The phone
@@ -67,6 +72,13 @@ positive_int_value() {
 
 command -v podman >/dev/null || die "podman is not installed"
 command -v flock >/dev/null || die "flock is not installed"
+
+# Host directory of the locks shared by all worktrees.
+lock_dir() {
+  local dir="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is not set}/pohunek-companion-android"
+  mkdir -p "$dir"
+  printf '%s' "$dir"
+}
 
 # ---- Slots -------------------------------------------------------------------
 
@@ -111,11 +123,9 @@ reclaim_stale_slots() {
 # prints the slot number. The container name is the claim, so two concurrent
 # starts can never take the same slot.
 claim_slot() { # DEVICE DAEMON
-  local slots lock_dir slot name
+  local slots slot name
   slots="$(positive_int_value slots)"
-  lock_dir="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is not set}/pohunek-companion-android"
-  mkdir -p "$lock_dir"
-  exec 8>"$lock_dir/ui-agent-slots.lock"
+  exec 8>"$(lock_dir)/ui-agent-slots.lock"
   flock 8
   reclaim_stale_slots
   [ -z "$(run_container)" ] || die "this worktree already has a run; stop it first: scripts/ui-agent stop"
@@ -143,10 +153,45 @@ $holders"
 
 # ---- Build -------------------------------------------------------------------
 
+# The app does not compile without libghostty-vt. Like CI, verify the staged
+# output and rebuild it when it is missing or does not match the pins; the
+# build fetches the pinned ghostty commit (network, about a minute).
+ensure_libghostty_vt() {
+  local script="$root/scripts/build-libghostty-vt"
+  if "$script" --verify >/dev/null 2>&1; then return 0; fi
+  echo "ui-agent: libghostty-vt is missing or stale; running scripts/build-libghostty-vt (about a minute)" >&2
+  "$script" >&2 || die "scripts/build-libghostty-vt failed; the app cannot be built without libghostty-vt"
+}
+
+# AGP signs debug builds with debug.keystore in ANDROID_USER_HOME, which is
+# per container in a plain scripts/dev run, so each build would carry a new key
+# and could not replace the installed app. The key lives in the Android home
+# volume instead; the first one is created under a host lock so two builds
+# cannot race on it. The key pair is generated locally with the alias and
+# password AGP expects (AndroidDebugKey, android) and signs only debug builds.
+ensure_debug_keystore() {
+  exec 7>"$(lock_dir)/ui-agent-debug-keystore.lock"
+  flock 7
+  "$dev" --android-home bash -c '
+    set -euo pipefail
+    store="$ANDROID_USER_HOME/debug.keystore"
+    [ -f "$store" ] && exit 0
+    tmp="$(mktemp "$store.XXXXXX")"
+    rm -f "$tmp"
+    keytool -genkeypair -keystore "$tmp" -storetype PKCS12 -alias AndroidDebugKey \
+      -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10950 \
+      -dname "CN=Android Debug,O=Android,C=US" >/dev/null
+    mv "$tmp" "$store"
+  ' 7>&- >&2 || die "could not create the debug keystore"
+  exec 7>&-
+}
+
 build_app() {
   local t0
+  ensure_libghostty_vt
+  ensure_debug_keystore
   t0="$(date +%s.%N)"
-  "$dev" ./gradlew --console=plain :app:assembleDebug >&2
+  "$dev" --android-home ./gradlew --console=plain :app:assembleDebug >&2
   [ -f "$root/app/build/outputs/apk/debug/app-debug.apk" ] || die "the build produced no debug APK"
   awk -v a="$t0" -v b="$(date +%s.%N)" 'BEGIN{printf "build_secs=%.1f\n", b - a}'
 }
@@ -192,6 +237,8 @@ start() {
     [ -n "$phone_adb" ] || die "--device phone needs UI_AGENT_PHONE_ADB=HOST:PORT (the phone's adb Wi-Fi address)"
   fi
   timeout="$(positive_int_value start_timeout_secs)"
+  # Before a slot is claimed, so a missing libghostty-vt does not boot an emulator first.
+  ensure_libghostty_vt
 
   trap cleanup_failed_start EXIT
   slot="$(claim_slot "$device" "$daemon")"
@@ -263,8 +310,8 @@ warn_unpublishable() {
 
 case "${1:-}" in
   start) shift; start "$@" ;;
-  install) build_app; guest install ;;
-  restart) guest launch ;;
+  install) require_run >/dev/null; build_app; guest install ;;
+  restart) require_run >/dev/null; build_app; guest install; guest launch ;;
   stop) stop_run ;;
   status) print_status ;;
   screenshot)
