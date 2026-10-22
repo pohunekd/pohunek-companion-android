@@ -75,6 +75,7 @@ scripts/ui-agent screenshot OUT.png | tree | find TAG | click TAG [N]
 scripts/ui-agent type TEXT [--enter] | key esc|ctrl-c|tab|up|down|left|right|enter
 scripts/ui-agent rotate | net-drop | net-restore | host-stop | host-start
 scripts/ui-agent health | log [app|daemon|emulator]
+scripts/ui-agent screen | session-screen ID [--size]
 ```
 
 - **Slots.** A run is one `scripts/dev` container named
@@ -94,7 +95,7 @@ scripts/ui-agent health | log [app|daemon|emulator]
   per AVD in the `pohunek-companion-android-avd` volume, keyed by system image,
   emulator build, cores, RAM, and screen), starts the daemon and sessions while
   `assembleDebug` runs, installs the APK, and launches `launch_activity` (the
-  terminal demo screen). `--sessions N` adds N generated sessions to the four
+  attach debug screen, which also links to the terminal demo). `--sessions N` adds N generated sessions to the four
   fixed ones; `--showcase` replaces them with a realistic dataset of synthetic
   `claude` and `codex` profiles that run a harmless shell program. `type` cannot
   enter a literal `%s` (`input text` turns it into a space).
@@ -119,6 +120,19 @@ scripts/ui-agent health | log [app|daemon|emulator]
   `host-stop` and `host-start` stop and restart the daemon with the same
   directories. `health` sends one `daemon.health` line from the device with
   toybox `nc` through the reversed port and prints the reply.
+- **Attach debug screen.** The debug build opens `AttachDebugActivity`: tap
+  `AttachDebug.route`, `type 127.0.0.1:PORT` (PORT from `status`), `click
+  AttachDebug.list`, then `click AttachDebug.session N` to attach the Nth
+  session; `AttachDebug.status` and `AttachDebug.error` carry the attach state
+  and any error, `AttachDebug.detach` leaves, and `AttachDebug.terminal` is the
+  terminal (tap it before `type` or `key`). `screen` writes the visible grid as
+  text through a debug-only broadcast receiver (absent from release builds) and
+  `session-screen ID` prints the isolated daemon's rendering of the same
+  session; both are trimmed of trailing whitespace and blank lines, so `diff`
+  compares them, and `session-screen ID --size` prints the PTY size as
+  `COLSxROWS`. `screen` can print session content: on `--owner-daemon` or
+  `--device phone` runs it is not publishable. Rotation is handled in place and
+  sends `session.resize`.
 - **Phone.** `--device phone` uses the adb Wi-Fi address in
   `UI_AGENT_PHONE_ADB=HOST:PORT` instead of an emulator and never changes the
   phone's settings. Pair it once with `scripts/dev --android-home adb pair
@@ -146,6 +160,11 @@ podman exec -w "$PWD" pohunek-ui-agent-slot-N java -cp "$CP" \
 
 `PORT` is the bridge port from `scripts/ui-agent status`. The check prints ids,
 agents, and states only; scan any output for paths before publishing it.
+
+`AttachCheckKt` (same classpath and invocation, arguments `HOST:PORT SESSION_ID
+CONNECT_MS REQUEST_MS`) attaches to a synthetic session with a 100x30 view, types
+`echo hi`, resizes to 60x20, and detaches through the real client, printing byte
+counts and the printable output.
 
 ### Measurements
 

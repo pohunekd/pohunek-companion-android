@@ -365,6 +365,12 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     }
   }
 
+  /** The text currently visible in the grid, one line per row; null when the view is destroyed or the emulator cannot format it. */
+  fun viewportText(): String? {
+    if (handle == 0L) return null
+    return GhosttyVt.nativeViewportText(handle, cols, rows)?.toString(Charsets.UTF_8)
+  }
+
   /** Mark the underlying PTY as exited: stop forwarding input. */
   fun finish(@Suppress("UNUSED_PARAMETER") exitCode: Int) {
     finished = true

@@ -22,7 +22,7 @@ class LineFramer {
             while (newline < end && chunk[newline] != NEWLINE) newline++
             appendBounded(chunk, position, newline - position)
             if (newline == end) break
-            lines += decode(pending.toByteArray())
+            lines += decodeLine(pending.toByteArray())
             pending.reset()
             position = newline + 1
         }
@@ -32,7 +32,7 @@ class LineFramer {
     /** At end of stream: the unterminated last line, if one is pending. */
     fun finish(): String? {
         if (pending.size() == 0) return null
-        val line = decode(pending.toByteArray())
+        val line = decodeLine(pending.toByteArray())
         pending.reset()
         return line
     }
@@ -42,22 +42,23 @@ class LineFramer {
         pending.write(chunk, offset, length)
     }
 
-    private fun decode(bytes: ByteArray): String {
-        val content = if (bytes.isNotEmpty() && bytes.last() == CARRIAGE_RETURN) bytes.copyOf(bytes.size - 1) else bytes
-        return try {
-            Charsets.UTF_8.newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-                .decode(ByteBuffer.wrap(content))
-                .toString()
-        } catch (e: CharacterCodingException) {
-            throw ProtocolClientException.Framing("invalid utf-8 control line: ${e.message}", e)
-        }
-    }
-
     companion object {
         private const val NEWLINE: Byte = 0x0a
         private const val CARRIAGE_RETURN: Byte = 0x0d
+
+        /** Strict UTF-8 decoding of one line's bytes, without a trailing carriage return. */
+        internal fun decodeLine(bytes: ByteArray): String {
+            val content = if (bytes.isNotEmpty() && bytes.last() == CARRIAGE_RETURN) bytes.copyOf(bytes.size - 1) else bytes
+            return try {
+                Charsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(content))
+                    .toString()
+            } catch (e: CharacterCodingException) {
+                throw ProtocolClientException.Framing("invalid utf-8 control line: ${e.message}", e)
+            }
+        }
 
         /** The UTF-8 bytes of [line] followed by the newline delimiter. */
         fun encode(line: String): ByteArray {

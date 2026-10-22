@@ -39,6 +39,12 @@ class TerminalController {
         target.write(bytes)
     }
 
+    /** The text visible in the grid now (main thread, attached view only), or null when the emulator cannot produce it. */
+    fun screenText(): String? {
+        check(Looper.myLooper() == Looper.getMainLooper()) { "TerminalController.screenText must run on the main thread" }
+        return checkNotNull(terminal) { "TerminalController.screenText called with no attached view" }.viewportText()
+    }
+
     internal fun attach(view: GhosttyTerminalView) {
         // A recomposition that swaps views attaches the new one before the old one is released.
         terminal?.let { releaseCallbacks(it) }

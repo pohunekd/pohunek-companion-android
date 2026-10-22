@@ -756,19 +756,16 @@ Java_dev_pohunek_companion_terminal_GhosttyVt_nativeClearSelection(JNIEnv*, jobj
   markRenderDirtyFull(session);
 }
 
-// Returns the active selection as UTF-8 bytes (plain, unwrapped, trimmed —
-// Ghostty's copy semantics), or null when there is no selection.
-JNIEXPORT jbyteArray JNICALL
-Java_dev_pohunek_companion_terminal_GhosttyVt_nativeSelectionText(
-    JNIEnv* env, jobject, jlong handle) {
-  auto* session = fromHandle(handle);
-  if (session == nullptr) return nullptr;
+// Formats `selection` (or the active selection when null) as UTF-8 bytes
+// (plain, unwrapped, trimmed: Ghostty's copy semantics), or null when there is
+// nothing to format.
+jbyteArray formatSelection(JNIEnv* env, Session* session, const GhosttySelection* selection) {
   GhosttyTerminalSelectionFormatOptions options{};
   options.size = sizeof(options);
   options.emit = GHOSTTY_FORMATTER_FORMAT_PLAIN;
   options.unwrap = true;
   options.trim = true;
-  options.selection = nullptr;
+  options.selection = selection;
 
   size_t needed = 0;
   GhosttyResult result =
@@ -787,6 +784,33 @@ Java_dev_pohunek_companion_terminal_GhosttyVt_nativeSelectionText(
   env->SetByteArrayRegion(out, 0, static_cast<jsize>(written),
                           reinterpret_cast<const jbyte*>(buf.data()));
   return out;
+}
+
+// Returns the active selection as UTF-8 bytes, or null when there is none.
+JNIEXPORT jbyteArray JNICALL
+Java_dev_pohunek_companion_terminal_GhosttyVt_nativeSelectionText(
+    JNIEnv* env, jobject, jlong handle) {
+  auto* session = fromHandle(handle);
+  if (session == nullptr) return nullptr;
+  return formatSelection(env, session, nullptr);
+}
+
+// Returns the text of the cols x rows viewport as UTF-8 bytes without
+// touching the user's selection, or null on failure.
+JNIEXPORT jbyteArray JNICALL
+Java_dev_pohunek_companion_terminal_GhosttyVt_nativeViewportText(
+    JNIEnv* env, jobject, jlong handle, jint cols, jint rows) {
+  auto* session = fromHandle(handle);
+  if (session == nullptr || cols < 1 || rows < 1) return nullptr;
+  GhosttySelection selection{};
+  selection.size = sizeof(selection);
+  selection.start.size = sizeof(selection.start);
+  selection.end.size = sizeof(selection.end);
+  if (!viewportGridRef(session, 0, 0, &selection.start) ||
+      !viewportGridRef(session, cols - 1, rows - 1, &selection.end)) {
+    return nullptr;
+  }
+  return formatSelection(env, session, &selection);
 }
 
 JNIEXPORT jboolean JNICALL

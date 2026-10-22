@@ -664,6 +664,39 @@ rotate() {
   echo "rotation=$next"
 }
 
+# Trailing whitespace of every line and trailing empty lines removed, so the two screen dumps compare with diff.
+trim_screen() {
+  sed -e 's/[[:space:]]*$//' | awk '{ lines[NR] = $0 } END { last = NR; while (last > 0 && lines[last] == "") last--; for (i = 1; i <= last; i++) print lines[i] }'
+}
+
+# The text visible in the app's attached terminal, written by the debug build's screen-dump receiver.
+screen() {
+  local package out
+  package="$(config_value app_package)"
+  adbd shell "run-as $package rm -f files/debug/screen.txt" >/dev/null 2>&1 || true
+  out="$(adbd shell am broadcast -a dev.pohunek.companion.debug.DUMP_SCREEN -p "$package" | tr -d '\r')"
+  case "$out" in
+    *"result=1"*) ;;
+    *"result=2"*) die "no screen: $(sed -n 's/.*data="\(.*\)".*/\1/p' <<<"$out")" ;;
+    *) die "the screen-dump receiver did not answer (is the attach debug screen open in a debug build?): $out" ;;
+  esac
+  adbd exec-out "run-as $package cat files/debug/screen.txt" | trim_screen
+}
+
+# The same screen as the isolated daemon renders it for a session; with --size only its dimensions, as COLSxROWS.
+session_screen() { # SESSION_ID [--size]
+  local reply
+  [[ "$1" =~ ^s-[A-Za-z0-9]+$ ]] || die "invalid session id '$1'"
+  [ -z "${2:-}" ] || [ "$2" = --size ] || die "unknown option '$2'"
+  require_isolated session-screen
+  reply="$(iso_run "$cli" session screen --json "$1")"
+  if [ "${2:-}" = --size ]; then
+    jq -r '.ok.dimensions | "\(.cols)x\(.rows)"' <<<"$reply"
+  else
+    jq -r '.ok.visible_lines[]' <<<"$reply" | trim_screen
+  fi
+}
+
 health() {
   local request='{"v":{"minimum":3,"maximum":4},"id":"ui-agent-health","method":"daemon.health","params":null}'
   local wait reply
@@ -763,6 +796,8 @@ case "$cmd" in
   host-stop) load_run; require_isolated host-stop; halt_daemon; echo "daemon stopped" ;;
   host-start) load_run; require_isolated host-start; launch_daemon; echo "daemon started" ;;
   health) load_run; health ;;
+  screen) load_run; screen ;;
+  session-screen) load_run; session_screen "${1:?session id required}" "${2:-}" ;;
   status) load_run; status ;;
   log) load_run; log_of "${1:-app}" ;;
   *) die "unknown command '$cmd'" ;;
