@@ -1,0 +1,34 @@
+Closes #
+
+<!-- Use "Closes #N" only when this PR meets the issue's full DoD; otherwise
+"Refs #N". Never write a closing keyword (close, fix, resolve) next to an
+issue number anywhere else in the body, even negated: GitHub closes it. -->
+
+## What and why
+
+<!-- The change, the reason, and any autonomous decision taken. Before/after
+narrative belongs here, not in code comments. -->
+
+## Definition of done
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| D1 | met / unmet | |
+
+## Verification
+
+- CI: <!-- check result, or "no CI yet" before #10 -->
+- `scripts/gates`: Spotless passed/failed, detekt passed/failed, lint
+  passed/failed, test passed/failed, assembleDebug passed/failed (or "no gates
+  yet" before #10)
+- Manual: <!-- what was run and observed; screenshot for visible changes;
+  anything needing the owner's phone = unverified -->
+
+## Self-review
+
+<!-- Reviewer (subagent/Codex), findings, and for each: fixed / filed #N /
+rejected with evidence. -->
+
+## Filed during this work
+
+<!-- Issues filed under found-during-work, or None. -->
