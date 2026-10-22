@@ -39,6 +39,14 @@ class ResponseDecoderTest {
     }
 
     @Test
+    fun `a version inside a wider offered range is accepted and then fixed`() {
+        val decoder = ResponseDecoder(ProtocolVersionRange(3, 4))
+        decoder.decode(ok(3), "r1")
+        assertEquals(3, decoder.selectedVersion)
+        decoder.decode(ok(3, "r2"), "r2")
+    }
+
+    @Test
     fun `a version that changes after the first response is a version mismatch`() {
         val decoder = ResponseDecoder(ProtocolVersionRange(3, 4))
         decoder.decode(ok(4), "r1")
@@ -60,7 +68,7 @@ class ResponseDecoderTest {
         assertEquals(ErrorClass.Runtime, failure.error.errorClass)
         assertEquals("agent_binary_missing", failure.error.code)
         assertEquals("agent binary not found on PATH: codex", failure.error.msg)
-        assertTrue(failure.error.recover!!.startsWith("install the codex CLI"))
+        assertTrue(failure.error.recover.orEmpty().startsWith("install the codex CLI"))
         assertEquals(4, decoder.selectedVersion)
     }
 

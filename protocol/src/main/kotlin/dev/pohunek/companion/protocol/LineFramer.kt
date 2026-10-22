@@ -9,6 +9,9 @@ import java.nio.charset.CodingErrorAction
 class LineFramer {
     private val pending = ByteArrayOutputStream()
 
+    /** True while bytes of an unterminated line are held. */
+    val hasPending: Boolean get() = pending.size() > 0
+
     /** Appends [length] bytes of [chunk] and returns the lines that are complete now, without their newline. */
     fun feed(chunk: ByteArray, offset: Int = 0, length: Int = chunk.size - offset): List<String> {
         val lines = ArrayList<String>()

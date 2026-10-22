@@ -1,16 +1,17 @@
 package dev.pohunek.companion.protocol
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.builtins.ListSerializer
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
+import java.nio.channels.ClosedByInterruptException
 import java.nio.channels.SocketChannel
 import kotlin.time.Duration
 
@@ -83,14 +84,17 @@ class PohunekConnection private constructor(
     private suspend fun call(build: (String) -> Request) = mutex.withLock {
         unusableReason?.let { throw ProtocolClientException.ConnectionUnusable(it) }
         val request = build("$REQUEST_ID_PREFIX${nextRequestNumber++}")
+        // An oversized request fails before anything is written, so the connection stays usable.
+        val line = LineFramer.encode(request.toLine())
         var reusable = false
         try {
-            val ok = try {
-                withTimeout(config.requestTimeout) { runInterruptible(ioDispatcher) { exchange(request) } }
-            } catch (_: TimeoutCancellationException) {
-                throw ProtocolClientException.RequestTimeout(config.requestTimeout.inWholeMilliseconds)
-            }
+            val ok = withTimeoutOrNull(config.requestTimeout) { runInterruptible(ioDispatcher) { exchange(request, line) } }
+                ?: throw ProtocolClientException.RequestTimeout(config.requestTimeout.inWholeMilliseconds)
             reusable = true
+            if (framer.hasPending) {
+                unusableReason = "the daemon sent bytes beyond the response"
+                close()
+            }
             ok
         } catch (e: ProtocolClientException.Daemon) {
             reusable = true
@@ -103,12 +107,15 @@ class PohunekConnection private constructor(
         }
     }
 
-    private fun exchange(request: Request) = decoder.decode(readLine(request), request.id)
+    private fun exchange(request: Request, line: ByteArray) = decoder.decode(readLine(line), request.id)
 
-    private fun readLine(request: Request): String = try {
-        val out = ByteBuffer.wrap(LineFramer.encode(request.toLine()))
+    /** Interrupting the blocked thread closes the channel; that surfaces as cancellation, not as a lost connection. */
+    private fun readLine(line: ByteArray): String = try {
+        val out = ByteBuffer.wrap(line)
         while (out.hasRemaining()) channel.write(out)
         receiveLine()
+    } catch (e: ClosedByInterruptException) {
+        throw CancellationException("interrupted while waiting for the daemon", e)
     } catch (e: IOException) {
         throw ProtocolClientException.ConnectionLost(e.message ?: e.javaClass.simpleName, e)
     }
@@ -131,20 +138,27 @@ class PohunekConnection private constructor(
         private const val READ_BUFFER_BYTES = 8192
 
         suspend fun open(route: HostRoute, config: ClientConfig, ioDispatcher: CoroutineDispatcher): PohunekConnection {
-            val channel = runInterruptible(ioDispatcher) {
-                val opened = SocketChannel.open()
-                try {
-                    opened.socket().connect(InetSocketAddress(route.host, route.port), config.connectTimeout.inWholeMilliseconds.toInt())
-                    opened
-                } catch (e: SocketTimeoutException) {
-                    opened.close()
-                    throw ProtocolClientException.ConnectTimeout(route, config.connectTimeout.inWholeMilliseconds).also { it.addSuppressed(e) }
-                } catch (e: IOException) {
-                    opened.close()
-                    throw ProtocolClientException.ConnectionFailed(route, e)
-                }
-            }
+            val channel = withTimeoutOrNull(config.connectTimeout) { runInterruptible(ioDispatcher) { connect(route, config) } }
+                ?: throw ProtocolClientException.ConnectTimeout(route, config.connectTimeout.inWholeMilliseconds)
             return PohunekConnection(channel, config, ioDispatcher)
+        }
+
+        /** Resolves and connects; the socket timeout bounds the handshake, the caller's timeout also bounds name resolution. */
+        private fun connect(route: HostRoute, config: ClientConfig): SocketChannel {
+            val opened = SocketChannel.open()
+            try {
+                opened.socket().connect(InetSocketAddress(route.host, route.port), config.connectTimeout.inWholeMilliseconds.toInt())
+                return opened
+            } catch (e: IOException) {
+                opened.close()
+                throw connectFailure(route, config, e)
+            }
+        }
+
+        private fun connectFailure(route: HostRoute, config: ClientConfig, e: IOException): Exception = when (e) {
+            is SocketTimeoutException -> ProtocolClientException.ConnectTimeout(route, config.connectTimeout.inWholeMilliseconds).also { it.addSuppressed(e) }
+            is ClosedByInterruptException -> CancellationException("interrupted while connecting to $route", e)
+            else -> ProtocolClientException.ConnectionFailed(route, e)
         }
     }
 }
