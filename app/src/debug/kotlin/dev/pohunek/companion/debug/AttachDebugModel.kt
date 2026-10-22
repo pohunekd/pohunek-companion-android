@@ -24,6 +24,7 @@ internal class AttachDebugModel(
     private val mainDispatcher: CoroutineDispatcher,
 ) {
     var route by mutableStateOf("")
+    private var listedRoute: HostRoute? = null
     var sessions by mutableStateOf<List<SessionInfo>?>(null)
         private set
     var listing by mutableStateOf(false)
@@ -39,7 +40,9 @@ internal class AttachDebugModel(
         listError = null
         scope.launch {
             try {
-                PohunekConnection.open(HostRoute.parse(route.trim()), config.client, ioDispatcher).use { sessions = it.listSessions() }
+                val parsed = HostRoute.parse(route.trim())
+                PohunekConnection.open(parsed, config.client, ioDispatcher).use { sessions = it.listSessions() }
+                listedRoute = parsed
             } catch (e: ProtocolClientException) {
                 sessions = null
                 listError = e.message
@@ -51,10 +54,11 @@ internal class AttachDebugModel(
 
     /** Attaches with a fresh controller and view, so the repaint never lands on an earlier screen. */
     fun attach(session: SessionInfo) {
-        if (active != null) return
+        val listed = listedRoute
+        if (active != null || listed == null) return
         val controller = TerminalController()
         val attachment = TerminalAttachment(
-            HostRoute.parse(route.trim()),
+            listed,
             session.id,
             controller,
             config.client,

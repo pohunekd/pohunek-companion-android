@@ -50,7 +50,7 @@ import kotlinx.coroutines.Dispatchers
  */
 class AttachDebugActivity : ComponentActivity() {
     private var model: AttachDebugModel? = null
-    private val screenDump = ScreenDumpReceiver { model?.active?.controller?.screenText() }
+    private val screenDump = ScreenDumpReceiver { model?.active?.controller?.takeIf { it.isAttached }?.screenText() }
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,7 +64,7 @@ class AttachDebugActivity : ComponentActivity() {
         }
         val created = AttachDebugModel(config, lifecycleScope, Dispatchers.IO, Dispatchers.Main)
         model = created
-        registerReceiver(screenDump, IntentFilter(ScreenDumpReceiver.ACTION), Context.RECEIVER_EXPORTED)
+        registerReceiver(screenDump, IntentFilter(ScreenDumpReceiver.ACTION), ScreenDumpReceiver.SENDER_PERMISSION, null, Context.RECEIVER_EXPORTED)
         setContent {
             PohunekTheme {
                 AttachDebugScreen(created, ::openDemo, Modifier.semantics { testTagsAsResourceId = true })
@@ -74,8 +74,8 @@ class AttachDebugActivity : ComponentActivity() {
 
     override fun onDestroy() {
         if (model != null) unregisterReceiver(screenDump)
-        // Finishing leaves the screen; a configuration change never destroys it (see the manifest).
-        if (isFinishing) model?.detach()
+        // The model is not retained, so any destruction leaves the screen: a recreated activity starts without the attachment.
+        model?.detach()
         super.onDestroy()
     }
 

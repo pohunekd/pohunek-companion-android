@@ -32,6 +32,9 @@ internal class ScreenDumpReceiver(private val screenText: () -> String?) : Broad
 
     companion object {
         const val ACTION = "dev.pohunek.companion.debug.DUMP_SCREEN"
+
+        /** Held by the adb shell and not by ordinary apps, so only the host can trigger a dump. */
+        const val SENDER_PERMISSION = "android.permission.DUMP"
         const val RESULT_WRITTEN = 1
         const val RESULT_UNAVAILABLE = 2
         private const val NO_TERMINAL = "no terminal is attached"

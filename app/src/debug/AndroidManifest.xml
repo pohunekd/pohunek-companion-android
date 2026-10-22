@@ -14,7 +14,7 @@
         <!-- Handles rotation in place, so it resizes the attached PTY instead of attaching again. Exported for `ui-agent start`'s launch. -->
         <activity
             android:name=".debug.AttachDebugActivity"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale|locale|layoutDirection"
             android:exported="true"
             android:label="@string/attach_debug_title"
             android:windowSoftInputMode="adjustResize" />
