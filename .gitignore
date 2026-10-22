@@ -19,3 +19,6 @@ logs/
 *.keystore
 keystore.properties
 .android/
+
+# Staged libghostty-vt build output (scripts/build-libghostty-vt)
+vendor/libghostty-vt/
