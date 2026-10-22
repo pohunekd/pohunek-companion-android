@@ -125,7 +125,7 @@ claim_slot() { # DEVICE DAEMON
     "$dev" --detach --name "$name" --android-home \
       --label "ui-agent.worktree=$root" --label "ui-agent.slot=$slot" \
       --label "ui-agent.device=$1" --label "ui-agent.daemon=$2" \
-      sleep infinity >/dev/null
+      sleep infinity >/dev/null 8>&-
     exec 8>&-
     printf '%s' "$slot"
     return 0
