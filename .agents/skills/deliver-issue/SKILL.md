@@ -41,8 +41,7 @@ background watch so its completion resumes the work.
 
 ## 3. Verify
 
-1. `scripts/gates` on the final revision; every gate passes. Gates land in M1
-   (#10); until then the PR reports "no gates yet".
+1. `scripts/gates` on the final revision; every gate passes.
 2. Run the app for UI or integration changes through `scripts/ui-agent` (lands
    in M1, #13; before that a manual `adb` run on an emulator is acceptable) and
    record what you observed; attach a screenshot for visible
@@ -62,7 +61,7 @@ with evidence. Re-run the gates when code changed.
 1. Commit (imperative subject, no trailers), push the branch, and open the PR
    with the template: `Closes #N`, DoD table, gate results, manual evidence,
    self-review outcome, filed issues.
-2. Watch the PR checks (`gh pr checks <pr> --watch` in the background; before #10 there are none). On
+2. Watch the PR checks (`gh pr checks <pr> --watch` in the background). On
    failure read the log (`gh run view <run> --log-failed`), fix the cause, and
    push. A failure unrelated to your diff is filed as an issue; rerun the job
    once, and if it fails again, mark your issue `blocked` on it.

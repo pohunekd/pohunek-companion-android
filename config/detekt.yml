@@ -1,0 +1,20 @@
+# Overrides on top of detekt's default rule set (buildUponDefaultConfig).
+
+style:
+  MaxLineLength:
+    maxLineLength: 160
+  ReturnCount:
+    max: 3
+
+naming:
+  FunctionNaming:
+    # Composable functions are PascalCase by convention.
+    ignoreAnnotated: ['Composable']
+
+complexity:
+  LongMethod:
+    threshold: 80
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 10
+    ignoreDefaultParameters: true

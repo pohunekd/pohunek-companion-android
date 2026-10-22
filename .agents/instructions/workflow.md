@@ -68,9 +68,7 @@ to call the current issue done.
 An agent merges its PR (squash, PR title as subject, branch deleted) when all
 of these hold on the current head:
 
-1. The required `ci` check is green. Until CI exists (#10), the PR says "no
-   CI yet" and the gate results come from the gates that exist (none before
-   #10).
+1. The required `ci` check is green.
 2. A self-review by an independent reviewer (a fresh subagent or Codex that did
    not write the change) found no unresolved correctness or security problem;
    each finding is fixed, filed as an issue, or rejected with evidence in a PR

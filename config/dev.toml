@@ -7,3 +7,7 @@ cpus = 4
 # Memory one toolchain container may use (podman --memory): an integer with a
 # k, m, or g suffix. Swap is capped to the same amount.
 memory = "6g"
+
+# Parallel test JVMs per Gradle test task (maxParallelForks), read by the root
+# build.gradle.kts for local runs and CI alike: a positive integer.
+test_forks = 2
