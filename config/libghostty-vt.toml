@@ -1,0 +1,27 @@
+# Inputs of scripts/build-libghostty-vt. Flat `key = "value"` lines only; every
+# key is required. Zig and the NDK are installed by container/Containerfile and
+# are checked against the values below, so the two places cannot drift.
+
+# Upstream repository and the commit libghostty-vt is built from. The
+# libghostty-vt C ABI is not stable: the commit is always pinned and is the
+# one expo-libghostty's JNI targets (see docs/architecture.md).
+ghostty_repo = "https://github.com/ghostty-org/ghostty.git"
+ghostty_commit = "b0947378349eff70f7030dda0e6d022fae1e6fbd"
+
+# Toolchain versions the build is verified against (ghostty hard-pins the Zig
+# minor version).
+zig_version = "0.15.2"
+ndk_version = "27.1.12297006"
+
+# `zig build` options: -Doptimize and -Dsimd. SIMD is off because it pulls the
+# simdutf and highway C++ paths, which libghostty-vt does not need on Android.
+optimize = "ReleaseFast"
+simd = "false"
+
+# Staged output (gitignored): per-ABI libghostty-vt.a, headers, and a sha256
+# manifest.
+output_dir = "vendor/libghostty-vt"
+
+# Container-local directory for the source checkout, Zig caches and
+# intermediates, deleted at the start of every build.
+work_dir = "/tmp/libghostty-vt-build"

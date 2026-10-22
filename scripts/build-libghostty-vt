@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# Build libghostty-vt for Android from source and stage it under the output
+# directory of config/libghostty-vt.toml.
+#
+# Usage: scripts/build-libghostty-vt [--verify]
+#   (no flag)  build both ABIs from a fresh checkout and empty Zig caches
+#   --verify   check the staged output against its manifest and the config
+#
+# A build runs in the toolchain container; outside it the script re-executes
+# itself through scripts/dev.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+config="$root/config/libghostty-vt.toml"
+
+die() { echo "build-libghostty-vt: $*" >&2; exit 1; }
+
+mode=build
+case "${1:-}" in
+  "") ;;
+  --verify) mode=verify ;;
+  *) die "usage: scripts/build-libghostty-vt [--verify]" ;;
+esac
+[ "$#" -le 1 ] || die "usage: scripts/build-libghostty-vt [--verify]"
+
+# /run/.containerenv exists inside every Podman container. --verify needs only
+# sha256sum, so it runs wherever it is called.
+if [ "$mode" = build ] && [ ! -e /run/.containerenv ]; then
+  exec "$root/scripts/dev" "$root/scripts/build-libghostty-vt" "$@"
+fi
+
+# Required keys of the config; a missing or malformed value is an error.
+config_value() {
+  local key="$1" value
+  [ -r "$config" ] || die "missing $config"
+  value="$(sed -n -E "s/^${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*\$/\\1/p" "$config" | head -n 1)"
+  value="${value#\"}"; value="${value%\"}"
+  [ -n "$value" ] || die "$config: missing required key '$key'"
+  printf '%s' "$value"
+}
+ghostty_repo="$(config_value ghostty_repo)"
+ghostty_commit="$(config_value ghostty_commit)"
+zig_version="$(config_value zig_version)"
+ndk_version="$(config_value ndk_version)"
+optimize="$(config_value optimize)"
+simd="$(config_value simd)"
+output_dir="$(config_value output_dir)"
+[[ "$ghostty_commit" =~ ^[0-9a-f]{40}$ ]] || die "$config: ghostty_commit must be a full 40-digit commit id"
+[[ "$simd" =~ ^(true|false)$ ]] || die "$config: simd must be true or false"
+[[ "$output_dir" =~ ^vendor/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || die "$config: output_dir must be vendor/<name>"
+
+out="$root/$output_dir"
+# Source, caches and intermediates live at a fixed container-local path, so the
+# absolute paths that end up in the archives' debug info do not depend on where
+# the worktree is checked out.
+work="$(config_value work_dir)"
+[[ "$work" =~ ^/tmp/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || die "$config: work_dir must be /tmp/<name>"
+
+# ABI name -> Zig target triple.
+abis=(arm64-v8a x86_64)
+declare -A triple=([arm64-v8a]=aarch64-linux-android [x86_64]=x86_64-linux-android)
+
+manifest_info() {
+  cat <<INFO
+ghostty_repo=$ghostty_repo
+ghostty_commit=$ghostty_commit
+zig_version=$zig_version
+ndk_version=$ndk_version
+optimize=$optimize
+simd=$simd
+INFO
+}
+
+verify() {
+  [ -f "$out/BUILD-INFO" ] && [ -f "$out/MANIFEST.sha256" ] || die "no staged output in $output_dir"
+  manifest_info | cmp -s - "$out/BUILD-INFO" \
+    || die "$output_dir/BUILD-INFO does not match $config"
+  (cd "$out" && sha256sum --check --strict --quiet MANIFEST.sha256) \
+    || die "$output_dir does not match MANIFEST.sha256"
+  # Every staged file must be in the manifest, so nothing unlisted can ride along.
+  [ -z "$(find "$out" ! -type f ! -type d)" ] || die "$output_dir contains entries that are not regular files"
+  listed="$(cd "$out" && cut -c67- MANIFEST.sha256 | sort)"
+  present="$(cd "$out" && find . -type f ! -name MANIFEST.sha256 | sed 's|^\./||' | sort)"
+  [ "$listed" = "$present" ] || die "$output_dir contains files that are not in MANIFEST.sha256"
+  echo "build-libghostty-vt: $output_dir verified ($(wc -l < "$out/MANIFEST.sha256") files)"
+}
+
+if [ "$mode" = verify ]; then verify; exit 0; fi
+
+# The container image pins the toolchain; refuse to build with anything else.
+[ "$(zig version)" = "$zig_version" ] \
+  || die "zig $(zig version) is installed, $config wants $zig_version"
+ndk="${ANDROID_HOME:?ANDROID_HOME is not set}/ndk/$ndk_version"
+grep -qx "Pkg.Revision = $ndk_version" "$ndk/source.properties" 2>/dev/null \
+  || die "NDK $ndk_version is not installed at $ndk"
+export ANDROID_NDK_HOME="$ndk"
+llvm_bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+llvm_ar="$llvm_bin/llvm-ar"
+llvm_strip="$llvm_bin/llvm-strip"
+[ -x "$llvm_ar" ] && [ -x "$llvm_strip" ] || die "llvm-ar or llvm-strip not found in NDK $ndk_version"
+
+# Zig names the archive members after cache paths ("<cache>/o/<hash>/x.o") and
+# writes the same per-run cache directory into the DWARF, so two builds of one
+# commit differ in those bytes only. Repack the objects without debug info under
+# their base names, in the original order, with zeroed metadata. The symbol
+# table stays.
+normalize_archive() {
+  local archive="$1" dir name
+  local listing
+  local -a names=() bases=()
+  dir="$(mktemp -d "$work/normalize.XXXXXX")"
+  listing="$("$llvm_ar" t "$archive")"
+  mapfile -t names <<< "$listing"
+  [ "${#names[@]}" -gt 0 ] || die "$archive has no members"
+  for name in "${names[@]}"; do bases+=("$(basename "$name")"); done
+  [ "$(printf '%s\n' "${bases[@]}" | sort -u | wc -l)" -eq "${#bases[@]}" ] \
+    || die "$archive has members with the same base name"
+  (cd "$dir" && "$llvm_ar" x "$archive" && rm -f "$archive" \
+    && "$llvm_strip" --strip-debug "${bases[@]}" \
+    && "$llvm_ar" rcsD "$archive" "${bases[@]}")
+  rm -rf "$dir"
+}
+
+rm -rf "$work"
+mkdir -p "$work"
+
+# Shallow checkout of exactly the pinned commit; the fetched object must hash to it.
+src="$work/src"
+rm -rf "$src"
+git init --quiet "$src"
+git -C "$src" fetch --quiet --depth 1 "$ghostty_repo" "$ghostty_commit"
+git -C "$src" checkout --quiet --detach FETCH_HEAD
+[ "$(git -C "$src" rev-parse HEAD)" = "$ghostty_commit" ] \
+  || die "fetched commit is not $ghostty_commit"
+
+# Zig verifies every package it downloads against the hash in build.zig.zon.
+export ZIG_GLOBAL_CACHE_DIR="$work/zig-global-cache"
+export ZIG_LOCAL_CACHE_DIR="$work/zig-local-cache"
+
+# Zig's code generation depends on the number of CPUs it sees (some functions get
+# a different stack layout), so the compiler runs on exactly one CPU and the
+# output is the same on every host.
+command -v taskset >/dev/null || die "taskset is required"
+cpu="$(taskset -pc $$ | sed -E 's/.*: *([0-9]+).*/\1/')"
+[[ "$cpu" =~ ^[0-9]+$ ]] || die "cannot determine an allowed CPU"
+
+stage="$work/stage"
+rm -rf "$stage"
+mkdir -p "$stage"
+for abi in "${abis[@]}"; do
+  echo "build-libghostty-vt: building $abi (${triple[$abi]})"
+  prefix="$work/prefix-$abi"
+  rm -rf "$prefix"
+  (cd "$src" && taskset -c "$cpu" zig build -Demit-lib-vt "-Dtarget=${triple[$abi]}" "-Dsimd=$simd" \
+    "-Doptimize=$optimize" --prefix "$prefix")
+  mkdir -p "$stage/$abi"
+  cp "$prefix/lib/libghostty-vt.a" "$stage/$abi/libghostty-vt.a"
+  normalize_archive "$stage/$abi/libghostty-vt.a"
+done
+# Headers are target independent; both prefixes must agree.
+diff -r "$work/prefix-${abis[0]}/include" "$work/prefix-${abis[1]}/include" >/dev/null \
+  || die "headers differ between ABIs"
+cp -R "$work/prefix-${abis[0]}/include" "$stage/include"
+
+manifest_info > "$stage/BUILD-INFO"
+(cd "$stage" && find . -type f ! -name MANIFEST.sha256 | sed 's|^\./||' | LC_ALL=C sort \
+  | xargs sha256sum > MANIFEST.sha256)
+
+rm -rf "$out"
+mkdir -p "$(dirname "$out")"
+mv "$stage" "$out"
+verify

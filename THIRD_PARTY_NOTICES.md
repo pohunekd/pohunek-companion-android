@@ -1,8 +1,11 @@
 # Third-party notices
 
 This project copies code from the sources below. Each copied file keeps its
-original header. All sources are MIT licensed; the license text of each is in
-the `LICENSE` file of that repository at the pinned commit. Entries marked
+original header. All copied sources and everything linked into the shipped
+libghostty-vt are MIT licensed; the license text of each is in the `LICENSE`
+file of that repository at the pinned commit. The libghostty-vt section also
+inventories packages with other licenses that its build fetches but does not
+ship. Entries marked
 "planned" list files not copied yet; the issue that copies them updates the
 entry. The decisions behind this list are in
 [docs/architecture.md](docs/architecture.md).
@@ -29,10 +32,82 @@ entry. The decisions behind this list are in
 - Commit: `b0947378349eff70f7030dda0e6d022fae1e6fbd`
 - License: MIT, Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors
   (https://github.com/ghostty-org/ghostty/blob/b0947378349eff70f7030dda0e6d022fae1e6fbd/LICENSE)
-- Use: libghostty-vt is built from source at this commit with Zig 0.15.2 and
-  NDK 27.1.12297006; no source files are vendored into this repository.
-  Status: planned. The transitive dependencies and bundled fonts of
-  libghostty-vt are inventoried in #11.
+- Use: `scripts/build-libghostty-vt` builds libghostty-vt from source at this
+  commit with Zig 0.15.2 and NDK 27.1.12297006 into the gitignored
+  `vendor/libghostty-vt/`; no source files are vendored into this repository.
+  Pins are in `config/libghostty-vt.toml`.
+
+### What the library contains
+
+`libghostty-vt.a` (arm64-v8a, x86_64) is built with `-Dsimd=false`. Its
+undefined symbols are libc and libm functions only, and it contains exactly
+three kinds of code (no symbol of ghostty's vendored `stb` is defined in it):
+
+| Component | Version | License | Source |
+| --- | --- | --- | --- |
+| ghostty `src/` | `b0947378` | MIT, Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors | the pinned commit |
+| uucode | 0.2.0 | MIT, Copyright (c) 2026 Jacob Sandlund | https://github.com/jacobsandlund/uucode, fetched by Zig from `deps.files.ghostty.org` |
+| Zig `compiler_rt` | 0.15.2 | MIT (Expat), Copyright (c) Zig contributors | the Zig 0.15.2 distribution in the toolchain image |
+
+The Nerd Fonts symbols font and the JetBrains Mono font listed below are
+fetched by ghostty's build graph but are not part of the library output. A
+terminal view that bundles the Nerd Fonts symbols font adds its own entry in
+the issue that bundles it (MIT; the package carries its license file).
+
+### Every dependency in `build.zig.zon`
+
+All entries of ghostty's `build.zig.zon` at the pinned commit, with the
+license found in the fetched package (Zig checks each download against the
+package hash in the manifest). `Fetched` marks packages the
+`scripts/build-libghostty-vt` run downloads because ghostty's build graph
+evaluates them; none except uucode ends up in the output.
+
+| Dependency | Version | License | Fetched | In the library |
+| --- | --- | --- | --- | --- |
+| libxev | `34fa5087` | MIT | yes | no |
+| vaxis (libvaxis) | 0.5.1 | MIT | yes | no |
+| z2d | 0.10.0 | MPL-2.0 (`SPDX-License-Identifier` in its `build.zig.zon`; the package omits the license text, which is in the upstream repository) | yes | no |
+| zig-objc | `f356ed02` | MIT | no | no |
+| zig-js | `04db83c6` | MIT | no | no |
+| uucode | 0.2.0 | MIT | yes | **yes** |
+| zig-wayland | `1b5c038e` (0.5.0-dev) | MIT | no | no |
+| zf | 0.10.3 | MIT | yes | no |
+| gobject (ghostty-org/zig-gobject) | 0.3.0 | MIT (upstream repository license; the package omits the license file) | yes | no |
+| dcimgui (Dear Bindings, Dear ImGui) | 1.92.5 | MIT | yes | no |
+| fontconfig | 2.14.2 | fontconfig license (MIT-style) | yes | no |
+| freetype | 2.13.2 | FreeType License or GPL-2.0 (dual) | yes | no |
+| gtk4-layer-shell | 1.1.0 | MIT | no | no |
+| harfbuzz | 11.0.0 | "Old MIT" | yes | no |
+| highway | 1.2.0 | Apache-2.0 or BSD-3-Clause | no | no |
+| libintl (gettext) | 0.24 | LGPL-2.1-or-later (libintl); the gettext tools are GPL-3.0 | no | no |
+| libpng | 1.6.43 | PNG Reference Library License v2 | yes | no |
+| macos | in-tree | ghostty (MIT), no third-party code | no | no |
+| oniguruma | 6.9.9 | BSD-2-Clause | yes | no |
+| opengl | in-tree | ghostty (MIT), no third-party code | no | no |
+| sentry (sentry-native) | 0.7.8 | MIT | no | no |
+| simdutf | 5.2.8 | Apache-2.0 or MIT (upstream dual license; vendored in the ghostty repository) | no | no |
+| wuffs | 0.0.0 (`122037b3`) | MIT or Apache-2.0; its test images (`pixels`) are CC0-1.0 | yes | no |
+| zlib | 1.3.1 | zlib license | yes | no |
+| glslang | 14.2.0 | BSD-3-Clause, BSD-2-Clause, MIT, Apache-2.0 and others (see the package's `LICENSE.txt`) | yes | no |
+| SPIRV-Cross | 13.1.1 | Apache-2.0; Khronos Free Use for parts | yes | no |
+| wayland | `9cb3d7aa` | MIT | no | no |
+| wayland-protocols | 1.47 | MIT | no | no |
+| plasma-wayland-protocols | `12207e08` | LGPL-2.1-or-later, MIT, BSD-3-Clause, CC0-1.0, MIT-CMU (see the package's `LICENSES/`) | no | no |
+| JetBrains Mono | 2.304 | OFL-1.1 | yes | no |
+| Nerd Fonts Symbols Only | 3.4.0 | MIT (see the package's `LICENSE`) | yes | no |
+| apple-sdk | in-tree | ghostty (MIT), no third-party code | no | no |
+| android-ndk | in-tree | ghostty (MIT); reads the installed NDK and copies none of it | no | no |
+| iTerm2-Color-Schemes | `8c97c3c` (release 20260629) | MIT | yes | no |
+
+Packages that dependencies above pull in transitively and that the build also
+fetches: libxml2 2.11.5 (MIT, via fontconfig), Dear ImGui 1.92.5 (MIT, via
+dcimgui), zigimg 0.1.0 (MIT) and uucode 0.1.0 (MIT). Not fetched by the
+build, but referenced by the dependencies above: breakpad (BSD-3-Clause, via
+sentry).
+
+The inventory was taken by running `zig build --fetch=all` on the pinned
+commit in the toolchain container and reading the license files of the fetched
+packages. Re-take it when `ghostty_commit` changes.
 
 ## opencode-mobile
 
