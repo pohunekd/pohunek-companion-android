@@ -118,6 +118,22 @@ scripts/ui-agent health | log [app|daemon|emulator]
   The AVD volume is shared and kept; remove it with `podman volume rm
   pohunek-companion-android-avd` when no slot is running.
 
+### Protocol client check
+
+`:protocol` has a hand-run check (`protocol/src/manual`, not part of the suite)
+that sends `daemon.health` and `session.list` through the real client. The
+bridge listens on the loopback of the run's own slot container, so the check
+runs there with a classpath built by one `scripts/dev` call:
+
+```bash
+CP=$(scripts/dev ./gradlew -q :protocol:manualClasspath | sed -n 's/^MANUAL_CLASSPATH=//p')
+podman exec -w "$PWD" pohunek-ui-agent-slot-N java -cp "$CP" \
+  dev.pohunek.companion.protocol.manual.ListSessionsCheckKt 127.0.0.1:PORT CONNECT_MS REQUEST_MS
+```
+
+`PORT` is the bridge port from `scripts/ui-agent status`. The check prints ids,
+agents, and states only; scan any output for paths before publishing it.
+
 ### Measurements
 
 Measured on the owner's machine (24 threads, 60 GiB, KVM), API 36 `google_apis`
