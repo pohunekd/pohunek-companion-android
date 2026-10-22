@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Exported so `adb shell am start -n dev.pohunek.companion/.debug.TerminalDemoActivity` can open it; debug builds only. -->
+        <activity
+            android:name=".debug.TerminalDemoActivity"
+            android:exported="true"
+            android:label="@string/terminal_demo_title"
+            android:windowSoftInputMode="adjustResize" />
+    </application>
+</manifest>

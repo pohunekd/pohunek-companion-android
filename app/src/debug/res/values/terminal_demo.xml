@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="terminal_demo_title">Terminal demo</string>
+    <string name="terminal_demo_colours">Colours</string>
+    <string name="terminal_demo_alt_screen">Alt screen</string>
+    <string name="terminal_demo_clear">Clear</string>
+
+    <!-- Frames drawn by one alt-screen redraw run. -->
+    <integer name="terminal_demo_redraw_frames">40</integer>
+    <!-- Pause between two alt-screen frames, in milliseconds. -->
+    <integer name="terminal_demo_frame_delay_ms">60</integer>
+</resources>
