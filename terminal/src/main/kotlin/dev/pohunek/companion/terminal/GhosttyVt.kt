@@ -106,6 +106,9 @@ internal object GhosttyVt {
   /** Active selection as UTF-8 (plain, unwrapped, trimmed), or null if none. */
   external fun nativeSelectionText(handle: Long): ByteArray?
 
+  /** Text of the [cols] x [rows] viewport as UTF-8 (plain, unwrapped, trimmed), without touching the selection; null on failure. */
+  external fun nativeViewportText(handle: Long, cols: Int, rows: Int): ByteArray?
+
   /** Conservative check: newlines / bracketed-paste escapes are unsafe. */
   external fun nativeIsPasteSafe(data: ByteArray): Boolean
 

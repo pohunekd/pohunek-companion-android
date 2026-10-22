@@ -10,6 +10,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.put
 
 /** Request envelope; `params` is a JSON value and `null` for parameterless methods. */
 @Serializable
@@ -29,6 +30,27 @@ object Requests {
         }
         return Request(Wire.CLIENT_RANGE, id, "session.list", params)
     }
+
+    /** `initial_dimensions` is omitted when the geometry is unknown, which keeps the worker's current size. */
+    fun sessionAttach(id: String, sessionId: String, dimensions: TerminalDimensions?): Request {
+        val params = buildJsonObject {
+            put("session_id", sessionId)
+            if (dimensions != null) put("initial_dimensions", Wire.json.encodeToJsonElement(TerminalDimensions.serializer(), dimensions))
+        }
+        return Request(Wire.CLIENT_RANGE, id, "session.attach", params)
+    }
+
+    fun sessionResize(id: String, sessionId: String, dimensions: TerminalDimensions): Request {
+        val params = buildJsonObject {
+            put("session_id", sessionId)
+            put("cols", dimensions.cols)
+            put("rows", dimensions.rows)
+        }
+        return Request(Wire.CLIENT_RANGE, id, "session.resize", params)
+    }
+
+    fun sessionDetach(id: String, streamId: String): Request =
+        Request(Wire.CLIENT_RANGE, id, "session.detach", buildJsonObject { put("stream_id", streamId) })
 }
 
 /**

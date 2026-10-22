@@ -72,6 +72,16 @@ class PohunekConnection private constructor(
     suspend fun listSessions(filters: List<SessionFilter> = emptyList()): List<SessionInfo> =
         call { Requests.sessionList(it, filters) }.decodeResult(ListSerializer(SessionInfo.serializer()))
 
+    /** Mints the one-shot stream id for [sessionId]; [dimensions] is the geometry the worker applies before it emits the first byte. */
+    suspend fun attach(sessionId: String, dimensions: TerminalDimensions?): SessionAttachResult =
+        call { Requests.sessionAttach(it, sessionId, dimensions) }.decodeResult(SessionAttachResult.serializer())
+
+    suspend fun resize(sessionId: String, dimensions: TerminalDimensions): SessionInfo =
+        call { Requests.sessionResize(it, sessionId, dimensions) }.decodeResult(SessionResizeResult.serializer()).session
+
+    suspend fun detach(streamId: String): SessionDetachResult =
+        call { Requests.sessionDetach(it, streamId) }.decodeResult(SessionDetachResult.serializer())
+
     override fun close() {
         if (unusableReason == null) unusableReason = "the connection was closed"
         try {
@@ -137,11 +147,13 @@ class PohunekConnection private constructor(
         /** Size of one TCP read; not a protocol limit. */
         private const val READ_BUFFER_BYTES = 8192
 
-        suspend fun open(route: HostRoute, config: ClientConfig, ioDispatcher: CoroutineDispatcher): PohunekConnection {
-            val channel = withTimeoutOrNull(config.connectTimeout) { runInterruptible(ioDispatcher) { connect(route, config) } }
+        suspend fun open(route: HostRoute, config: ClientConfig, ioDispatcher: CoroutineDispatcher): PohunekConnection =
+            PohunekConnection(openChannel(route, config, ioDispatcher), config, ioDispatcher)
+
+        /** A connected blocking channel to [route]; shared with the raw attach connection. */
+        internal suspend fun openChannel(route: HostRoute, config: ClientConfig, ioDispatcher: CoroutineDispatcher): SocketChannel =
+            withTimeoutOrNull(config.connectTimeout) { runInterruptible(ioDispatcher) { connect(route, config) } }
                 ?: throw ProtocolClientException.ConnectTimeout(route, config.connectTimeout.inWholeMilliseconds)
-            return PohunekConnection(channel, config, ioDispatcher)
-        }
 
         /** Resolves and connects; the socket timeout bounds the handshake, the caller's timeout also bounds name resolution. */
         private fun connect(route: HostRoute, config: ClientConfig): SocketChannel {

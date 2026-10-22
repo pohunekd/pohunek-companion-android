@@ -64,7 +64,7 @@ SDK and tools under `/opt` are read-only.
 scripts/dev ./gradlew :app:assembleDebug   # any command in the toolchain container
 scripts/build-libghostty-vt                # libghostty-vt.a for arm64-v8a and x86_64 into vendor/libghostty-vt/ (--verify checks it)
 scripts/gates                              # Spotless, detekt, lint, unit tests, assembleDebug: the set CI runs
-scripts/ui-agent start                     # emulator + app + isolated daemon; then screenshot, tree, click, type, key, stop (see verification.md)
+scripts/ui-agent start                     # emulator + app + isolated daemon; then screenshot, tree, click, type, key, screen, stop (see verification.md)
 ```
 
 The repository is public: published screenshots, logs, and PR or issue text

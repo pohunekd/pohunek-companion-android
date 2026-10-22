@@ -22,7 +22,9 @@ entry. The decisions behind this list are in
   - `GhosttyTerminalView.kt`, `GhosttyVt.kt`, `SnapshotFormat.kt`,
     `StickyModifier.kt`, `TerminalAccessoryBar.kt` (from
     `src/main/java/expo/modules/libghostty/`)
-  - `cpp/ghostty_jni.cpp` (from `src/main/cpp/`)
+  - `cpp/ghostty_jni.cpp` (from `src/main/cpp/`); `nativeViewportText` is added
+    to read the visible grid without touching the selection, and the selection
+    formatting is factored into a helper shared with `nativeSelectionText`
   - `CMakeLists.txt`: library name and the libghostty-vt paths (the staged
     `vendor/libghostty-vt/`) adapted; the 16 KB page-size link option is kept.
 - Not copied: the Expo glue (`ExpoLibghosttyModule.kt`, `ExpoLibghosttyView.kt`),

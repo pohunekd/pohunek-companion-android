@@ -1,12 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- The attach debug screen opens TCP connections to the daemon; release builds have no screen that does yet. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application>
         <!-- Exported so `adb shell am start -n dev.pohunek.companion/.debug.TerminalDemoActivity` can open it; debug builds only. -->
         <activity
             android:name=".debug.TerminalDemoActivity"
             android:exported="true"
             android:label="@string/terminal_demo_title"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- Handles rotation in place, so it resizes the attached PTY instead of attaching again. Exported for `ui-agent start`'s launch. -->
+        <activity
+            android:name=".debug.AttachDebugActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:exported="true"
+            android:label="@string/attach_debug_title"
             android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>
