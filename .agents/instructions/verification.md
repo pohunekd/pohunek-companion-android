@@ -14,7 +14,6 @@ each with its own exit code:
 Every gate runs even when an earlier one fails. The script prints one result per
 gate (`passed` or `failed (exit N)`) and exits non-zero if any failed. A
 formatting failure is fixed with `scripts/dev ./gradlew spotlessApply`.
-`scripts/ui-agent` lands in M1 (#13).
 
 CI runs the same set in the same container image, so a green local run is the
 expected predictor of a green PR. Run it on the final revision before every push
@@ -59,11 +58,11 @@ intentional changes without ever having caught a bug, and say so in the PR.
 ## Manual verification
 
 UI and integration changes are verified by running the app in an emulator
-against an isolated Pohunek daemon through `scripts/ui-agent` (lands in M1,
-#13; before that, a manual `adb` run is acceptable). The PR records what was
-done and observed, with a screenshot for visible changes. Behaviour that needs
-the owner's phone (NetBird, real network conditions) is left to an owner-run
-milestone check described on the issue; it is reported as unverified until run.
+against an isolated Pohunek daemon through `scripts/ui-agent`. The PR records
+what was done and observed, with a screenshot for visible changes. Behaviour
+that needs the owner's phone (NetBird, real network conditions) is left to an
+owner-run milestone check described on the issue; it is reported as unverified
+until run.
 
 Agent sessions share the owner's machine. Never touch the owner's Pohunek
 runtime directory or real daemon, never run the toolchain on the host outside
@@ -75,13 +74,68 @@ scripts/ui-agent install | restart | stop | status
 scripts/ui-agent screenshot OUT.png | tree | find TAG | click TAG [N]
 scripts/ui-agent type TEXT [--enter] | key esc|ctrl-c|tab|up|down|left|right|enter
 scripts/ui-agent rotate | net-drop | net-restore | host-stop | host-start
-scripts/ui-agent log
+scripts/ui-agent health | log [app|daemon|emulator]
 ```
 
-Each run takes one slot (a `flock` on the host, one `scripts/dev` container with
-an emulator and an isolated daemon behind a `socat` bridge); worktrees run in
-parallel on different slots. Always `stop` when done. The exact semantics are in
-#13 and are documented here when it lands.
+- **Slots.** A run is one `scripts/dev` container named
+  `pohunek-ui-agent-slot-N` (N below `slots` in `config/dev.toml`, default 2),
+  claimed under a host `flock`; its owner is recorded in the container's labels,
+  so there is no state file. One run per worktree; a slot whose worktree no
+  longer exists is reclaimed. The container holds the emulator (console port
+  `emulator_console_port_base + 2N`), the isolated `pohunekd --dev-subprocess`
+  with its own XDG directories and synthetic sessions running `/bin/sh`, and a
+  `socat` bridge from `127.0.0.1:(bridge_port_base + N)` to the daemon's Unix
+  socket, reversed into the device with `adb reverse`. The app reaches the
+  daemon at `127.0.0.1:(bridge_port_base + N)`; `status` prints the port.
+  The container is the containment: `stop` removes it and with it every
+  process and temporary directory of the run. Nothing of the host's
+  environment, home directory, or Pohunek runtime directory enters it.
+- **Start.** `start` boots the emulator from a quick-boot snapshot (created once
+  per AVD in the `pohunek-companion-android-avd` volume, keyed by system image,
+  emulator build, cores, RAM, and screen), starts the daemon and sessions while
+  `assembleDebug` runs, installs the APK, and launches `launch_activity` (the
+  terminal demo screen). `--sessions N` adds N generated sessions to the four
+  fixed ones; `--showcase` replaces them with a realistic dataset of synthetic
+  `claude` and `codex` profiles that run a harmless shell program. `type` cannot
+  enter a literal `%s` (`input text` turns it into a space).
+- **Commands.** `tree` prints one JSON array of the nodes that have a test tag
+  (`id`), text, or description, with `bounds` and `center` in screen pixels;
+  `find TAG` filters by exact tag and `click TAG [N]` taps the centre of the Nth
+  match. `type` and `key` go to the focused view (tap the terminal first).
+  `net-drop` and `net-restore` cut and restore the bridge and the `adb reverse`;
+  `host-stop` and `host-start` stop and restart the daemon with the same
+  directories. `health` sends one `daemon.health` line from the device with
+  toybox `nc` through the reversed port and prints the reply.
+- **Phone.** `--device phone` uses the adb Wi-Fi address in
+  `UI_AGENT_PHONE_ADB=HOST:PORT` instead of an emulator and never changes the
+  phone's settings. Pair it once with `scripts/dev --android-home adb pair
+  HOST:PAIRING_PORT` (the key persists in the Android home volume). With
+  `--owner-daemon` no daemon or bridge starts and the app uses the daemons it is
+  configured for, which an emulator cannot reach: use it with `--device phone`.
+  Both are exercised only by the owner (#16).
+- **Cleanup.** After `stop`, `podman ps -a` shows no `pohunek-ui-agent-slot-*`
+  container and `pgrep -af 'qemu|pohunekd|socat'` shows nothing of the run.
+  The AVD volume is shared and kept; remove it with `podman volume rm
+  pohunek-companion-android-avd` when no slot is running.
+
+### Measurements
+
+Measured on the owner's machine (24 threads, 60 GiB, KVM), API 36 `google_apis`
+x86_64 emulator, 720x1600, 2 cores and 2 GiB RAM, container limit 4 CPUs and
+10 GiB, two slots running:
+
+| What | Result |
+|---|---|
+| AVD creation, once: cold boot, settle, snapshot save | 40 s |
+| Cold boot without snapshot | 16 s |
+| Boot from the quick-boot snapshot (`boot_secs`) | 4 to 6 s |
+| `start` end to end, two worktrees at once, warm Gradle cache | 20 s |
+| `assembleDebug` incremental, one debug source file changed | 9 s (6 to 7 s when nothing changed) |
+| Slot idle (terminal demo screen) | 0.06 cores, 4.3 GiB container memory |
+| Slot busy (alt-screen animation, repeated taps) | 0.9 cores |
+
+CPU is the delta of the container's cgroup `cpu.stat` over the interval, not
+`podman stats` (which reports a lifetime average).
 
 ## Published evidence
 

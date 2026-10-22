@@ -48,7 +48,7 @@
   literals scattered across Composables.
 - A choice among a few fixed options is a chip row, not a dropdown.
 - Give every element an agent needs to target a stable `testTag`
-  (`Component.id`); `scripts/ui-agent tree` (lands in M1, #13) lists nodes by it.
+  (`Component.id`); `scripts/ui-agent tree` lists nodes by it.
 
 ## Configuration
 

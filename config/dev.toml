@@ -6,8 +6,66 @@ cpus = 4
 
 # Memory one toolchain container may use (podman --memory): an integer with a
 # k, m, or g suffix. Swap is capped to the same amount.
-memory = "6g"
+memory = "10g"
 
 # Parallel test JVMs per Gradle test task (maxParallelForks), read by the root
 # build.gradle.kts for local runs and CI alike: a positive integer.
 test_forks = 2
+
+# scripts/ui-agent: one slot is one scripts/dev container (cpus and memory
+# above) holding an emulator, an isolated Pohunek daemon, and a socat bridge.
+
+# Slots that may run at the same time, one per worktree: a positive integer.
+slots = 2
+
+# Emulator CPU cores and RAM inside a slot (hw.cpu.ncore, hw.ramSize): positive
+# integers; the RAM is in MiB. They are part of the AVD name, so a change
+# creates a fresh AVD and quick-boot snapshot on the next start.
+emulator_cores = 2
+emulator_memory_mb = 2048
+
+# Console port of slot n is emulator_console_port_base + 2n (adb uses the next
+# port); the bridge listens on 127.0.0.1:(bridge_port_base + n) inside the
+# slot and in the device through `adb reverse`. 18722 is the default port of
+# the owner's daemons and must not be used.
+emulator_console_port_base = 5554
+bridge_port_base = 28722
+
+# Seconds to wait for an emulator boot to complete: a positive integer.
+boot_timeout_secs = 300
+
+# Emulator screen as WIDTHxHEIGHTxDPI (hw.lcd.*). Small enough to keep software
+# rendering and screenshots cheap.
+emulator_screen = "720x1600x320"
+
+# The app under test: package and the activity `start` launches (relative to the
+# package). The terminal demo screen is the only one that works without a daemon.
+app_package = "dev.pohunek.companion"
+launch_activity = ".debug.TerminalDemoActivity"
+
+# Seconds `scripts/ui-agent start` waits for the device and the daemon (first
+# use includes creating the AVD and its snapshot): a positive integer.
+start_timeout_secs = 900
+
+# Seconds `scripts/ui-agent health` keeps the request connection open for the
+# daemon's reply: a positive integer.
+health_wait_secs = 1
+
+# Seconds `scripts/ui-agent stop` waits for the emulator to exit before the
+# container is stopped: a positive integer.
+shutdown_timeout_secs = 60
+
+# AVD creation (once per AVD name): the avdmanager device profile, the data
+# partition size, and seconds to let the system settle before the snapshot.
+emulator_device = "pixel_6"
+emulator_data_size = "4G"
+snapshot_settle_secs = 5
+
+# Synthetic sessions created or removed at the same time: a positive integer.
+session_parallelism = 8
+
+# Seconds a stopping slot container gets before it is killed: a positive integer.
+container_stop_secs = 10
+
+# Lines printed by `scripts/ui-agent log`: a positive integer.
+log_lines = 400

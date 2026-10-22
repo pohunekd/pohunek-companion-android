@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+# Runs the debug app in an emulator against an isolated Pohunek daemon with
+# synthetic sessions, so an agent can see and operate the real app without
+# touching the owner's desktop, phone, or daemon. All of it runs in one Podman
+# container per run (a slot), started through scripts/dev.
+#
+#   scripts/ui-agent start [--sessions N] [--showcase] [--device phone] [--owner-daemon]
+#                                          claim a slot, boot, build, install, launch
+#   scripts/ui-agent install               build and install the debug APK
+#   scripts/ui-agent restart               force-stop and launch the app again
+#   scripts/ui-agent stop                  stop the run and remove its container
+#   scripts/ui-agent status                slot, ports, publishability, device and daemon state
+#   scripts/ui-agent screenshot OUT.png    save the screen as PNG
+#   scripts/ui-agent tree                  JSON list of tagged and labelled nodes with bounds
+#   scripts/ui-agent find TAG              the nodes whose testTag is TAG (JSON)
+#   scripts/ui-agent click TAG [N]         tap the centre of the Nth (0-based) match
+#   scripts/ui-agent type TEXT [--enter]   type text, optionally followed by Enter
+#   scripts/ui-agent key esc|ctrl-c|tab|up|down|left|right|enter
+#   scripts/ui-agent rotate                toggle portrait and landscape
+#   scripts/ui-agent net-drop | net-restore    cut and restore the app's path to the daemon
+#   scripts/ui-agent host-stop | host-start    stop and restart the isolated daemon
+#   scripts/ui-agent health                one daemon.health request sent from the device
+#   scripts/ui-agent log [app|daemon|emulator]
+#
+# A slot is a container named pohunek-ui-agent-slot-N holding the emulator
+# (console port emulator_console_port_base + 2N, started from a quick-boot
+# snapshot), the isolated `pohunekd --dev-subprocess` with its own XDG
+# directories, and a socat bridge from 127.0.0.1:(bridge_port_base + N) to the
+# daemon's Unix socket, reversed into the device with `adb reverse`. The
+# container, not a pid file, is the containment: `stop` removes it and with it
+# every process and temporary directory of the run. Slot count, ports, and the
+# emulator size come from config/dev.toml. The slots are claimed under a host
+# flock, and the owner of a slot is recorded in the container's labels, so no
+# state file can go stale.
+#
+# --device phone targets the owner's phone over adb Wi-Fi instead of an
+# emulator; its address is read from UI_AGENT_PHONE_ADB (HOST:PORT). The phone
+# must already be paired (see verification.md); its settings are never changed.
+# --owner-daemon starts no daemon: the app uses the daemons it is configured
+# for. Both mark the run as not publishable: describe such a run in words only,
+# and never publish its screenshots, trees, or logs.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+config="$root/config/dev.toml"
+dev="$root/scripts/dev"
+guest_script="$root/scripts/ui-agent-guest"
+container_prefix="pohunek-ui-agent-slot-"
+
+die() { echo "ui-agent: $*" >&2; exit 1; }
+
+# Required keys of config/dev.toml; a missing or malformed value is an error.
+config_value() {
+  local key="$1" value
+  [ -r "$config" ] || die "missing $config"
+  value="$(sed -n -E "s/^${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*\$/\\1/p" "$config" | head -n 1)"
+  value="${value#\"}"; value="${value%\"}"
+  [ -n "$value" ] || die "$config: missing required key '$key'"
+  printf '%s' "$value"
+}
+positive_int_value() {
+  local value
+  value="$(config_value "$1")"
+  [[ "$value" =~ ^[1-9][0-9]*$ ]] || die "$config: $1 must be a positive integer, got '$value'"
+  printf '%s' "$value"
+}
+
+command -v podman >/dev/null || die "podman is not installed"
+command -v flock >/dev/null || die "flock is not installed"
+
+# ---- Slots -------------------------------------------------------------------
+
+# The container of this worktree's run, if any.
+run_container() {
+  podman ps -a --filter "label=ui-agent.worktree=$root" --format '{{.Names}}' | head -n 1
+}
+
+container_label() { # CONTAINER KEY
+  podman container inspect --format "{{ index .Config.Labels \"$2\" }}" "$1"
+}
+
+require_run() {
+  local name
+  name="$(run_container)"
+  [ -n "$name" ] || die "no run in this worktree; start one with: scripts/ui-agent start"
+  [ "$(podman container inspect --format '{{.State.Running}}' "$name")" = true ] ||
+    die "the run's container is not running; clean up with: scripts/ui-agent stop"
+  printf '%s' "$name"
+}
+
+guest() { # command args... (stdout is the command's output)
+  local name
+  name="$(require_run)"
+  podman exec -i "$name" "$guest_script" "$@"
+}
+
+# Removes the containers of slots whose worktree no longer exists.
+reclaim_stale_slots() {
+  local name worktree
+  while read -r name; do
+    [ -n "$name" ] || continue
+    worktree="$(container_label "$name" ui-agent.worktree)"
+    if [ ! -d "$worktree" ]; then
+      echo "ui-agent: removing $name: its worktree $worktree is gone" >&2
+      podman rm -f --time "$(positive_int_value container_stop_secs)" "$name" >/dev/null
+    fi
+  done < <(podman ps -a --filter "name=^${container_prefix}" --format '{{.Names}}')
+}
+
+# Claims the first free slot by creating its container under a host flock;
+# prints the slot number. The container name is the claim, so two concurrent
+# starts can never take the same slot.
+claim_slot() { # DEVICE DAEMON
+  local slots lock_dir slot name
+  slots="$(positive_int_value slots)"
+  lock_dir="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is not set}/pohunek-companion-android"
+  mkdir -p "$lock_dir"
+  exec 8>"$lock_dir/ui-agent-slots.lock"
+  flock 8
+  reclaim_stale_slots
+  [ -z "$(run_container)" ] || die "this worktree already has a run; stop it first: scripts/ui-agent stop"
+  local others
+  others="$(podman ps -a --filter "name=^${container_prefix}" --format '{{.Names}}' | wc -l)"
+  for ((slot = 0; slot < slots; slot++)); do
+    name="$container_prefix$slot"
+    if podman container exists "$name"; then continue; fi
+    "$dev" --detach --name "$name" --android-home \
+      --label "ui-agent.worktree=$root" --label "ui-agent.slot=$slot" \
+      --label "ui-agent.device=$1" --label "ui-agent.daemon=$2" \
+      sleep infinity >/dev/null 8>&-
+    # With no other slot running, a snapshot lock in the shared AVD is stale.
+    if [ "$others" -eq 0 ]; then podman exec "$name" "$guest_script" clean-avd-locks; fi
+    exec 8>&-
+    printf '%s' "$slot"
+    return 0
+  done
+  local holders
+  holders="$(podman ps -a --filter "name=^${container_prefix}" --format '{{.Names}}' |
+    while read -r held; do echo "  $held: $(container_label "$held" ui-agent.worktree)"; done)"
+  die "all $slots slots are in use; stop one of these runs or raise slots in config/dev.toml:
+$holders"
+}
+
+# ---- Build -------------------------------------------------------------------
+
+build_app() {
+  local t0
+  t0="$(date +%s.%N)"
+  "$dev" ./gradlew --console=plain :app:assembleDebug >&2
+  [ -f "$root/app/build/outputs/apk/debug/app-debug.apk" ] || die "the build produced no debug APK"
+  awk -v a="$t0" -v b="$(date +%s.%N)" 'BEGIN{printf "build_secs=%.1f\n", b - a}'
+}
+
+# ---- Lifecycle ---------------------------------------------------------------
+
+started_name=""
+start_done=0
+
+cleanup_failed_start() {
+  if [ -n "$started_name" ] && [ "$start_done" -eq 0 ]; then
+    echo "ui-agent: start failed; logs of $started_name follow, then it is removed" >&2
+    for log in up emulator; do
+      echo "--- $log.log" >&2
+      podman exec "$started_name" tail -n 20 "/tmp/ui-agent/$log.log" >&2 2>&1 || true
+    done
+    podman exec "$started_name" "$guest_script" shutdown >/dev/null 2>&1 || true
+    podman rm -f --time "$(positive_int_value container_stop_secs)" "$started_name" >/dev/null 2>&1 || true
+  fi
+}
+
+start() {
+  local sessions=0 showcase=0 device=emulator daemon=isolated slot name phone_adb="" deadline timeout state
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --sessions)
+        sessions="${2:?--sessions needs a value}"
+        [[ "$sessions" =~ ^(0|[1-9][0-9]*)$ ]] || die "--sessions must be a number without leading zeros"
+        shift 2 ;;
+      --showcase) showcase=1; shift ;;
+      --device)
+        [ "${2:-}" = phone ] || die "--device takes only 'phone'; the default is the emulator"
+        device=phone; shift 2 ;;
+      --owner-daemon) daemon=owner; shift ;;
+      *) die "unknown start option: $1" ;;
+    esac
+  done
+  [ "$daemon" = isolated ] || { [ "$sessions" -eq 0 ] && [ "$showcase" -eq 0 ]; } ||
+    die "--sessions and --showcase need the isolated daemon"
+  [ "$sessions" -eq 0 ] || [ "$showcase" -eq 0 ] || die "--showcase and --sessions cannot be combined"
+  if [ "$device" = phone ]; then
+    phone_adb="${UI_AGENT_PHONE_ADB:-}"
+    [ -n "$phone_adb" ] || die "--device phone needs UI_AGENT_PHONE_ADB=HOST:PORT (the phone's adb Wi-Fi address)"
+  fi
+  timeout="$(positive_int_value start_timeout_secs)"
+
+  trap cleanup_failed_start EXIT
+  slot="$(claim_slot "$device" "$daemon")"
+  name="$container_prefix$slot"
+  started_name="$name"
+  echo "slot=$slot container=$name"
+
+  podman exec "$name" "$guest_script" init "$slot" "$device" "$daemon" $phone_adb
+  podman exec -d "$name" "$guest_script" up "$sessions" "$showcase"
+  # The device boots and the daemon starts while the APK builds.
+  build_app
+
+  deadline=$((SECONDS + timeout))
+  until state="$(podman exec "$name" cat /tmp/ui-agent/up.status 2>/dev/null)"; do
+    [ "$(podman container inspect --format '{{.State.Running}}' "$name" 2>/dev/null)" = true ] || die "the slot container exited"
+    [ "$SECONDS" -lt "$deadline" ] || die "the device and daemon were not ready after ${timeout}s; see: scripts/ui-agent log emulator"
+    sleep 2
+  done
+  if [ "$state" != ok ]; then
+    podman exec "$name" cat /tmp/ui-agent/up.log >&2 || true
+    die "$state"
+  fi
+  podman exec "$name" grep -E '^(avd_created_secs|boot|boot_secs)=' /tmp/ui-agent/up.log || true
+
+  guest install >&2
+  guest launch
+  start_done=1
+  trap - EXIT
+  print_status
+}
+
+stop_run() {
+  local name
+  name="$(run_container)"
+  if [ -z "$name" ]; then
+    echo "no run in this worktree"
+    return 0
+  fi
+  podman exec "$name" "$guest_script" shutdown >/dev/null 2>&1 || true
+  podman stop --time "$(positive_int_value container_stop_secs)" "$name" >/dev/null 2>&1 || true
+  podman rm -f --time "$(positive_int_value container_stop_secs)" "$name" >/dev/null 2>&1 || true
+  ! podman container exists "$name" || die "could not remove $name"
+  echo "stopped $name"
+}
+
+# True when the run's output may appear in a screenshot, log, issue or PR.
+publishable() {
+  local name
+  name="$(run_container)"
+  [ "$(container_label "$name" ui-agent.device)" = emulator ] &&
+    [ "$(container_label "$name" ui-agent.daemon)" = isolated ]
+}
+
+print_status() {
+  local name
+  name="$(require_run)"
+  echo "container=$name slot=$(container_label "$name" ui-agent.slot)"
+  if publishable; then
+    echo "publishable=yes"
+  else
+    echo "publishable=no (owner phone or owner daemon: describe in words only)"
+  fi
+  guest status
+}
+
+warn_unpublishable() {
+  publishable || echo "ui-agent: this run uses the owner's phone or daemons: do not publish this output" >&2
+}
+
+case "${1:-}" in
+  start) shift; start "$@" ;;
+  install) build_app; guest install ;;
+  restart) guest launch ;;
+  stop) stop_run ;;
+  status) print_status ;;
+  screenshot)
+    out="${2:?output PNG path required}"
+    require_run >/dev/null
+    warn_unpublishable
+    guest screenshot >"$out.tmp"
+    [ -s "$out.tmp" ] || { rm -f "$out.tmp"; die "the screenshot is empty"; }
+    mv "$out.tmp" "$out"
+    echo "$out" ;;
+  tree) warn_unpublishable; guest tree ;;
+  find) warn_unpublishable; guest find "${2:?element tag required}" ;;
+  click) guest click "${2:?element tag required}" "${3:-0}" ;;
+  type) guest type "${2:?text required}" "${3:-}" ;;
+  key) guest key "${2:?key required}" ;;
+  rotate) guest rotate ;;
+  net-drop | net-restore | host-stop | host-start | health) guest "$1" ;;
+  log) warn_unpublishable; guest log "${2:-app}" ;;
+  *) sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+esac

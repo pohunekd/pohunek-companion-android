@@ -1,0 +1,744 @@
+#!/usr/bin/env bash
+# Container side of scripts/ui-agent. It runs inside a slot container started by
+# scripts/dev and owns everything in it: the emulator (or the connection to a
+# phone), the isolated Pohunek daemon, the socat bridge, and the device commands.
+# Not meant to be run by hand: use scripts/ui-agent.
+#
+# Usage: scripts/ui-agent-guest <command> [args...]
+set -euo pipefail
+shopt -s inherit_errexit
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+config="$root/config/dev.toml"
+
+# Everything below lives on the container's own filesystem and disappears with it.
+run_dir=/tmp/ui-agent
+run_env="$run_dir/run.env"
+iso="$run_dir/iso"
+up_status="$run_dir/up.status"
+bridge_pid_file="$run_dir/bridge.pid"
+emulator_pid_file="$run_dir/emulator.pid"
+daemon_log="$iso/daemon.log"
+shared_lock=/android-home/ui-agent-avd.lock
+snapshot_name=default_boot
+device_ui_dump=/data/local/tmp/ui-agent-ui.xml
+
+die() { echo "ui-agent-guest: $*" >&2; exit 1; }
+
+# Required keys of config/dev.toml; a missing or malformed value is an error.
+config_value() {
+  local key="$1" value
+  [ -r "$config" ] || die "missing $config"
+  value="$(sed -n -E "s/^${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*\$/\\1/p" "$config" | head -n 1)"
+  value="${value#\"}"; value="${value%\"}"
+  [ -n "$value" ] || die "$config: missing required key '$key'"
+  printf '%s' "$value"
+}
+positive_int() {
+  [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "$config: $1 must be a positive integer, got '$2'"
+}
+
+# ---- Run record --------------------------------------------------------------
+
+# The run record written by `init`: SLOT, DEVICE (emulator|phone), SERIAL,
+# CONSOLE_PORT, BRIDGE_PORT, DAEMON (isolated|owner).
+load_run() {
+  [ -r "$run_env" ] || die "no run record; scripts/ui-agent start creates it"
+  # shellcheck disable=SC1090
+  . "$run_env"
+  export ANDROID_SERIAL="$SERIAL"
+}
+
+init() {
+  [ "$#" -ge 3 ] || die "usage: init SLOT emulator|phone isolated|owner [PHONE_ADB]"
+  local slot="$1" device="$2" daemon="$3" phone_adb="${4:-}" serial console_port bridge_port
+  [[ "$slot" =~ ^[0-9]+$ ]] || die "invalid slot '$slot'"
+  console_port=$(( $(config_value emulator_console_port_base) + 2 * slot ))
+  bridge_port=$(( $(config_value bridge_port_base) + slot ))
+  case "$device" in
+    emulator) serial="emulator-$console_port" ;;
+    phone)
+      [[ "$phone_adb" =~ ^[A-Za-z0-9._-]+:[0-9]+$ ]] || die "phone address must be HOST:PORT"
+      serial="$phone_adb" ;;
+    *) die "invalid device '$device'" ;;
+  esac
+  case "$daemon" in isolated | owner) ;; *) die "invalid daemon mode '$daemon'" ;; esac
+  mkdir -p "$run_dir"
+  {
+    echo "SLOT=$slot"; echo "DEVICE=$device"; echo "SERIAL=$serial"
+    echo "CONSOLE_PORT=$console_port"; echo "BRIDGE_PORT=$bridge_port"; echo "DAEMON=$daemon"
+  } >"$run_env"
+}
+
+adbd() { adb -s "$SERIAL" "$@"; }
+
+now() { date +%s.%N; }
+elapsed() { awk -v a="$1" -v b="$(now)" 'BEGIN{printf "%.1f", b - a}'; }
+
+# ---- Emulator ----------------------------------------------------------------
+
+# The AVD name encodes everything a quick-boot snapshot depends on, so a change
+# of image, emulator, cores, RAM or screen creates a fresh AVD and snapshot.
+system_image_dir() {
+  local dirs
+  mapfile -t dirs < <(find "$ANDROID_HOME/system-images" -mindepth 3 -maxdepth 3 -type d -name x86_64)
+  [ "${#dirs[@]}" -eq 1 ] || die "expected exactly one x86_64 system image under $ANDROID_HOME/system-images"
+  printf '%s' "${dirs[0]}"
+}
+
+# The sdkmanager package path of the image: system-images;<api>;<tag>;<abi>.
+system_image_package() {
+  local dir
+  dir="$(system_image_dir)"
+  printf 'system-images;%s;%s;%s' "$(basename "$(dirname "$(dirname "$dir")")")" "$(basename "$(dirname "$dir")")" "$(basename "$dir")"
+}
+
+avd_name() {
+  local image key
+  image="$(system_image_dir)"
+  key="$(
+    {
+      echo "$image"
+      cat "$image/source.properties" "$ANDROID_HOME/emulator/source.properties"
+      config_value emulator_cores; config_value emulator_memory_mb; config_value emulator_screen
+    } | sha256sum | cut -c1-10
+  )"
+  printf 'ui-agent-%s' "$key"
+}
+
+set_ini() { # FILE KEY VALUE
+  local file="$1" key="$2" value="$3"
+  if grep -q "^${key}=" "$file"; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+  else
+    echo "${key}=${value}" >>"$file"
+  fi
+}
+
+emulator_args() {
+  echo -avd "$1" -port "$CONSOLE_PORT" -no-window -no-audio -no-boot-anim -no-metrics -gpu swiftshader_indirect
+}
+
+start_emulator() { # extra emulator arguments...
+  local name args
+  name="$(avd_name)"
+  # shellcheck disable=SC2046
+  (
+    cd "$run_dir"
+    setsid emulator $(emulator_args "$name") "$@" >"$run_dir/emulator.log" 2>&1 </dev/null &
+    echo $! >"$emulator_pid_file"
+  )
+}
+
+emulator_alive() {
+  [ -f "$emulator_pid_file" ] && kill -0 "$(cat "$emulator_pid_file")" 2>/dev/null
+}
+
+# An emulator killed mid-exit leaves its snapshot lock behind in the shared AVD,
+# so the container must not be stopped before the emulator has exited.
+wait_for_emulator_exit() {
+  local timeout deadline
+  timeout="$(config_value shutdown_timeout_secs)"; positive_int shutdown_timeout_secs "$timeout"
+  deadline=$(( SECONDS + timeout ))
+  while pgrep -x qemu-system-x86_64-headless >/dev/null; do
+    [ "$SECONDS" -lt "$deadline" ] || { echo "ui-agent-guest: the emulator did not exit within ${timeout}s" >&2; return 1; }
+    sleep 0.5
+  done
+}
+
+# Removes snapshot locks that a crashed emulator left in the shared AVDs. Only
+# valid while no other slot is running, which scripts/ui-agent guarantees.
+clean_avd_locks() {
+  rm -f "$ANDROID_AVD_HOME"/*.avd/snapshot.lock.lock "$ANDROID_AVD_HOME"/*.avd/snapshot.lock.tmp-* 2>/dev/null || true
+}
+
+wait_for_boot() {
+  local timeout deadline
+  timeout="$(config_value boot_timeout_secs)"; positive_int boot_timeout_secs "$timeout"
+  deadline=$(( SECONDS + timeout ))
+  until [ "$(adbd shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; do
+    if [ "$DEVICE" = emulator ] && ! emulator_alive; then
+      tail -n 20 "$run_dir/emulator.log" >&2
+      die "the emulator exited before boot completed"
+    fi
+    [ "$SECONDS" -lt "$deadline" ] || die "boot did not complete within ${timeout}s"
+    sleep 1
+  done
+}
+
+# Settings an emulator needs for deterministic input and screenshots; they are
+# part of its quick-boot snapshot. A phone's settings are never changed.
+settle_device() {
+  adbd shell 'settings put global window_animation_scale 0
+              settings put global transition_animation_scale 0
+              settings put global animator_duration_scale 0
+              settings put global package_verifier_enable 0
+              settings put global verifier_verify_adb_installs 0
+              settings put global stay_on_while_plugged_in 7
+              settings put system screen_off_timeout 2147483647
+              settings put secure show_ime_with_hard_keyboard 0
+              wm dismiss-keyguard' >/dev/null
+}
+
+# Creates the AVD and its quick-boot snapshot once per AVD name, under a lock on
+# the shared Android home so concurrent slots wait instead of racing.
+ensure_avd() {
+  local name dir cores memory screen width height density
+  name="$(avd_name)"
+  dir="$ANDROID_AVD_HOME/$name.avd"
+  mkdir -p "$ANDROID_AVD_HOME"
+  exec 9>"$shared_lock"
+  flock 9
+  if [ -f "$dir/ui-agent.ready" ]; then
+    exec 9>&-
+    return 0
+  fi
+  echo "ui-agent-guest: creating AVD $name (first use, one cold boot)" >&2
+  cores="$(config_value emulator_cores)"; positive_int emulator_cores "$cores"
+  memory="$(config_value emulator_memory_mb)"; positive_int emulator_memory_mb "$memory"
+  screen="$(config_value emulator_screen)"
+  [[ "$screen" =~ ^([0-9]+)x([0-9]+)x([0-9]+)$ ]] || die "$config: emulator_screen must look like 720x1600x320"
+  width="${BASH_REMATCH[1]}"; height="${BASH_REMATCH[2]}"; density="${BASH_REMATCH[3]}"
+  rm -rf "$dir" "$ANDROID_AVD_HOME/$name.ini"
+  echo no | avdmanager create avd --force --name "$name" --device "$(config_value emulator_device)" \
+    --package "$(system_image_package)" >/dev/null
+  set_ini "$dir/config.ini" hw.cpu.ncore "$cores"
+  set_ini "$dir/config.ini" hw.ramSize "$memory"
+  set_ini "$dir/config.ini" hw.lcd.width "$width"
+  set_ini "$dir/config.ini" hw.lcd.height "$height"
+  set_ini "$dir/config.ini" hw.lcd.density "$density"
+  set_ini "$dir/config.ini" hw.keyboard yes
+  set_ini "$dir/config.ini" hw.gpu.enabled yes
+  set_ini "$dir/config.ini" hw.gpu.mode swiftshader_indirect
+  set_ini "$dir/config.ini" showDeviceFrame no
+  set_ini "$dir/config.ini" disk.dataPartition.size "$(config_value emulator_data_size)"
+  start_emulator -no-snapshot-load
+  wait_for_boot
+  settle_device
+  # Let the system settle before the snapshot is taken.
+  sleep "$(config_value snapshot_settle_secs)"
+  adbd emu avd snapshot save "$snapshot_name" | tr -d '\r' | grep -qx OK || die "saving the quick-boot snapshot failed"
+  adbd emu kill >/dev/null || true
+  local i
+  for i in $(seq 1 60); do emulator_alive || break; sleep 1; done
+  emulator_alive && die "the emulator did not exit after the snapshot was saved"
+  touch "$dir/ui-agent.ready"
+  exec 9>&-
+}
+
+boot_emulator() {
+  local t0 cold=0 name dir
+  name="$(avd_name)"; dir="$ANDROID_AVD_HOME/$name.avd"
+  t0="$(now)"
+  if [ ! -f "$dir/ui-agent.ready" ]; then cold=1; fi
+  ensure_avd
+  if [ "$cold" -eq 1 ]; then
+    echo "avd_created_secs=$(elapsed "$t0")"
+  fi
+  t0="$(now)"
+  start_emulator -read-only
+  wait_for_boot
+  if grep -q "Successfully loaded snapshot" "$run_dir/emulator.log"; then
+    echo "boot=snapshot"
+  else
+    echo "boot=cold"
+  fi
+  echo "boot_secs=$(elapsed "$t0")"
+}
+
+connect_phone() {
+  local out
+  out="$(adb connect "$SERIAL" 2>&1)" || die "adb connect $SERIAL failed: $out"
+  case "$out" in *"connected to"*) ;; *) die "adb connect $SERIAL: $out" ;; esac
+  case "$(adbd get-state 2>&1 | tr -d '\r')" in
+    device) ;;
+    *) die "the phone at $SERIAL is not an authorized adb device (pair it first: see verification.md)" ;;
+  esac
+  wait_for_boot
+}
+
+# ---- Isolated Pohunek daemon -------------------------------------------------
+
+cli=pohunek
+
+synthetic_projects=(proj-alpha proj-beta proj-gamma)
+
+# Synthetic sessions: `name|project|metadata` (metadata is space-separated key=value).
+synthetic_sessions=(
+  "alpha-agent|proj-alpha|work.link.provider=github work.link.kind=pr work.link.id=12 work.link.url=https://example.invalid/proj-alpha/pull/12 work.role=implementer"
+  "beta-review|proj-beta|work.link.provider=github work.link.kind=issue work.link.id=34 work.link.url=https://example.invalid/proj-beta/issues/34 work.role=reviewer"
+  "gamma-docs|proj-gamma|"
+  "delta-build||"
+)
+
+name_first=(amber brisk calm dusty eager fuzzy gentle hazy ivory jolly keen lucid mellow noble opal plain quiet rustic sleek tidy)
+name_second=(agent build docs review deploy lint parser render sync test index cache)
+
+# Prints the `name|project|meta` line of generated session number $1: projects
+# rotate with one slot left empty, and every fifth session carries a Work link.
+generated_session() {
+  local n=$1 project="" meta=""
+  local slot=$((n % (${#synthetic_projects[@]} + 1)))
+  [ "$slot" -lt "${#synthetic_projects[@]}" ] && project=${synthetic_projects[$slot]}
+  if [ $((n % 5)) -eq 0 ]; then
+    meta="work.link.provider=github work.link.kind=issue work.link.id=$((100 + n)) work.role=implementer"
+  fi
+  echo "${name_first[n % ${#name_first[@]}]}-${name_second[(n / ${#name_first[@]} + n) % ${#name_second[@]}]}-$n|$project|$meta"
+}
+
+# Showcase dataset (`start --showcase`): synthetic projects and sessions of two
+# synthetic agent profiles that run a harmless shell program. Each line is
+# `name|project|agent|state|meta` with state one of working, blocked, idle,
+# stopped (ended) or shell (a plain shell, no activity).
+showcase_projects=(pohunek pohunek-companion ripgrep neovim tokio zed)
+showcase_sessions=(
+  "review-pr-1412|ripgrep|claude|blocked|work.link.provider=github work.link.kind=pr work.link.id=1412 work.link.url=https://github.com/BurntSushi/ripgrep/pull/1412 work.role=reviewer"
+  "fix-flaky-pty-test|pohunek|codex|blocked|work.link.provider=github work.link.kind=issue work.link.id=388 work.link.url=https://github.com/zajca/pohunek/issues/388 work.role=implementer"
+  "bump-tokio-1.48|tokio|claude|working|work.link.provider=github work.link.kind=pr work.link.id=7210 work.link.url=https://github.com/tokio-rs/tokio/pull/7210 work.role=implementer"
+  "docs-install-guide|pohunek-companion|claude|working|work.link.provider=github work.link.kind=issue work.link.id=200 work.link.url=https://github.com/pohunekd/pohunek-companion/issues/200 work.role=implementer"
+  "lsp-semantic-tokens|neovim|codex|working|work.link.provider=github work.link.kind=pr work.link.id=31877 work.link.url=https://github.com/neovim/neovim/pull/31877 work.role=implementer"
+  "review-pr-1655|zed|codex|idle|work.link.provider=github work.link.kind=pr work.link.id=1655 work.link.url=https://github.com/zed-industries/zed/pull/1655 work.role=reviewer"
+  "triage-open-issues|pohunek|claude|idle|"
+  "tray-badge-polish|pohunek-companion|codex|idle|work.link.provider=github work.link.kind=issue work.link.id=164 work.link.url=https://github.com/pohunekd/pohunek-companion/issues/164 work.role=implementer"
+  "rustfmt-edition-2024|ripgrep|codex|idle|work.link.provider=github work.link.kind=pr work.link.id=2951 work.link.url=https://github.com/BurntSushi/ripgrep/pull/2951 work.role=implementer"
+  "multibuffer-scroll-fix|zed|claude|idle|work.link.provider=github work.link.kind=issue work.link.id=19402 work.link.url=https://github.com/zed-industries/zed/issues/19402 work.role=implementer"
+  "release-notes-0.1.2|pohunek-companion|claude|stopped|work.link.provider=github work.link.kind=issue work.link.id=181 work.link.url=https://github.com/pohunekd/pohunek-companion/issues/181 work.role=implementer"
+  "ci-cache-warmup|tokio|codex|stopped|"
+  "scratch-shell|pohunek-companion|shell|shell|"
+)
+
+# The isolated XDG environment, one `KEY=value` per line.
+isolated_env() {
+  echo "XDG_RUNTIME_DIR=$iso/run"
+  echo "XDG_STATE_HOME=$iso/state"
+  echo "XDG_CONFIG_HOME=$iso/config"
+  echo "XDG_DATA_HOME=$iso/data"
+  echo "XDG_CACHE_HOME=$iso/cache"
+  echo "SHELL=/bin/sh"
+  echo "PATH=$iso/bin:$PATH"
+}
+
+iso_run() {
+  local -a envs
+  mapfile -t envs < <(isolated_env)
+  env "${envs[@]}" "$@"
+}
+
+# Pids of every process whose environment carries the isolated XDG_RUNTIME_DIR:
+# the daemon and its workers.
+isolated_pids() {
+  local pid_dir
+  for pid_dir in /proc/[0-9]*; do
+    if { tr '\0' '\n' <"$pid_dir/environ"; } 2>/dev/null | grep -qxF "XDG_RUNTIME_DIR=$iso/run"; then
+      echo "${pid_dir#/proc/}"
+    fi
+  done
+}
+
+kill_isolated() { # SIGNAL
+  local pid
+  for pid in $(isolated_pids); do kill "-$1" "$pid" 2>/dev/null || true; done
+}
+
+halt_daemon() {
+  local i
+  kill_isolated TERM
+  for i in $(seq 1 50); do [ -z "$(isolated_pids)" ] && break; sleep 0.1; done
+  if [ -n "$(isolated_pids)" ]; then
+    kill_isolated KILL
+    sleep 0.5
+  fi
+  [ -z "$(isolated_pids)" ] || die "processes of the isolated daemon survive"
+}
+
+launch_daemon() {
+  local i
+  local -a envs
+  mapfile -t envs < <(isolated_env)
+  (
+    cd "$iso/work"
+    setsid env "${envs[@]}" "$cli" daemon start --dev-subprocess >>"$daemon_log" 2>&1 </dev/null &
+  )
+  for i in $(seq 1 100); do
+    [ -S "$iso/run/pohunek/daemon.sock" ] && iso_run "$cli" health >/dev/null 2>&1 && return 0
+    sleep 0.2
+  done
+  tail -n 20 "$daemon_log" >&2
+  die "the isolated daemon did not start"
+}
+
+create_synthetic_session() { # `name|project|meta`
+  local line="$1" name project meta kv
+  name=${line%%|*}; line=${line#*|}
+  project=${line%%|*}; meta=${line#*|}
+  local -a args=(session new --agent shell --name "$name" --json)
+  if [ -n "$project" ]; then args+=(--project "$project"); else args+=(--cwd "$iso/work"); fi
+  for kv in $meta; do args+=(--meta "$kv"); done
+  iso_run "$cli" "${args[@]}" >/dev/null
+}
+
+# Writes the program and the detection manifest of the synthetic `claude` and
+# `codex` profiles: they draw the screen of the requested state and sleep, and a
+# manifest maps those screens to the daemon's working, blocked and idle
+# activity, so no real agent starts and no token is spent.
+write_showcase_agents() {
+  local agents="$iso/config/pohunek/agents" agent
+  mkdir -p "$agents/manifests"
+  chmod 700 "$iso/config/pohunek" "$agents" "$agents/manifests"
+  cat >"$iso/bin/showcase-agent" <<'EOF'
+#!/bin/sh
+# The first input line names the screen to draw: working, blocked or idle.
+stty -echo 2>/dev/null
+IFS= read -r screen
+case $screen in
+    working) printf '* Working on the task... (42s \302\267 esc to interrupt)\n' ;;
+    blocked) printf 'Do you want to proceed?\n  1. Yes\n  2. No\nEnter to select \302\267 Esc to cancel\n' ;;
+    *) printf '* Done for 3s\n\n\342\235\257 \n' ;;
+esac
+exec sleep 2147483
+EOF
+  chmod 700 "$iso/bin/showcase-agent"
+  cat >"$agents/manifests/showcase.toml" <<'EOF'
+[[rules]]
+id = "blocked"
+state = "blocked"
+priority = 980
+region = "whole_recent"
+visible_blocker = true
+contains = ["esc to cancel"]
+
+[[rules]]
+id = "working"
+state = "working"
+priority = 960
+region = "whole_recent"
+line_regex = ['^[*] .*\(.*esc to interrupt\)']
+
+[[rules]]
+id = "idle"
+state = "idle"
+priority = 950
+region = "whole_recent"
+line_regex = ['^\s*\x{276F}']
+EOF
+  for agent in claude codex; do
+    cat >"$agents/$agent.toml" <<EOF
+base = "shell"
+manifest = "showcase"
+program = "$iso/bin/showcase-agent"
+args = []
+EOF
+  done
+}
+
+create_showcase_session() { # `name|project|agent|state|meta`
+  local name project agent state meta kv out
+  IFS='|' read -r name project agent state meta <<<"$1"
+  local -a args=(session new --agent "$agent" --name "$name" --project "$project" --json)
+  case $state in working | blocked | idle | stopped) args+=(--input "${state/stopped/idle}") ;; esac
+  for kv in $meta; do args+=(--meta "$kv"); done
+  out=$(iso_run "$cli" "${args[@]}") ||
+    { echo "$name: $(jq -r '.err.msg // empty' <<<"$out")" >&2; return 1; }
+}
+
+# Waits until every showcase session reports its expected activity, then stops
+# the ended ones.
+finish_showcase() {
+  local line name state list ready i want
+  for i in $(seq 1 100); do
+    list=$(iso_run "$cli" session list --json) || die "cannot list the showcase sessions"
+    ready=1
+    for line in "${showcase_sessions[@]}"; do
+      IFS='|' read -r name _ _ state _ <<<"$line"
+      case $state in working | blocked | idle | stopped) ;; *) continue ;; esac
+      want=${state/stopped/idle}
+      [ "$(jq -r --arg n "$name" '.ok[] | select(.name == $n) | .activity // "none"' <<<"$list")" = "$want" ] || ready=0
+    done
+    [ "$ready" -eq 1 ] && break
+    sleep 0.3
+  done
+  [ "$ready" -eq 1 ] || die "the showcase sessions did not reach their activities"
+  [ -z "$(jq -r '.ok[] | select(.agent_base != "shell") | .id' <<<"$list")" ] ||
+    die "a showcase session runs a real agent runtime; refusing to continue"
+  for line in "${showcase_sessions[@]}"; do
+    IFS='|' read -r name _ _ state _ <<<"$line"
+    [ "$state" = stopped ] || continue
+    iso_run "$cli" session stop "$(jq -r --arg n "$name" '.ok[] | select(.name == $n) | .id' <<<"$list")" >/dev/null ||
+      die "cannot stop showcase session $name"
+  done
+}
+
+start_daemon() { # EXTRA_SESSIONS SHOWCASE(0|1)
+  local extra="$1" showcase="$2" i line project daemon_bin failed=0 running=0
+  local -a project_names=("${synthetic_projects[@]}") lines=("${synthetic_sessions[@]}")
+  local create=create_synthetic_session
+  [ "$showcase" -eq 0 ] || project_names=("${showcase_projects[@]}")
+  daemon_bin="$(command -v pohunekd)" || die "pohunekd is not in the toolchain image"
+  mkdir -p "$iso/run" "$iso/state" "$iso/config" "$iso/data" "$iso/cache" "$iso/bin" "$iso/work"
+  chmod 700 "$iso" "$iso/run"
+  ln -sf "$daemon_bin" "$iso/bin/pohunekd"
+  launch_daemon
+  for project in "${project_names[@]}"; do
+    mkdir -p "$iso/work/$project"
+    GIT_CONFIG_GLOBAL=/dev/null git -C "$iso/work/$project" init --quiet
+    GIT_CONFIG_GLOBAL=/dev/null git -C "$iso/work/$project" -c user.name=ui-agent -c user.email=ui-agent@example.invalid \
+      -c commit.gpgsign=false -c core.hooksPath=/dev/null commit --quiet --allow-empty -m "Initial commit"
+    iso_run "$cli" project add "$iso/work/$project" --name "$project" >/dev/null 2>"$iso/project-add.log" ||
+      die "cannot register project $project: $(cat "$iso/project-add.log")"
+  done
+  if [ "$showcase" -eq 1 ]; then
+    lines=("${showcase_sessions[@]}")
+    create=create_showcase_session
+    write_showcase_agents
+  fi
+  for ((i = 0; i < extra; i++)); do lines+=("$(generated_session "$i")"); done
+  # Sessions are created in parallel batches; a failed creation is fatal.
+  for line in "${lines[@]}"; do
+    "$create" "$line" 2>>"$iso/session-new.log" &
+    running=$((running + 1))
+    if [ "$running" -ge "$(config_value session_parallelism)" ]; then
+      wait -n || failed=1
+      running=$((running - 1))
+    fi
+  done
+  while [ "$running" -gt 0 ]; do
+    wait -n || failed=1
+    running=$((running - 1))
+  done
+  [ "$failed" -eq 0 ] || die "cannot create a synthetic session: $(head -c 400 "$iso/session-new.log")"
+  if [ "$showcase" -eq 1 ]; then finish_showcase; fi
+}
+
+# ---- Bridge ------------------------------------------------------------------
+
+# TCP on the device's loopback reaches the daemon's Unix socket: adb reverse
+# maps the device port to the same port in this container, where socat forwards
+# to the socket. The daemon itself never listens on TCP in the isolated run.
+start_bridge() {
+  (
+    cd "$run_dir"
+    setsid socat "TCP-LISTEN:$BRIDGE_PORT,bind=127.0.0.1,reuseaddr,fork" "UNIX-CONNECT:$iso/run/pohunek/daemon.sock" \
+      >"$run_dir/bridge.log" 2>&1 </dev/null &
+    echo $! >"$bridge_pid_file"
+  )
+  local i
+  for i in $(seq 1 50); do
+    socat -u /dev/null "TCP:127.0.0.1:$BRIDGE_PORT" 2>/dev/null && break
+    [ "$i" -lt 50 ] || { cat "$run_dir/bridge.log" >&2; die "the bridge does not listen on 127.0.0.1:$BRIDGE_PORT"; }
+    sleep 0.1
+  done
+  adbd reverse "tcp:$BRIDGE_PORT" "tcp:$BRIDGE_PORT" >/dev/null
+}
+
+stop_bridge() {
+  local pid
+  adbd reverse --remove "tcp:$BRIDGE_PORT" >/dev/null 2>&1 || true
+  if [ -f "$bridge_pid_file" ]; then
+    pid=$(cat "$bridge_pid_file")
+    pkill -TERM -P "$pid" 2>/dev/null || true
+    kill -TERM "$pid" 2>/dev/null || true
+    rm -f "$bridge_pid_file"
+  fi
+}
+
+require_isolated() {
+  [ "$DAEMON" = isolated ] || die "$1 needs the isolated daemon; this run uses the owner's daemons"
+}
+
+# ---- App ---------------------------------------------------------------------
+
+apk_path() {
+  local apk="$root/app/build/outputs/apk/debug/app-debug.apk"
+  [ -f "$apk" ] || die "missing $apk; build it first"
+  printf '%s' "$apk"
+}
+
+launch_app() {
+  local component
+  component="$(config_value app_package)/$(config_value launch_activity)"
+  adbd shell am force-stop "$(config_value app_package)"
+  adbd shell am start -W -n "$component" >/dev/null
+}
+
+# ---- UI inspection -----------------------------------------------------------
+
+# One JSON array of the nodes that carry a test tag (id), text, or description,
+# in tree order, with bounds and centre in screen pixels.
+ui_nodes() {
+  adbd shell "uiautomator dump $device_ui_dump >/dev/null" || die "uiautomator dump failed"
+  adbd exec-out cat "$device_ui_dump" | awk '
+    function attr(rec, name,   v) {
+      if (!match(rec, "(^| )" name "=\"[^\"]*\"")) return ""
+      v = substr(rec, RSTART, RLENGTH)
+      sub("^ ?" name "=\"", "", v); sub("\"$", "", v)
+      gsub(/&quot;/, "\"", v); gsub(/&lt;/, "<", v); gsub(/&gt;/, ">", v)
+      gsub(/&apos;/, "\047", v); gsub(/&#10;/, " ", v); gsub(/\t/, " ", v)
+      gsub(/&amp;/, "\\&", v)
+      return v
+    }
+    BEGIN { RS = "<node " }
+    NR > 1 {
+      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", attr($0, "resource-id"), attr($0, "text"),
+        attr($0, "content-desc"), attr($0, "class"), attr($0, "bounds"), attr($0, "clickable"),
+        attr($0, "enabled"), attr($0, "focused"), attr($0, "scrollable")
+    }' | jq -R -s '
+      split("\n") | map(select(length > 0) | split("\t"))
+      | map({id: .[0], text: .[1], desc: .[2], class: .[3],
+             bounds: (.[4] | capture("\\[(?<left>-?[0-9]+),(?<top>-?[0-9]+)\\]\\[(?<right>-?[0-9]+),(?<bottom>-?[0-9]+)\\]") | map_values(tonumber)),
+             clickable: (.[5] == "true"), enabled: (.[6] == "true"), focused: (.[7] == "true"), scrollable: (.[8] == "true")})
+      | map(select(.id != "" or .text != "" or .desc != ""))
+      | map(. + {center: {x: ((.bounds.left + .bounds.right) / 2 | floor), y: ((.bounds.top + .bounds.bottom) / 2 | floor)}})'
+}
+
+find_tag() { # TAG
+  ui_nodes | jq --arg tag "$1" 'map(select(.id == $tag))'
+}
+
+click_tag() { # TAG [N]
+  local tag="$1" n="${2:-0}" node x y
+  [[ "$n" =~ ^[0-9]+$ ]] || die "N must be a non-negative integer"
+  node="$(find_tag "$tag" | jq -c --argjson n "$n" '.[$n] // empty')"
+  [ -n "$node" ] || die "no element matches '$tag' (index $n)"
+  x="$(jq -r .center.x <<<"$node")"; y="$(jq -r .center.y <<<"$node")"
+  adbd shell input tap "$x" "$y"
+  echo "tapped $tag at $x,$y"
+}
+
+type_text() { # TEXT [--enter]
+  local text="$1" enter="${2:-}" quoted sq="'"
+  [ -z "$enter" ] || [ "$enter" = --enter ] || die "unknown option '$enter'"
+  # `input text` reads %s as a space; the text then goes through the device shell.
+  text="${text// /%s}"
+  quoted="'${text//$sq/$sq\\$sq$sq}'"
+  adbd shell "input text $quoted"
+  if [ "$enter" = --enter ]; then adbd shell input keyevent KEYCODE_ENTER; fi
+}
+
+send_key() { # esc|ctrl-c|tab|up|down|left|right|enter
+  case "$1" in
+    esc) adbd shell input keyevent KEYCODE_ESCAPE ;;
+    ctrl-c) adbd shell input keycombination KEYCODE_CTRL_LEFT KEYCODE_C ;;
+    tab) adbd shell input keyevent KEYCODE_TAB ;;
+    up) adbd shell input keyevent KEYCODE_DPAD_UP ;;
+    down) adbd shell input keyevent KEYCODE_DPAD_DOWN ;;
+    left) adbd shell input keyevent KEYCODE_DPAD_LEFT ;;
+    right) adbd shell input keyevent KEYCODE_DPAD_RIGHT ;;
+    enter) adbd shell input keyevent KEYCODE_ENTER ;;
+    *) die "unknown key '$1'; use esc, ctrl-c, tab, up, down, left, right or enter" ;;
+  esac
+}
+
+rotate() {
+  local current next
+  [ "$DEVICE" = emulator ] || die "rotate changes system settings and is refused on a phone"
+  current="$(adbd shell settings get system user_rotation | tr -d '\r')"
+  [ "$current" = 0 ] && next=1 || next=0
+  adbd shell settings put system accelerometer_rotation 0
+  adbd shell settings put system user_rotation "$next"
+  sleep 1
+  echo "rotation=$next"
+}
+
+health() {
+  local request='{"v":{"minimum":3,"maximum":4},"id":"ui-agent-health","method":"daemon.health","params":null}'
+  local wait reply
+  require_isolated health
+  wait="$(config_value health_wait_secs)"; positive_int health_wait_secs "$wait"
+  # The reply must arrive before the end of stdin closes the connection: the
+  # device's nc exits as soon as its input ends, which can beat a slow reply.
+  reply="$(adbd shell "(printf '%s\n' '$request'; sleep $wait) | nc -w $((wait + 4)) -q 1 127.0.0.1 $BRIDGE_PORT" | tr -d '\r')"
+  [ -n "$reply" ] || die "no reply from the daemon through 127.0.0.1:$BRIDGE_PORT on the device"
+  echo "$reply"
+}
+
+status() {
+  local state daemon_state="owner" bridge="none"
+  state="$(adbd get-state 2>&1 | tr -d '\r' || true)"
+  if [ "$DAEMON" = isolated ]; then
+    if iso_run "$cli" health >/dev/null 2>&1; then daemon_state=up; else daemon_state=down; fi
+    if [ -f "$bridge_pid_file" ] && kill -0 "$(cat "$bridge_pid_file")" 2>/dev/null; then
+      bridge="127.0.0.1:$BRIDGE_PORT"
+    else
+      bridge="down"
+    fi
+  fi
+  echo "device=$DEVICE serial=$SERIAL state=$state"
+  echo "daemon=$DAEMON state=$daemon_state bridge=$bridge"
+}
+
+log_of() { # app|daemon|emulator
+  case "${1:-app}" in
+    app)
+      local pid
+      pid="$(adbd shell pidof -s "$(config_value app_package)" | tr -d '\r')"
+      [ -n "$pid" ] || die "the app is not running"
+      adbd logcat -d -t "$(config_value log_lines)" --pid="$pid" ;;
+    daemon) tail -n "$(config_value log_lines)" "$daemon_log" ;;
+    emulator) tail -n "$(config_value log_lines)" "$run_dir/emulator.log" ;;
+    *) die "log takes app, daemon or emulator" ;;
+  esac
+}
+
+# ---- Lifecycle ---------------------------------------------------------------
+
+# Boots the device and starts the daemon and bridge; run in the background by
+# scripts/ui-agent, which polls the status file.
+up() { # EXTRA_SESSIONS SHOWCASE
+  local extra="${1:-0}" showcase="${2:-0}"
+  rm -f "$up_status"
+  exec >"$run_dir/up.log" 2>&1
+  trap 'rc=$?; if [ "$rc" -eq 0 ]; then echo ok >"$up_status"; else echo "failed: $(tail -n 5 "$run_dir/up.log" | tr "\n" " ")" >"$up_status"; fi' EXIT
+  load_run
+  if [ "$DEVICE" = emulator ]; then boot_emulator; else connect_phone; fi
+  if [ "$DAEMON" = isolated ]; then
+    start_daemon "$extra" "$showcase"
+    start_bridge
+  fi
+}
+
+shutdown() {
+  local -a envs
+  [ -r "$run_env" ] || return 0
+  load_run
+  if [ "$DAEMON" = isolated ]; then
+    stop_bridge
+    if [ -S "$iso/run/pohunek/daemon.sock" ]; then
+      mapfile -t envs < <(isolated_env)
+      iso_run "$cli" session list --json 2>/dev/null | jq -r '.. | objects | select(has("id")) | .id' 2>/dev/null |
+        xargs -r -P "$(config_value session_parallelism)" -I{} env "${envs[@]}" "$cli" session rm {} >/dev/null 2>&1 || true
+    fi
+    halt_daemon || true
+  fi
+  if [ "$DEVICE" = emulator ]; then
+    adbd emu kill >/dev/null 2>&1 || true
+    wait_for_emulator_exit
+  else
+    adb disconnect "$SERIAL" >/dev/null 2>&1 || true
+  fi
+}
+
+cmd="${1:-}"
+[ "$#" -eq 0 ] || shift
+case "$cmd" in
+  init) init "$@" ;;
+  clean-avd-locks) clean_avd_locks ;;
+  up) up "$@" ;;
+  shutdown) shutdown ;;
+  install) load_run; adbd install -r -t "$(apk_path)" ;;
+  launch) load_run; launch_app ;;
+  screenshot) load_run; adbd exec-out screencap -p ;;
+  tree) load_run; ui_nodes ;;
+  find) load_run; find_tag "${1:?element tag required}" ;;
+  click) load_run; click_tag "${1:?element tag required}" "${2:-0}" ;;
+  type) load_run; type_text "${1:?text required}" "${2:-}" ;;
+  key) load_run; send_key "${1:?key required}" ;;
+  rotate) load_run; rotate ;;
+  net-drop) load_run; require_isolated net-drop; stop_bridge; echo "bridge down" ;;
+  net-restore) load_run; require_isolated net-restore; stop_bridge; start_bridge; echo "bridge up" ;;
+  host-stop) load_run; require_isolated host-stop; halt_daemon; echo "daemon stopped" ;;
+  host-start) load_run; require_isolated host-start; launch_daemon; echo "daemon started" ;;
+  health) load_run; health ;;
+  status) load_run; status ;;
+  log) load_run; log_of "${1:-app}" ;;
+  *) die "unknown command '$cmd'" ;;
+esac
