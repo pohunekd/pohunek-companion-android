@@ -1,8 +1,11 @@
 # Third-party notices
 
 This project copies code from the sources below. Each copied file keeps its
-original header. All sources are MIT licensed; the license text of each is in
-the `LICENSE` file of that repository at the pinned commit. Entries marked
+original header. All copied sources and everything linked into the shipped
+libghostty-vt are MIT licensed; the license text of each is in the `LICENSE`
+file of that repository at the pinned commit. The libghostty-vt section also
+inventories packages with other licenses that its build fetches but does not
+ship. Entries marked
 "planned" list files not copied yet; the issue that copies them updates the
 entry. The decisions behind this list are in
 [docs/architecture.md](docs/architecture.md).
