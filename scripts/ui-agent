@@ -167,8 +167,8 @@ ensure_libghostty_vt() {
 # per container in a plain scripts/dev run, so each build would carry a new key
 # and could not replace the installed app. The key lives in the Android home
 # volume instead; the first one is created under a host lock so two builds
-# cannot race on it. It is the public default debug key pair (alias
-# AndroidDebugKey, password android) and signs nothing but debug builds.
+# cannot race on it. The key pair is generated locally with the alias and
+# password AGP expects (AndroidDebugKey, android) and signs only debug builds.
 ensure_debug_keystore() {
   exec 7>"$(lock_dir)/ui-agent-debug-keystore.lock"
   flock 7

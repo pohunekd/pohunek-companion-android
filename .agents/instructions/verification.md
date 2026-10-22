@@ -105,7 +105,7 @@ scripts/ui-agent health | log [app|daemon|emulator]
   signed with a debug key in the Android home volume, the same for every
   worktree; an app on a device that carries another key fails with
   `INSTALL_FAILED_UPDATE_INCOMPATIBLE` and is never uninstalled automatically
-  (that would erase its data).
+  (that would erase its data); an app installed before the shared key existed needs one manual `adb uninstall dev.pohunek.companion`.
 - **libghostty-vt.** `start`, `install`, and `restart` verify
   `vendor/libghostty-vt` (`scripts/build-libghostty-vt --verify`) and run
   `scripts/build-libghostty-vt` when it is missing or stale, as CI does. In a
