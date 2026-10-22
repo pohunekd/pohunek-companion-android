@@ -56,7 +56,7 @@
 - Tunables (timeouts, thresholds, intervals, sizes, retry delays) come from a
   config source (build config generated from a checked-in file, or the app's
   settings storage), never constants in code. Document each key next to its
-  declaration. Host-side tooling (lands in M1, #9) reads `config/dev.toml`.
+  declaration. Host-side tooling (`scripts/dev`) reads `config/dev.toml`.
 - A missing or invalid required value fails at startup with a clear message
   shown in the UI; never invent a default for it. Optional values may have
   documented defaults at their declaration.

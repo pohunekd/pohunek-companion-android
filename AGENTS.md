@@ -54,8 +54,12 @@ links to them. Edit only `.agents/skills/`.
 ## Commands
 
 The toolchain runs in a rootless Podman container; nothing of it is installed on
-the host. The commands below land in M1 (#9, #10, #13); until then a PR reports
-"no gates yet".
+the host. `scripts/dev <command...>` runs a command in it from the current
+worktree (image pinned in `container/Containerfile`, built on first use; CPU and
+memory limits in `config/dev.toml`). The container sees the whole worktree
+(including ignored files) but not its git metadata, so run git on the host; the
+SDK and tools under `/opt` are read-only. `scripts/gates` and `scripts/ui-agent` land
+in M1 (#10, #13); until then a PR reports "no gates yet".
 
 ```bash
 scripts/dev ./gradlew :app:assembleDebug   # any command in the toolchain container

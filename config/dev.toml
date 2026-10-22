@@ -1,0 +1,9 @@
+# Settings read by scripts/dev (host-side tooling). Flat `key = value` lines only.
+
+# CPU cores one toolchain container may use (podman --cpus): a positive number.
+# 4 keeps a Gradle build from starving the owner's machine.
+cpus = 4
+
+# Memory one toolchain container may use (podman --memory): an integer with a
+# k, m, or g suffix. Swap is capped to the same amount.
+memory = "6g"
