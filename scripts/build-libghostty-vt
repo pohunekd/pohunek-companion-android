@@ -137,6 +137,12 @@ git -C "$src" checkout --quiet --detach FETCH_HEAD
 export ZIG_GLOBAL_CACHE_DIR="$work/zig-global-cache"
 export ZIG_LOCAL_CACHE_DIR="$work/zig-local-cache"
 
+# Zig's code generation depends on the number of CPUs it sees (some functions get
+# a different stack layout), so the compiler runs on exactly one CPU and the
+# output is the same on every host.
+cpu="$(taskset -pc $$ | sed -E 's/.*: *([0-9]+).*/\1/')"
+[[ "$cpu" =~ ^[0-9]+$ ]] || die "cannot determine an allowed CPU"
+
 stage="$work/stage"
 rm -rf "$stage"
 mkdir -p "$stage"
@@ -144,7 +150,7 @@ for abi in "${abis[@]}"; do
   echo "build-libghostty-vt: building $abi (${triple[$abi]})"
   prefix="$work/prefix-$abi"
   rm -rf "$prefix"
-  (cd "$src" && zig build -Demit-lib-vt "-Dtarget=${triple[$abi]}" "-Dsimd=$simd" \
+  (cd "$src" && taskset -c "$cpu" zig build -Demit-lib-vt "-Dtarget=${triple[$abi]}" "-Dsimd=$simd" \
     "-Doptimize=$optimize" --prefix "$prefix")
   mkdir -p "$stage/$abi"
   cp "$prefix/lib/libghostty-vt.a" "$stage/$abi/libghostty-vt.a"
