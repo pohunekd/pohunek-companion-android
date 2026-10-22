@@ -84,7 +84,7 @@ name_flags=()
 android_home_flags=()
 [ "$android_home" -eq 1 ] && android_home_flags=(
   --volume "$android_home_volume:/android-home"
-  --env ANDROID_USER_HOME=/android-home --env ANDROID_AVD_HOME=/android-home/avd)
+  --env HOME=/android-home --env ANDROID_USER_HOME=/android-home --env ANDROID_AVD_HOME=/android-home/avd)
 
 workdir="$root"
 case "$(pwd -P)" in "$root"|"$root"/*) workdir="$(pwd -P)" ;; esac

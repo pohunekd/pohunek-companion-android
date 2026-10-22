@@ -46,3 +46,11 @@ launch_activity = ".debug.TerminalDemoActivity"
 # Seconds `scripts/ui-agent start` waits for the device and the daemon (first
 # use includes creating the AVD and its snapshot): a positive integer.
 start_timeout_secs = 900
+
+# Seconds `scripts/ui-agent health` keeps the request connection open for the
+# daemon's reply: a positive integer.
+health_wait_secs = 1
+
+# Seconds `scripts/ui-agent stop` waits for the emulator to exit before the
+# container is stopped: a positive integer.
+shutdown_timeout_secs = 60

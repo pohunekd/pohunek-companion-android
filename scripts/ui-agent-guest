@@ -134,6 +134,24 @@ emulator_alive() {
   [ -f "$emulator_pid_file" ] && kill -0 "$(cat "$emulator_pid_file")" 2>/dev/null
 }
 
+# An emulator killed mid-exit leaves its snapshot lock behind in the shared AVD,
+# so the container must not be stopped before the emulator has exited.
+wait_for_emulator_exit() {
+  local timeout deadline
+  timeout="$(config_value shutdown_timeout_secs)"; positive_int shutdown_timeout_secs "$timeout"
+  deadline=$(( SECONDS + timeout ))
+  while pgrep -x qemu-system-x86_64-headless >/dev/null; do
+    [ "$SECONDS" -lt "$deadline" ] || { echo "ui-agent-guest: the emulator did not exit within ${timeout}s" >&2; return 1; }
+    sleep 0.5
+  done
+}
+
+# Removes snapshot locks that a crashed emulator left in the shared AVDs. Only
+# valid while no other slot is running, which scripts/ui-agent guarantees.
+clean_avd_locks() {
+  rm -f "$ANDROID_AVD_HOME"/*.avd/snapshot.lock.lock "$ANDROID_AVD_HOME"/*.avd/snapshot.lock.tmp-* 2>/dev/null || true
+}
+
 wait_for_boot() {
   local timeout deadline
   timeout="$(config_value boot_timeout_secs)"; positive_int boot_timeout_secs "$timeout"
@@ -622,8 +640,14 @@ rotate() {
 
 health() {
   local request='{"v":{"minimum":3,"maximum":4},"id":"ui-agent-health","method":"daemon.health","params":null}'
+  local wait reply
   require_isolated health
-  adbd shell "printf '%s\n' '$request' | nc -w 3 -q 1 127.0.0.1 $BRIDGE_PORT" | tr -d '\r'
+  wait="$(config_value health_wait_secs)"; positive_int health_wait_secs "$wait"
+  # The reply must arrive before the end of stdin closes the connection: the
+  # device's nc exits as soon as its input ends, which can beat a slow reply.
+  reply="$(adbd shell "(printf '%s\n' '$request'; sleep $wait) | nc -w $((wait + 4)) -q 1 127.0.0.1 $BRIDGE_PORT" | tr -d '\r')"
+  [ -n "$reply" ] || die "no reply from the daemon through 127.0.0.1:$BRIDGE_PORT on the device"
+  echo "$reply"
 }
 
 status() {
@@ -684,6 +708,7 @@ shutdown() {
   fi
   if [ "$DEVICE" = emulator ]; then
     adbd emu kill >/dev/null 2>&1 || true
+    wait_for_emulator_exit
   else
     adb disconnect "$SERIAL" >/dev/null 2>&1 || true
   fi
@@ -693,6 +718,7 @@ cmd="${1:-}"
 [ "$#" -eq 0 ] || shift
 case "$cmd" in
   init) init "$@" ;;
+  clean-avd-locks) clean_avd_locks ;;
   up) up "$@" ;;
   shutdown) shutdown ;;
   install) load_run; adbd install -r -t "$(apk_path)" ;;
