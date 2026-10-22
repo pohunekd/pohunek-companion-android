@@ -54,12 +54,18 @@ case "$(pwd -P)" in "$root"|"$root"/*) workdir="$(pwd -P)" ;; esac
 
 # Only the worktree, the Gradle volume, and /dev/kvm enter the container. No
 # host environment, home directory, or Pohunek runtime directory is passed.
+# A regular clone's .git directory is mounted read-only so a build cannot plant
+# hooks or config that the host's git would later run; a worktree's .git file
+# points outside the mount and stays unreachable.
+git_mount=()
+[ -d "$root/.git" ] && git_mount=(--volume "$root/.git:$root/.git:ro")
+
 exec podman run --rm --init "${tty_flags[@]}" \
-  --userns=keep-id \
+  --userns=keep-id --group-add keep-groups \
   --cap-drop=all --security-opt=no-new-privileges \
   --cpus "$cpus" --memory "$memory" --memory-swap "$memory" \
   --device /dev/kvm \
-  --volume "$root:$root" \
+  --volume "$root:$root" "${git_mount[@]}" \
   --volume "$gradle_volume:/gradle-home" \
   --workdir "$workdir" \
   "$tag" "$@"

@@ -11,7 +11,8 @@ FROM ${BASE_IMAGE}
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
 # Runtime libraries for the emulator (headless, software GPU) plus the tools
-# the scripts use. Package versions follow the pinned Debian release.
+# the scripts use. Packages are not version-pinned: they come from the live
+# repository of the digest-pinned Debian release.
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       bash ca-certificates curl git jq make socat unzip xz-utils zip \

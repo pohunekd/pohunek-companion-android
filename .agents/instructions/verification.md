@@ -2,9 +2,9 @@
 
 ## Gate set
 
-`scripts/dev` exists (#9). The gate set and `scripts/ui-agent` land in M1 (#10, #13). Until then a PR
-reports "no gates yet" and is verified by its DoD evidence and the independent
-self-review. This section describes the set as it will exist.
+`scripts/dev` exists (#9). The gate set and `scripts/ui-agent` land in M1
+(#10, #13). Until then a PR reports "no gates yet" and is verified by its DoD
+evidence and the independent self-review. This section describes the set as it will exist.
 
 `scripts/gates` runs through `scripts/dev` (the toolchain container), in order,
 each with its own exit code:
