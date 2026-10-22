@@ -43,8 +43,19 @@ jobs:
         if: steps.libghostty-vt.outputs.cache-hit != 'true'
         run: scripts/build-libghostty-vt
 
+      # --verify proves the files match their manifest, not where they came
+      # from; the cache is scoped to the PR ref or branch. A restored entry that
+      # fails verification is rebuilt, since cache entries are immutable.
       - name: Verify libghostty-vt
-        run: scripts/build-libghostty-vt --verify
+        env:
+          CACHE_HIT: ${{ steps.libghostty-vt.outputs.cache-hit }}
+        run: |
+          if ! scripts/build-libghostty-vt --verify; then
+            [ "$CACHE_HIT" = true ] || exit 1
+            echo "restored cache failed verification; rebuilding"
+            rm -rf vendor/libghostty-vt
+            scripts/build-libghostty-vt
+          fi
 
       - name: Gates
         run: scripts/gates
