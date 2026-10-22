@@ -96,8 +96,9 @@ scripts/ui-agent health | log [app|daemon|emulator]
   `assembleDebug` runs, installs the APK, and launches `launch_activity` (the
   terminal demo screen). `--sessions N` adds N generated sessions to the four
   fixed ones; `--showcase` replaces them with a realistic dataset of synthetic
-  `claude` and `codex` profiles that run a harmless shell program.
-- **Commands.** `tree` prints one JSON object per node that has a test tag
+  `claude` and `codex` profiles that run a harmless shell program. `type` cannot
+  enter a literal `%s` (`input text` turns it into a space).
+- **Commands.** `tree` prints one JSON array of the nodes that have a test tag
   (`id`), text, or description, with `bounds` and `center` in screen pixels;
   `find TAG` filters by exact tag and `click TAG [N]` taps the centre of the Nth
   match. `type` and `key` go to the focused view (tap the terminal first).
@@ -110,7 +111,8 @@ scripts/ui-agent health | log [app|daemon|emulator]
   phone's settings. Pair it once with `scripts/dev --android-home adb pair
   HOST:PAIRING_PORT` (the key persists in the Android home volume). With
   `--owner-daemon` no daemon or bridge starts and the app uses the daemons it is
-  configured for. Both are exercised only by the owner (#16).
+  configured for, which an emulator cannot reach: use it with `--device phone`.
+  Both are exercised only by the owner (#16).
 - **Cleanup.** After `stop`, `podman ps -a` shows no `pohunek-ui-agent-slot-*`
   container and `pgrep -af 'qemu|pohunekd|socat'` shows nothing of the run.
   The AVD volume is shared and kept; remove it with `podman volume rm

@@ -200,7 +200,7 @@ ensure_avd() {
   [[ "$screen" =~ ^([0-9]+)x([0-9]+)x([0-9]+)$ ]] || die "$config: emulator_screen must look like 720x1600x320"
   width="${BASH_REMATCH[1]}"; height="${BASH_REMATCH[2]}"; density="${BASH_REMATCH[3]}"
   rm -rf "$dir" "$ANDROID_AVD_HOME/$name.ini"
-  echo no | avdmanager create avd --force --name "$name" --device pixel_6 \
+  echo no | avdmanager create avd --force --name "$name" --device "$(config_value emulator_device)" \
     --package "$(system_image_package)" >/dev/null
   set_ini "$dir/config.ini" hw.cpu.ncore "$cores"
   set_ini "$dir/config.ini" hw.ramSize "$memory"
@@ -211,12 +211,12 @@ ensure_avd() {
   set_ini "$dir/config.ini" hw.gpu.enabled yes
   set_ini "$dir/config.ini" hw.gpu.mode swiftshader_indirect
   set_ini "$dir/config.ini" showDeviceFrame no
-  set_ini "$dir/config.ini" disk.dataPartition.size 4G
+  set_ini "$dir/config.ini" disk.dataPartition.size "$(config_value emulator_data_size)"
   start_emulator -no-snapshot-load
   wait_for_boot
   settle_device
   # Let the system settle before the snapshot is taken.
-  sleep 5
+  sleep "$(config_value snapshot_settle_secs)"
   adbd emu avd snapshot save "$snapshot_name" | tr -d '\r' | grep -qx OK || die "saving the quick-boot snapshot failed"
   adbd emu kill >/dev/null || true
   local i
@@ -237,7 +237,6 @@ boot_emulator() {
   fi
   t0="$(now)"
   start_emulator -read-only
-  adbd wait-for-device
   wait_for_boot
   if grep -q "Successfully loaded snapshot" "$run_dir/emulator.log"; then
     echo "boot=snapshot"
@@ -497,7 +496,7 @@ start_daemon() { # EXTRA_SESSIONS SHOWCASE(0|1)
   for line in "${lines[@]}"; do
     "$create" "$line" 2>>"$iso/session-new.log" &
     running=$((running + 1))
-    if [ "$running" -ge 8 ]; then
+    if [ "$running" -ge "$(config_value session_parallelism)" ]; then
       wait -n || failed=1
       running=$((running - 1))
     fi
@@ -525,6 +524,7 @@ start_bridge() {
   local i
   for i in $(seq 1 50); do
     socat -u /dev/null "TCP:127.0.0.1:$BRIDGE_PORT" 2>/dev/null && break
+    [ "$i" -lt 50 ] || { cat "$run_dir/bridge.log" >&2; die "the bridge does not listen on 127.0.0.1:$BRIDGE_PORT"; }
     sleep 0.1
   done
   adbd reverse "tcp:$BRIDGE_PORT" "tcp:$BRIDGE_PORT" >/dev/null
@@ -630,6 +630,7 @@ send_key() { # esc|ctrl-c|tab|up|down|left|right|enter
 
 rotate() {
   local current next
+  [ "$DEVICE" = emulator ] || die "rotate changes system settings and is refused on a phone"
   current="$(adbd shell settings get system user_rotation | tr -d '\r')"
   [ "$current" = 0 ] && next=1 || next=0
   adbd shell settings put system accelerometer_rotation 0
@@ -670,9 +671,10 @@ log_of() { # app|daemon|emulator
     app)
       local pid
       pid="$(adbd shell pidof -s "$(config_value app_package)" | tr -d '\r')"
-      if [ -n "$pid" ]; then adbd logcat -d -t 400 --pid="$pid"; else adbd logcat -d -t 400; fi ;;
-    daemon) tail -n 200 "$daemon_log" ;;
-    emulator) tail -n 200 "$run_dir/emulator.log" ;;
+      [ -n "$pid" ] || die "the app is not running"
+      adbd logcat -d -t "$(config_value log_lines)" --pid="$pid" ;;
+    daemon) tail -n "$(config_value log_lines)" "$daemon_log" ;;
+    emulator) tail -n "$(config_value log_lines)" "$run_dir/emulator.log" ;;
     *) die "log takes app, daemon or emulator" ;;
   esac
 }
@@ -696,13 +698,14 @@ up() { # EXTRA_SESSIONS SHOWCASE
 
 shutdown() {
   local -a envs
-  load_run 2>/dev/null || return 0
+  [ -r "$run_env" ] || return 0
+  load_run
   if [ "$DAEMON" = isolated ]; then
     stop_bridge
     if [ -S "$iso/run/pohunek/daemon.sock" ]; then
       mapfile -t envs < <(isolated_env)
       iso_run "$cli" session list --json 2>/dev/null | jq -r '.. | objects | select(has("id")) | .id' 2>/dev/null |
-        xargs -r -P 8 -I{} env "${envs[@]}" "$cli" session rm {} >/dev/null 2>&1 || true
+        xargs -r -P "$(config_value session_parallelism)" -I{} env "${envs[@]}" "$cli" session rm {} >/dev/null 2>&1 || true
     fi
     halt_daemon || true
   fi

@@ -54,3 +54,18 @@ health_wait_secs = 1
 # Seconds `scripts/ui-agent stop` waits for the emulator to exit before the
 # container is stopped: a positive integer.
 shutdown_timeout_secs = 60
+
+# AVD creation (once per AVD name): the avdmanager device profile, the data
+# partition size, and seconds to let the system settle before the snapshot.
+emulator_device = "pixel_6"
+emulator_data_size = "4G"
+snapshot_settle_secs = 5
+
+# Synthetic sessions created or removed at the same time: a positive integer.
+session_parallelism = 8
+
+# Seconds a stopping slot container gets before it is killed: a positive integer.
+container_stop_secs = 10
+
+# Lines printed by `scripts/ui-agent log`: a positive integer.
+log_lines = 400

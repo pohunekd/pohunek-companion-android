@@ -102,7 +102,7 @@ reclaim_stale_slots() {
     worktree="$(container_label "$name" ui-agent.worktree)"
     if [ ! -d "$worktree" ]; then
       echo "ui-agent: removing $name: its worktree $worktree is gone" >&2
-      podman rm -f --time 5 "$name" >/dev/null
+      podman rm -f --time "$(positive_int_value container_stop_secs)" "$name" >/dev/null
     fi
   done < <(podman ps -a --filter "name=^${container_prefix}" --format '{{.Names}}')
 }
@@ -158,8 +158,13 @@ start_done=0
 
 cleanup_failed_start() {
   if [ -n "$started_name" ] && [ "$start_done" -eq 0 ]; then
-    echo "ui-agent: start failed; removing $started_name" >&2
-    podman rm -f --time 5 "$started_name" >/dev/null 2>&1 || true
+    echo "ui-agent: start failed; logs of $started_name follow, then it is removed" >&2
+    for log in up emulator; do
+      echo "--- $log.log" >&2
+      podman exec "$started_name" tail -n 20 "/tmp/ui-agent/$log.log" >&2 2>&1 || true
+    done
+    podman exec "$started_name" "$guest_script" shutdown >/dev/null 2>&1 || true
+    podman rm -f --time "$(positive_int_value container_stop_secs)" "$started_name" >/dev/null 2>&1 || true
   fi
 }
 
@@ -201,6 +206,7 @@ start() {
 
   deadline=$((SECONDS + timeout))
   until state="$(podman exec "$name" cat /tmp/ui-agent/up.status 2>/dev/null)"; do
+    [ "$(podman container inspect --format '{{.State.Running}}' "$name" 2>/dev/null)" = true ] || die "the slot container exited"
     [ "$SECONDS" -lt "$deadline" ] || die "the device and daemon were not ready after ${timeout}s; see: scripts/ui-agent log emulator"
     sleep 2
   done
@@ -225,8 +231,8 @@ stop_run() {
     return 0
   fi
   podman exec "$name" "$guest_script" shutdown >/dev/null 2>&1 || true
-  podman stop --time 10 "$name" >/dev/null 2>&1 || true
-  podman rm -f --time 5 "$name" >/dev/null 2>&1 || true
+  podman stop --time "$(positive_int_value container_stop_secs)" "$name" >/dev/null 2>&1 || true
+  podman rm -f --time "$(positive_int_value container_stop_secs)" "$name" >/dev/null 2>&1 || true
   ! podman container exists "$name" || die "could not remove $name"
   echo "stopped $name"
 }
