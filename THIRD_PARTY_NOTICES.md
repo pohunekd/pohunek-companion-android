@@ -16,15 +16,20 @@ entry. The decisions behind this list are in
 - Commit: `f53920f2bc6945706cff21abf21fd55dd333dc87`
 - License: MIT, Copyright (c) 2026 ArcBox, Inc.
   (https://github.com/arcboxlabs/expo-libghostty/blob/f53920f2bc6945706cff21abf21fd55dd333dc87/LICENSE)
-- Files (`android/` only), all planned:
-  - `GhosttyTerminalView.kt`
-  - `GhosttyVt.kt`
-  - `SnapshotFormat.kt`
-  - `StickyModifier.kt`
-  - `TerminalAccessoryBar.kt`
-  - `cpp/ghostty_jni.cpp`
-  - `CMakeLists.txt`
-- Not copied: the Expo glue (`ExpoLibghosttyModule.kt`, `ExpoLibghosttyView.kt`).
+- Files (`android/` only), copied into `:terminal` with the package renamed to
+  `dev.pohunek.companion.terminal` (JNI function names, library name, and log tag
+  follow; each file's first line says where it came from):
+  - `GhosttyTerminalView.kt`, `GhosttyVt.kt`, `SnapshotFormat.kt`,
+    `StickyModifier.kt`, `TerminalAccessoryBar.kt` (from
+    `src/main/java/expo/modules/libghostty/`)
+  - `cpp/ghostty_jni.cpp` (from `src/main/cpp/`)
+  - `CMakeLists.txt`: library name and the libghostty-vt paths (the staged
+    `vendor/libghostty-vt/`) adapted; the 16 KB page-size link option is kept.
+- Not copied: the Expo glue (`ExpoLibghosttyModule.kt`, `ExpoLibghosttyView.kt`),
+  the Gradle build file, the unit tests, and the Nerd Fonts symbols font
+  (`GhosttyTerminalView` falls back to the system fonts when the asset is absent).
+- The copied Kotlin files keep their upstream formatting and are excluded from
+  Spotless and detekt (`copiedSources` in the root `build.gradle.kts`).
 
 ## ghostty (libghostty-vt)
 

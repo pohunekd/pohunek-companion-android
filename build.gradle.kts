@@ -76,12 +76,16 @@ subprojects {
     pluginManager.withPlugin("org.jetbrains.kotlin.jvm") { unitTest.configure { dependsOn("$modulePath:test") } }
 }
 
+// Files copied from expo-libghostty keep their upstream formatting and structure (THIRD_PARTY_NOTICES.md), so the style gates skip them.
+val copiedSources = listOf("GhosttyTerminalView", "GhosttyVt", "SnapshotFormat", "StickyModifier", "TerminalAccessoryBar")
+    .map { "terminal/src/main/kotlin/dev/pohunek/companion/terminal/$it.kt" }
+
 // Formatting rules live in .editorconfig.
 spotless {
     val ktlintVersion = libs.versions.ktlint.get()
     kotlin {
         target("**/*.kt")
-        targetExclude("**/build/**")
+        targetExclude(listOf("**/build/**") + copiedSources)
         ktlint(ktlintVersion)
     }
     kotlinGradle {
@@ -98,6 +102,7 @@ detekt {
         fileTree(rootDir) {
             include("**/src/**/*.kt", "**/*.gradle.kts")
             exclude("**/build/**")
+            exclude(copiedSources)
         },
     )
 }
