@@ -20,6 +20,8 @@ if [ "${1:-}" != "--in-container" ]; then
   exec "$root/scripts/dev" "$root/scripts/gates" --in-container
 fi
 
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
 declare -A gate_exit
 for name in "${gate_names[@]}"; do
   echo "== gate: $name (./gradlew ${gate_tasks[$name]})" >&2

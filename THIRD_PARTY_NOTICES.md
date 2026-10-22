@@ -55,7 +55,10 @@ entry. The decisions behind this list are in
     `app/.../OpenCodeApplication.kt` (as `PohunekApplication.kt`),
     `app/.../AppModule.kt`, `app/.../MainActivity.kt`,
     `app/.../navigation/AppNavHost.kt`, `core/data/.../di/DataModule.kt`
-  - launcher icon foreground `app/src/main/res/drawable/ic_launcher_foreground.xml`
+  - adapted Android resources under `app/src/main/res/`: `drawable/ic_launcher_foreground.xml`,
+    `mipmap-anydpi-v26/ic_launcher.xml` (as `mipmap-anydpi/ic_launcher.xml`),
+    `values/{colors,strings,themes}.xml`, `values-night/colors.xml`,
+    `xml/data_extraction_rules.xml`, and `app/src/main/AndroidManifest.xml`
   - the commit has no convention plugins (no `build-logic`); shared Android
     settings are configured in the root `build.gradle.kts` instead.
 - Planned, not copied yet: connect flow, `SessionMonitorService`
