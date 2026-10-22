@@ -11,8 +11,8 @@
 - Layout (groups, order, filters) is client-side state in the app's own storage.
   Never write it into session metadata.
 - Herd membership and Pohunek Work links (`work.link.*`, `work.role`, legacy
-  `link.*`) are read-only structure for the app. A drag never adds or removes a
-  herd member or relinks a work item.
+  `link.*`) are read-only structure for the app. A layout change never adds or
+  removes a herd member or relinks a work item.
 - No network calls other than to Pohunek daemons. GitHub, Linear and similar
   providers are reached only through metadata Pohunek Work already wrote, and
   only when the owner opens a link.
@@ -49,14 +49,14 @@
   literals scattered across Composables.
 - A choice among a few fixed options is a chip row, not a dropdown.
 - Give every element an agent needs to target a stable `testTag`
-  (`Component.id`); `scripts/ui-agent tree` lists nodes by it.
+  (`Component.id`); `scripts/ui-agent tree` (lands in M1, #13) lists nodes by it.
 
 ## Configuration
 
 - Tunables (timeouts, thresholds, intervals, sizes, retry delays) come from a
   config source (build config generated from a checked-in file, or the app's
   settings storage), never constants in code. Document each key next to its
-  declaration. Host-side tooling reads `config/dev.toml`.
+  declaration. Host-side tooling (lands in M1, #9) reads `config/dev.toml`.
 - A missing or invalid required value fails at startup with a clear message
   shown in the UI; never invent a default for it. Optional values may have
   documented defaults at their declaration.

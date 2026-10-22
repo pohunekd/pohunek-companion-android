@@ -17,6 +17,7 @@ narrative belongs here, not in code comments. -->
 
 ## Verification
 
+- CI: <!-- check result, or "no CI yet" before #10 -->
 - `scripts/gates`: Spotless passed/failed, detekt passed/failed, lint
   passed/failed, test passed/failed, assembleDebug passed/failed (or "no gates
   yet" before #10)

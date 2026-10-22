@@ -44,14 +44,15 @@ background watch so its completion resumes the work.
 1. `scripts/gates` on the final revision; every gate passes. Gates land in M1
    (#10); until then the PR reports "no gates yet".
 2. Run the app for UI or integration changes through `scripts/ui-agent` (lands
-   in M1, #13) and record what you observed; attach a screenshot for visible
+   in M1, #13; before that a manual `adb` run on an emulator is acceptable) and
+   record what you observed; attach a screenshot for visible
    changes. Checks on the owner's phone are reported as such, in words only.
 
 ## 4. Self-review
 
 Give the full diff (`git diff origin/main...HEAD`) and the issue to an
 independent reviewer that did not write the code (a fresh subagent, or Codex
-through the second-opinion or coding-worker review route). Ask for
+through the second-opinion or copilot-review route). Ask for
 correctness, security, error handling, and DoD coverage findings with
 `path:line`. For each finding: fix it, file it (out of scope), or reject it
 with evidence. Re-run the gates when code changed.
