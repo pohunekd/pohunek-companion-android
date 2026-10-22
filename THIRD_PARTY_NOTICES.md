@@ -158,6 +158,12 @@ packages. Re-take it when `ghostty_commit` changes.
 ## Pohunek wire fixtures
 
 - Repository: https://github.com/zajca/pohunek
-- Tag: `v0.35.2`
+- Tag: `v0.35.2` (commit `e4fcb1f32380841491625bfc9363689ff8e304ba`)
 - License: MIT
-- Files, planned: `sdk/ts/protocol/fixtures`.
+- Files, copied unchanged from `sdk/ts/protocol/fixtures` into
+  `protocol/src/test/resources/fixtures/`: `request-session-list.json`,
+  `response-ok-session-list.json`, `response-err-with-recover.json`,
+  `protocol-error-with-recover.json`, `protocol-error-without-recover.json`,
+  `session-info-full.json`, `session-info-minimal.json`,
+  `session-list-filter-state.json`. The remaining fixtures are planned for the
+  issues that cover their methods and events.

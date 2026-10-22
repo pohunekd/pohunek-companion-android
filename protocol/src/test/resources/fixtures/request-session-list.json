@@ -1,0 +1,16 @@
+{
+  "id": "req-fixture-1",
+  "method": "session.list",
+  "params": {
+    "filters": [
+      {
+        "key": "state",
+        "value": "running"
+      }
+    ]
+  },
+  "v": {
+    "maximum": 4,
+    "minimum": 3
+  }
+}
