@@ -1,0 +1,103 @@
+# Toolchain image for building and running Pohunek Companion Android.
+# Every version and checksum is pinned in this file, each pin directly above the
+# step that uses it so that changing one rebuilds only that step and the steps
+# after it. scripts/dev rebuilds the image whenever this file changes. Nothing
+# is "latest".
+
+# Debian 12 slim, pinned by digest.
+ARG BASE_IMAGE=docker.io/library/debian:bookworm-slim@sha256:ec31d744f83f4a73447ba045aaab9409997efe5cc706eca4890c1be36cc1606a
+FROM ${BASE_IMAGE}
+
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+
+# Runtime libraries for the emulator (headless, software GPU) plus the tools
+# the scripts use. Package versions follow the pinned Debian release.
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      bash ca-certificates curl git jq make socat unzip xz-utils zip \
+      libasound2 libbz2-1.0 libdbus-1-3 libexpat1 libgbm1 libgl1 libnss3 \
+      libpng16-16 libpulse0 libice6 libsm6 libtinfo6 libx11-6 libx11-xcb1 \
+      libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 \
+      libxi6 libxkbcommon0 libxkbfile1 libxrandr2 libxrender1 libxtst6 \
+ && rm -rf /var/lib/apt/lists/*
+
+# Temurin JDK 21 (release tag and the sha256 published by Adoptium).
+ARG JDK_TAG=jdk-21.0.12.1+1
+ARG JDK_SHA256=ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94
+ENV JAVA_HOME=/opt/java
+RUN tag_enc="${JDK_TAG//+/%2B}"; ver="${JDK_TAG#jdk-}"; \
+    curl -fsSL --retry 5 -o /tmp/jdk.tgz \
+      "https://github.com/adoptium/temurin21-binaries/releases/download/${tag_enc}/OpenJDK21U-jdk_x64_linux_hotspot_${ver//+/_}.tar.gz"; \
+    echo "${JDK_SHA256}  /tmp/jdk.tgz" | sha256sum -c -; \
+    mkdir -p "$JAVA_HOME"; tar -xzf /tmp/jdk.tgz -C "$JAVA_HOME" --strip-components=1; \
+    rm /tmp/jdk.tgz
+
+# Zig, used to build libghostty-vt (sha256 published on ziglang.org).
+ARG ZIG_VERSION=0.15.2
+ARG ZIG_SHA256=02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239
+RUN curl -fsSL --retry 5 -o /tmp/zig.txz "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"; \
+    echo "${ZIG_SHA256}  /tmp/zig.txz" | sha256sum -c -; \
+    mkdir -p /opt/zig; tar -xJf /tmp/zig.txz -C /opt/zig --strip-components=1; \
+    ln -s /opt/zig/zig /usr/local/bin/zig; rm /tmp/zig.txz
+
+# Android SDK bootstrap: command-line tools 19.0 (installed as
+# cmdline-tools/latest where Gradle looks) and platform-tools, checked against
+# the sha1 that Google publishes in its repository manifest. Later
+# command-line tools make sdkmanager a shim that downloads an unpinned
+# "Android CLI" at first use and collects usage data.
+ARG CMDLINE_TOOLS_BUILD=13114758
+ARG CMDLINE_TOOLS_SHA1=5fdcc763663eefb86a5b8879697aa6088b041e70
+ARG PLATFORM_TOOLS_ARCHIVE=platform-tools_r37.0.1-linux.zip
+ARG PLATFORM_TOOLS_SHA1=477254aa5f903c15cf51001717bdf347fb6b53e0
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+RUN mkdir -p "$ANDROID_HOME/cmdline-tools"; \
+    curl -fsSL --retry 5 -o /tmp/clt.zip "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_BUILD}_latest.zip"; \
+    echo "${CMDLINE_TOOLS_SHA1}  /tmp/clt.zip" | sha1sum -c -; \
+    unzip -q /tmp/clt.zip -d /tmp/clt; mv /tmp/clt/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"; \
+    rm -rf /tmp/clt /tmp/clt.zip; \
+    curl -fsSL --retry 5 -o /tmp/pt.zip "https://dl.google.com/android/repository/${PLATFORM_TOOLS_ARCHIVE}"; \
+    echo "${PLATFORM_TOOLS_SHA1}  /tmp/pt.zip" | sha1sum -c -; \
+    unzip -q /tmp/pt.zip -d "$ANDROID_HOME"; rm /tmp/pt.zip
+
+# SDK packages installed by sdkmanager, which verifies its own downloads.
+# Installing the licence-gated packages accepts the Android SDK licences.
+# sdkmanager cannot select an emulator build and installs the stable one as a
+# dependency of the system image, so the build fails if it is not this one.
+ARG ANDROID_PLATFORM=platforms;android-37.0
+ARG ANDROID_BUILD_TOOLS=build-tools;37.0.0
+ARG ANDROID_SYSTEM_IMAGE=system-images;android-37.0;google_apis;x86_64
+ARG ANDROID_NDK=ndk;27.1.12297006
+ARG ANDROID_CMAKE=cmake;4.1.2
+ARG EMULATOR_BUILD_ID=16428233
+RUN SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; \
+    printf 'y\n%.0s' {1..50} | "$SDKM" --licenses >/dev/null; \
+    "$SDKM" --install "${ANDROID_PLATFORM}" "${ANDROID_BUILD_TOOLS}" "${ANDROID_NDK}" "${ANDROID_CMAKE}" "${ANDROID_SYSTEM_IMAGE}"; \
+    grep -qx "Pkg.BuildId=${EMULATOR_BUILD_ID}" "$ANDROID_HOME/emulator/source.properties" \
+      || { echo "emulator build is not ${EMULATOR_BUILD_ID}; bump EMULATOR_BUILD_ID deliberately" >&2; exit 1; }
+
+# Pohunek release v0.35.2 (musl builds are static; sha256 published on the
+# zajca/pohunek GitHub release).
+ARG POHUNEK_VERSION=0.35.2
+ARG POHUNEK_CLI_SHA256=c78a9d794ce2e21cc1f9380bbd1c498a4d1a0596a1b93701d9140cafb511a7f8
+ARG POHUNEK_DAEMON_SHA256=500445beba73cce3786f7f423ce0c9260f52d73d22eb11c6c9250c957d474bef
+RUN base="https://github.com/zajca/pohunek/releases/download/v${POHUNEK_VERSION}"; \
+    cli="pohunek-cli-${POHUNEK_VERSION}-x86_64-unknown-linux-musl"; \
+    dmn="pohunek-daemon-${POHUNEK_VERSION}-x86_64-unknown-linux-musl"; \
+    curl -fsSL --retry 5 -o /tmp/cli.tgz "${base}/${cli}.tar.gz"; \
+    curl -fsSL --retry 5 -o /tmp/dmn.tgz "${base}/${dmn}.tar.gz"; \
+    echo "${POHUNEK_CLI_SHA256}  /tmp/cli.tgz" | sha256sum -c -; \
+    echo "${POHUNEK_DAEMON_SHA256}  /tmp/dmn.tgz" | sha256sum -c -; \
+    mkdir -p /opt/pohunek/cli /opt/pohunek/daemon; \
+    tar -xzf /tmp/cli.tgz -C /opt/pohunek/cli --strip-components=1; \
+    tar -xzf /tmp/dmn.tgz -C /opt/pohunek/daemon --strip-components=1; \
+    rm /tmp/cli.tgz /tmp/dmn.tgz
+
+ENV PATH=/opt/pohunek/cli:/opt/pohunek/daemon:/opt/java/bin:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/emulator:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Writable by whichever uid scripts/dev maps in: HOME is per container, the
+# Gradle user home is the shared named volume.
+ENV HOME=/home/dev \
+    ANDROID_USER_HOME=/home/dev/.android \
+    GRADLE_USER_HOME=/gradle-home
+RUN mkdir -m 1777 /home/dev /gradle-home

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Run a command in the rootless Podman toolchain container, from the current
+# worktree. Usage: scripts/dev <command...>
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+containerfile="$root/container/Containerfile"
+config="$root/config/dev.toml"
+gradle_volume="pohunek-companion-android-gradle"
+
+die() { echo "scripts/dev: $*" >&2; exit 1; }
+
+[ "$#" -gt 0 ] || die "usage: scripts/dev <command...>"
+command -v podman >/dev/null || die "podman is not installed"
+[ "$(podman info --format '{{.Host.Security.Rootless}}')" = "true" ] \
+  || die "podman is not rootless; refusing to run the toolchain"
+
+# Required keys of config/dev.toml; a missing or malformed value is an error.
+config_value() {
+  local key="$1" value
+  [ -r "$config" ] || die "missing $config"
+  value="$(sed -n -E "s/^${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*\$/\\1/p" "$config" | head -n 1)"
+  value="${value#\"}"; value="${value%\"}"
+  [ -n "$value" ] || die "$config: missing required key '$key'"
+  printf '%s' "$value"
+}
+cpus="$(config_value cpus)"
+memory="$(config_value memory)"
+[[ "$cpus" =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk -v c="$cpus" 'BEGIN{exit !(c > 0)}' \
+  || die "$config: cpus must be a positive number, got '$cpus'"
+[[ "$memory" =~ ^[0-9]+[kmg]$ ]] || die "$config: memory must look like 6g, got '$memory'"
+
+# The image tag is derived from the Containerfile, so any edit rebuilds it.
+tag="pohunek-companion-android-toolchain:$(sha256sum "$containerfile" | cut -c1-12)"
+
+if ! podman image exists "$tag"; then
+  lock="${XDG_RUNTIME_DIR:-/tmp}/pohunek-companion-android-image-build.lock"
+  (
+    flock 9
+    if ! podman image exists "$tag"; then
+      echo "scripts/dev: building $tag (first use, several minutes)" >&2
+      podman build --quiet --format docker --tag "$tag" --file "$containerfile" \
+        --cpu-period 100000 --cpu-quota "$(awk -v c="$cpus" 'BEGIN{printf "%d", c*100000}')" \
+        --memory "$memory" "$root/container" >/dev/null
+    fi
+  ) 9>"$lock"
+fi
+
+tty_flags=(-i)
+[ -t 0 ] && [ -t 1 ] && tty_flags=(-it)
+
+workdir="$root"
+case "$(pwd -P)" in "$root"|"$root"/*) workdir="$(pwd -P)" ;; esac
+
+# Only the worktree, the Gradle volume, and /dev/kvm enter the container. No
+# host environment, home directory, or Pohunek runtime directory is passed.
+exec podman run --rm --init "${tty_flags[@]}" \
+  --userns=keep-id \
+  --cap-drop=all --security-opt=no-new-privileges \
+  --cpus "$cpus" --memory "$memory" --memory-swap "$memory" \
+  --device /dev/kvm \
+  --volume "$root:$root" \
+  --volume "$gradle_volume:/gradle-home" \
+  --workdir "$workdir" \
+  "$tag" "$@"
