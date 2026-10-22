@@ -2,6 +2,7 @@ package dev.pohunek.companion.terminal
 
 import android.content.Context
 import android.view.View
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.LinearLayout
 
 /** Terminal grid with the key accessory bar below it. */
@@ -22,6 +23,19 @@ internal class TerminalHostView(context: Context) : LinearLayout(context) {
 
     fun setAccessoryBarVisible(visible: Boolean) {
         accessoryBar.visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * Exposes [tag] as the accessibility resource id of the terminal grid. A Compose `testTag` on the
+     * `AndroidView` wrapper does not reach the accessibility tree: the embedded view reports its own node.
+     */
+    fun setTestTag(tag: String) {
+        terminal.accessibilityDelegate = object : AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.viewIdResourceName = tag
+            }
+        }
     }
 
     fun destroy() = terminal.destroy()
