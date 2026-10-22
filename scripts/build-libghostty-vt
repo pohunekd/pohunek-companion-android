@@ -140,6 +140,7 @@ export ZIG_LOCAL_CACHE_DIR="$work/zig-local-cache"
 # Zig's code generation depends on the number of CPUs it sees (some functions get
 # a different stack layout), so the compiler runs on exactly one CPU and the
 # output is the same on every host.
+command -v taskset >/dev/null || die "taskset is required"
 cpu="$(taskset -pc $$ | sed -E 's/.*: *([0-9]+).*/\1/')"
 [[ "$cpu" =~ ^[0-9]+$ ]] || die "cannot determine an allowed CPU"
 

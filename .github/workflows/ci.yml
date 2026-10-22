@@ -45,7 +45,9 @@ jobs:
 
       # --verify proves the files match their manifest, not where they came
       # from; the cache is scoped to the PR ref or branch. A restored entry that
-      # fails verification is rebuilt, since cache entries are immutable.
+      # fails verification is rebuilt in that run; the entry itself stays until
+      # its key changes, so delete it with `gh cache delete` to stop rebuilding.
+      # The path matches output_dir in config/libghostty-vt.toml.
       - name: Verify libghostty-vt
         env:
           CACHE_HIT: ${{ steps.libghostty-vt.outputs.cache-hit }}
