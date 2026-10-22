@@ -42,8 +42,7 @@ background watch so its completion resumes the work.
 ## 3. Verify
 
 1. `scripts/gates` on the final revision; every gate passes.
-2. Run the app for UI or integration changes through `scripts/ui-agent` (lands
-   in M1, #13; before that a manual `adb` run on an emulator is acceptable) and
+2. Run the app for UI or integration changes through `scripts/ui-agent` and
    record what you observed; attach a screenshot for visible
    changes. Checks on the owner's phone are reported as such, in words only.
 

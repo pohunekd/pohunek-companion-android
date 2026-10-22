@@ -1,16 +1,44 @@
 #!/usr/bin/env bash
 # Run a command in the rootless Podman toolchain container, from the current
-# worktree. Usage: scripts/dev <command...>
+# worktree.
+#
+# Usage: scripts/dev [options] [--] <command...>
+#   --name NAME        name the container (scripts/ui-agent addresses its slots by name)
+#   --label KEY=VALUE  add a container label (repeatable)
+#   --detach           run in the background and print the container id
+#   --android-home     mount the shared Android home volume (AVDs, quick-boot
+#                      snapshots, adb keys) at /android-home
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 containerfile="$root/container/Containerfile"
 config="$root/config/dev.toml"
 gradle_volume="pohunek-companion-android-gradle"
+android_home_volume="pohunek-companion-android-avd"
 
 die() { echo "scripts/dev: $*" >&2; exit 1; }
 
-[ "$#" -gt 0 ] || die "usage: scripts/dev <command...>"
+name=""
+labels=()
+detach=0
+android_home=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --name)
+      [ "$#" -ge 2 ] || die "--name needs a value"
+      [[ "$2" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || die "invalid container name '$2'"
+      name="$2"; shift 2 ;;
+    --label)
+      [ "$#" -ge 2 ] || die "--label needs a value"
+      [[ "$2" =~ ^[a-z][a-z0-9.-]*=[^[:cntrl:]]*$ ]] || die "invalid label '$2', expected key=value"
+      labels+=(--label "$2"); shift 2 ;;
+    --detach) detach=1; shift ;;
+    --android-home) android_home=1; shift ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+done
+[ "$#" -gt 0 ] || die "usage: scripts/dev [--name NAME] [--label KEY=VALUE] [--detach] [--android-home] [--] <command...>"
 command -v podman >/dev/null || die "podman is not installed"
 [ "$(podman info --format '{{.Host.Security.Rootless}}')" = "true" ] \
   || die "podman is not rootless; refusing to run the toolchain"
@@ -48,24 +76,34 @@ fi
 
 tty_flags=(-i)
 [ -t 0 ] && [ -t 1 ] && tty_flags=(-it)
+[ "$detach" -eq 1 ] && tty_flags=(--detach)
+
+name_flags=()
+[ -n "$name" ] && name_flags=(--name "$name")
+
+android_home_flags=()
+[ "$android_home" -eq 1 ] && android_home_flags=(
+  --volume "$android_home_volume:/android-home"
+  --env ANDROID_USER_HOME=/android-home --env ANDROID_AVD_HOME=/android-home/avd)
 
 workdir="$root"
 case "$(pwd -P)" in "$root"|"$root"/*) workdir="$(pwd -P)" ;; esac
 
-# Only the worktree, the Gradle volume, and /dev/kvm enter the container. No
-# host environment, home directory, or Pohunek runtime directory is passed.
+# Only the worktree, the Gradle volume (and the Android home volume on request),
+# and /dev/kvm enter the container. No host environment, home directory, or
+# Pohunek runtime directory is passed.
 # A regular clone's .git directory is mounted read-only so a build cannot plant
 # hooks or config that the host's git would later run; a worktree's .git file
 # points outside the mount and stays unreachable.
 git_mount=()
 [ -d "$root/.git" ] && git_mount=(--volume "$root/.git:$root/.git:ro")
 
-exec podman run --rm --init "${tty_flags[@]}" \
+exec podman run --rm --init "${tty_flags[@]}" "${name_flags[@]}" "${labels[@]}" \
   --userns=keep-id --group-add keep-groups \
   --cap-drop=all --security-opt=no-new-privileges \
   --cpus "$cpus" --memory "$memory" --memory-swap "$memory" \
   --device /dev/kvm \
   --volume "$root:$root" "${git_mount[@]}" \
-  --volume "$gradle_volume:/gradle-home" \
+  --volume "$gradle_volume:/gradle-home" "${android_home_flags[@]}" \
   --workdir "$workdir" \
   "$tag" "$@"

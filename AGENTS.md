@@ -58,13 +58,13 @@ the host. `scripts/dev <command...>` runs a command in it from the current
 worktree (image pinned in `container/Containerfile`, built on first use; CPU and
 memory limits in `config/dev.toml`). The container sees the whole worktree
 (including ignored files) but not its git metadata, so run git on the host; the
-SDK and tools under `/opt` are read-only. `scripts/ui-agent` lands in M1 (#13).
+SDK and tools under `/opt` are read-only.
 
 ```bash
 scripts/dev ./gradlew :app:assembleDebug   # any command in the toolchain container
 scripts/build-libghostty-vt                # libghostty-vt.a for arm64-v8a and x86_64 into vendor/libghostty-vt/ (--verify checks it)
 scripts/gates                              # Spotless, detekt, lint, unit tests, assembleDebug: the set CI runs
-scripts/ui-agent start                     # emulator + app + isolated daemon: screenshots, element tree, taps
+scripts/ui-agent start                     # emulator + app + isolated daemon; then screenshot, tree, click, type, key, stop (see verification.md)
 ```
 
 The repository is public: published screenshots, logs, and PR or issue text
