@@ -17,10 +17,9 @@ narrative belongs here, not in code comments. -->
 
 ## Verification
 
-- CI: <!-- check result, or "no CI yet" before #10 -->
+- CI: <!-- check result and run URL -->
 - `scripts/gates`: Spotless passed/failed, detekt passed/failed, lint
-  passed/failed, test passed/failed, assembleDebug passed/failed (or "no gates
-  yet" before #10)
+  passed/failed, test passed/failed, assembleDebug passed/failed
 - Manual: <!-- what was run and observed; screenshot for visible changes;
   anything needing the owner's phone = unverified -->
 

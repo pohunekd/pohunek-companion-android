@@ -21,8 +21,7 @@
 
 ## Kotlin
 
-- Spotless (ktlint) and detekt are the style and static-analysis gates (land in
-  M1, #10); do not suppress a rule without a one-line reason next to the
+- Spotless (ktlint) and detekt are the style and static-analysis gates; do not suppress a rule without a one-line reason next to the
   suppression.
 - No `!!` and no unchecked casts (`as`, `@Suppress("UNCHECKED_CAST")`) on data
   from the daemon, files, or the user. Parse into typed values and return a

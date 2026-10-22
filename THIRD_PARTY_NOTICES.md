@@ -40,10 +40,27 @@ entry. The decisions behind this list are in
 - Commit: `4393d5f6e9dc49b6dc593d563a7dc969695f982d`
 - License: MIT, Copyright (c) 2026 OpenCode Mobile contributors
   (https://github.com/beppe2880/opencode-mobile/blob/4393d5f6e9dc49b6dc593d563a7dc969695f982d/LICENSE)
-- Files (`android/`), all planned: Gradle setup (version catalog, convention
-  plugins), module skeleton, Koin wiring, navigation, theme, connect flow,
-  `SessionMonitorService` (foreground service type `dataSync`) with its
-  notifier and notification action receiver.
+- Files (paths under `android/` at the pinned commit; "adapted" means package,
+  naming, and contents changed to this project):
+  - copied unchanged: `gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`,
+    `gradle/wrapper/gradle-wrapper.properties`, `.editorconfig`
+  - adapted: `gradle/libs.versions.toml` (version catalog, trimmed to the
+    dependencies in use), `settings.gradle.kts` (module layout),
+    `build.gradle.kts` (Spotless setup), `gradle.properties`, `.gitignore`,
+    `app/build.gradle.kts`, `app/proguard-rules.pro`,
+    `core/{ui,mvi,domain,data}/build.gradle.kts`
+  - adapted Kotlin: `core/mvi/.../BaseViewModel.kt`, `OptimisticState.kt`,
+    `CollectEffect.kt`, `core/mvi/src/test/.../OptimisticStateTest.kt`,
+    `core/ui/.../theme/OcTheme.kt` (as `PohunekTheme.kt`),
+    `app/.../OpenCodeApplication.kt` (as `PohunekApplication.kt`),
+    `app/.../AppModule.kt`, `app/.../MainActivity.kt`,
+    `app/.../navigation/AppNavHost.kt`, `core/data/.../di/DataModule.kt`
+  - launcher icon foreground `app/src/main/res/drawable/ic_launcher_foreground.xml`
+  - the commit has no convention plugins (no `build-logic`); shared Android
+    settings are configured in the root `build.gradle.kts` instead.
+- Planned, not copied yet: connect flow, `SessionMonitorService`
+  (foreground service type `dataSync`) with its notifier and notification
+  action receiver.
 - Not copied: its OpenCode API and network layers.
 
 ## pohunek-companion (`crates/core`)

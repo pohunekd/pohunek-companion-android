@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Run the gate set in the toolchain container: Spotless, detekt, Android lint,
+# unit tests, assembleDebug. Every gate runs even when an earlier one fails;
+# each result is printed with its own exit code and the script exits non-zero if
+# any gate failed. Usage: scripts/gates
+set -uo pipefail
+
+# Gradle tasks per gate, in report order.
+gate_names=(spotless detekt lint test assembleDebug)
+declare -A gate_tasks=(
+  [spotless]="spotlessCheck"
+  [detekt]="detekt"
+  [lint]="lintDebug"
+  [test]="unitTest"
+  [assembleDebug]="assembleDebug"
+)
+
+if [ "${1:-}" != "--in-container" ]; then
+  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+  exec "$root/scripts/dev" "$root/scripts/gates" --in-container
+fi
+
+declare -A gate_exit
+for name in "${gate_names[@]}"; do
+  echo "== gate: $name (./gradlew ${gate_tasks[$name]})" >&2
+  ./gradlew --console=plain "${gate_tasks[$name]}"
+  gate_exit[$name]=$?
+done
+
+status=0
+echo
+echo "Gate results:"
+for name in "${gate_names[@]}"; do
+  code="${gate_exit[$name]}"
+  if [ "$code" -eq 0 ]; then
+    printf '  %-14s passed\n' "$name"
+  else
+    printf '  %-14s failed (exit %s)\n' "$name" "$code"
+    status=1
+  fi
+done
+exit "$status"

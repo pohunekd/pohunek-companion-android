@@ -2,18 +2,19 @@
 
 ## Gate set
 
-`scripts/dev` exists (#9). The gate set and `scripts/ui-agent` land in M1
-(#10, #13). Until then a PR reports "no gates yet" and is verified by its DoD
-evidence and the independent self-review. This section describes the set as it will exist.
-
 `scripts/gates` runs through `scripts/dev` (the toolchain container), in order,
 each with its own exit code:
 
-1. Spotless (ktlint) check
-2. detekt
-3. Android lint
-4. unit tests (`maxParallelForks` from `config/dev.toml`)
+1. Spotless (ktlint) check (`spotlessCheck`)
+2. detekt (`detekt`, rules in `config/detekt.yml`)
+3. Android lint (`lintDebug`)
+4. unit tests (`unitTest`, `maxParallelForks` = `test_forks` in `config/dev.toml`)
 5. `assembleDebug`
+
+Every gate runs even when an earlier one fails. The script prints one result per
+gate (`passed` or `failed (exit N)`) and exits non-zero if any failed. A
+formatting failure is fixed with `scripts/dev ./gradlew spotlessApply`.
+`scripts/ui-agent` lands in M1 (#13).
 
 CI runs the same set in the same container image, so a green local run is the
 expected predictor of a green PR. Run it on the final revision before every push
@@ -100,9 +101,9 @@ host name, overlay address, or token.
 
 ## CI
 
-`.github/workflows/ci.yml` lands with #10: one job named `ci` builds the same
-container image and runs `scripts/gates`. It is the only required status check
-once the owner adds it to the `main` ruleset (agents may not change rulesets).
+`.github/workflows/ci.yml` has one job named `ci`: it builds the same container
+image and runs `scripts/gates`. It is the only required status check once the
+owner adds it to the `main` ruleset (agents may not change rulesets).
 
 Keep CI fast: before adding a job or a step, measure its cost on a PR run and
 state it in the PR. A slow or flaky CI is a bug: file it.

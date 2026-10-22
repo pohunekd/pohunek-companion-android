@@ -1,0 +1,21 @@
+# Gradle and build output
+.gradle/
+build/
+.kotlin/
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Runtime logs (structured logs are never committed)
+logs/
+
+# Signing material
+*.jks
+*.keystore
+keystore.properties
+.android/

@@ -1,0 +1,22 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+max_line_length = 160
+ktlint_code_style = intellij_idea
+ktlint_function_naming_ignore_when_annotated_with = Composable
+# The project keeps signatures, argument lists and conditions compact; these rules would rewrap most files.
+ktlint_standard_argument-list-wrapping = disabled
+ktlint_standard_binary-expression-wrapping = disabled
+ktlint_standard_blank-line-between-when-conditions = disabled
+ktlint_standard_class-signature = disabled
+ktlint_standard_function-signature = disabled
+ktlint_standard_multiline-if-else = disabled
+ktlint_standard_statement-wrapping = disabled
