@@ -46,14 +46,14 @@ simd="$(config_value simd)"
 output_dir="$(config_value output_dir)"
 [[ "$ghostty_commit" =~ ^[0-9a-f]{40}$ ]] || die "$config: ghostty_commit must be a full 40-digit commit id"
 [[ "$simd" =~ ^(true|false)$ ]] || die "$config: simd must be true or false"
-case "$output_dir" in /*|*..*) die "$config: output_dir must be a relative path inside the repository" ;; esac
+[[ "$output_dir" =~ ^vendor/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || die "$config: output_dir must be vendor/<name>"
 
 out="$root/$output_dir"
 # Source, caches and intermediates live at a fixed container-local path, so the
 # absolute paths that end up in the archives' debug info do not depend on where
 # the worktree is checked out.
 work="$(config_value work_dir)"
-[[ "$work" =~ ^/tmp/[A-Za-z0-9._-]+$ ]] || die "$config: work_dir must be /tmp/<name>"
+[[ "$work" =~ ^/tmp/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || die "$config: work_dir must be /tmp/<name>"
 
 # ABI name -> Zig target triple.
 abis=(arm64-v8a x86_64)
@@ -77,7 +77,8 @@ verify() {
   (cd "$out" && sha256sum --check --strict --quiet MANIFEST.sha256) \
     || die "$output_dir does not match MANIFEST.sha256"
   # Every staged file must be in the manifest, so nothing unlisted can ride along.
-  listed="$(cd "$out" && awk '{print $2}' MANIFEST.sha256 | sort)"
+  [ -z "$(find "$out" ! -type f ! -type d)" ] || die "$output_dir contains entries that are not regular files"
+  listed="$(cd "$out" && cut -c67- MANIFEST.sha256 | sort)"
   present="$(cd "$out" && find . -type f ! -name MANIFEST.sha256 | sed 's|^\./||' | sort)"
   [ "$listed" = "$present" ] || die "$output_dir contains files that are not in MANIFEST.sha256"
   echo "build-libghostty-vt: $output_dir verified ($(wc -l < "$out/MANIFEST.sha256") files)"
@@ -104,9 +105,11 @@ llvm_strip="$llvm_bin/llvm-strip"
 # table stays.
 normalize_archive() {
   local archive="$1" dir name
+  local listing
   local -a names=() bases=()
   dir="$(mktemp -d "$work/normalize.XXXXXX")"
-  mapfile -t names < <("$llvm_ar" t "$archive")
+  listing="$("$llvm_ar" t "$archive")"
+  mapfile -t names <<< "$listing"
   [ "${#names[@]}" -gt 0 ] || die "$archive has no members"
   for name in "${names[@]}"; do bases+=("$(basename "$name")"); done
   [ "$(printf '%s\n' "${bases[@]}" | sort -u | wc -l)" -eq "${#bases[@]}" ] \

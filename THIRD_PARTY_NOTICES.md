@@ -41,7 +41,7 @@ entry. The decisions behind this list are in
 
 `libghostty-vt.a` (arm64-v8a, x86_64) is built with `-Dsimd=false`. Its
 undefined symbols are libc and libm functions only, and it contains exactly
-three kinds of code:
+three kinds of code (no symbol of ghostty's vendored `stb` is defined in it):
 
 | Component | Version | License | Source |
 | --- | --- | --- | --- |
@@ -85,7 +85,7 @@ evaluates them; none except uucode ends up in the output.
 | oniguruma | 6.9.9 | BSD-2-Clause | yes | no |
 | opengl | in-tree | ghostty (MIT), no third-party code | no | no |
 | sentry (sentry-native) | 0.7.8 | MIT | no | no |
-| simdutf | 5.2.8 | Apache-2.0 (upstream repository license; vendored in the ghostty repository) | no | no |
+| simdutf | 5.2.8 | Apache-2.0 or MIT (upstream dual license; vendored in the ghostty repository) | no | no |
 | wuffs | 0.0.0 (`122037b3`) | MIT or Apache-2.0; its test images (`pixels`) are CC0-1.0 | yes | no |
 | zlib | 1.3.1 | zlib license | yes | no |
 | glslang | 14.2.0 | BSD-3-Clause, BSD-2-Clause, MIT, Apache-2.0 and others (see the package's `LICENSE.txt`) | yes | no |
