@@ -58,5 +58,11 @@ jobs:
           fi
           sha256sum vendor/libghostty-vt/*/libghostty-vt.a
 
+      - name: TEMP debug artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: libghostty-vt
+          path: vendor/libghostty-vt
+
       - name: Gates
         run: scripts/gates
