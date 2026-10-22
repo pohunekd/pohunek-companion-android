@@ -50,10 +50,10 @@ entry. The decisions behind this list are in
 
 - Repository: https://github.com/pohunekd/pohunek-companion
 - License: MIT, Copyright (c) 2026 pohunekd
-  (https://github.com/pohunekd/pohunek-companion/blob/main/LICENSE)
+  (https://github.com/pohunekd/pohunek-companion/blob/0b9d150170bb4829ad59ddcead9d4a4cd02b00b8/LICENSE)
 - Files ported to Kotlin, all planned: `live.rs`, `needs_you.rs`, `filter.rs`,
-  `layout.rs`, `discovery.rs`, `view.rs`, `sort_key.rs`. The commit is recorded
-  by the issue that ports each file.
+  `layout.rs`, `discovery.rs`, `view.rs`, `sort_key.rs`. Pinned commit for the license text:
+  `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 
 ## Pohunek wire fixtures
 

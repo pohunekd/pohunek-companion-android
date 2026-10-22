@@ -10,9 +10,9 @@ A native Android client (Kotlin, Jetpack Compose) for remote Pohunek daemons.
 It does the same job as the desktop companion
 ([pohunekd/pohunek-companion](https://github.com/pohunekd/pohunek-companion)):
 
-- a session list with live state (working, needs the owner, idle, ended);
-- a "Needs you" section above everything else;
-- groups, views, and filters over the sessions;
+- a session list with live state;
+- a "Needs you" section;
+- groups and filters;
 - session actions and a new-session flow;
 - the assistant;
 - multiple hosts.
@@ -35,8 +35,7 @@ Open folder, iOS (out of scope for now).
 ## Protocol boundary
 
 The app speaks the Pohunek public protocol only, pinned to the same Pohunek tag
-as the desktop companion: `v0.35.2` today. Moving the pin moves both clients and
-is its own issue.
+as the desktop companion: `v0.35.2` today.
 
 - Transport: newline-delimited JSON over TCP on the overlay.
 - Version: the request envelope advertises `v:{4,4}`. There are no protocol-3
@@ -58,24 +57,20 @@ of its own. Consequently the app:
 
 - never exposes or proxies a daemon;
 - logs no secrets;
-- treats all session metadata as untrusted input (names, paths, titles, and
-  work links are rendered as text and never interpreted).
+- treats all session metadata as untrusted input.
 
 ## Modules
 
 | Module | Content |
 |---|---|
-| `:app` | Application, navigation, dependency wiring, foreground service. |
-| `:core:ui` | Theme and shared Compose components. |
-| `:core:mvi` | State/intent/effect base types for feature view models. |
+| `:app` | Application shell. |
+| `:core:ui` | Shared UI. |
+| `:core:mvi` | MVI base types. |
 | `:core:domain` | Pure Kotlin: reconcile, needs-you, filters, layout, discovery. |
-| `:core:data` | Repositories, host store, persistence. |
-| `:protocol` | Pure Kotlin/JVM, no Android: wire types, framing, daemon client. |
+| `:core:data` | Data layer. |
+| `:protocol` | Pure Kotlin/JVM, no Android. |
 | `:terminal` | Terminal view and the JNI bridge to libghostty-vt. |
-| `:feature:*` | One module per user-facing feature. |
-
-Dependency direction: `:feature:*` and `:app` depend on `:core:*`, `:protocol`,
-and `:terminal`; `:core:domain` and `:protocol` depend on nothing Android.
+| `:feature:*` | Feature modules. |
 
 ## Copied sources
 
@@ -93,7 +88,7 @@ updates its entry.
   built from source at commit `b0947378349eff70f7030dda0e6d022fae1e6fbd`,
   with Zig 0.15.2 and NDK 27.1.12297006. This is the commit expo-libghostty's
   JNI targets. The libghostty-vt C ABI is not stable, so the commit is always
-  pinned and moves only together with the JNI layer.
+  pinned.
 - **opencode-mobile** (MIT), `https://github.com/beppe2880/opencode-mobile`
   at `4393d5f6e9dc49b6dc593d563a7dc969695f982d`, `android/`: Gradle setup
   (version catalog, convention plugins), module skeleton, Koin wiring,
@@ -133,9 +128,9 @@ The phases are the repository milestones:
 
 | Milestone | Outcome |
 |---|---|
-| M0 Repository and rules | Repository, agent rules, skills, and this document. |
-| M1 Toolchain and agent loop | Podman toolchain, Gradle skeleton, gates and CI, libghostty-vt build, terminal module, ui-agent with emulator slots and an isolated daemon. |
-| M2 Terminal over NetBird | Protocol client and terminal attach, verified on the owner's phone against a real daemon. Go/no-go for libghostty-vt. |
-| M3 Session list parity | Hosts, live list, needs-you, filters, views, actions, new session, assistant, groups. |
+| M0 Repository and rules | Repository, agent rules, skills and the architecture document adapted from pohunek-companion. |
+| M1 Toolchain and agent loop | Rootless Podman toolchain container, Gradle skeleton, gates and CI, libghostty-vt build, terminal module, ui-agent with emulator slots and an isolated daemon. |
+| M2 Terminal over NetBird | Protocol client and terminal attach, verified on the owner's phone against a real daemon over NetBird. Go/no-go for libghostty-vt. |
+| M3 Session list parity | Hosts, live session list, needs-you, filters, views, actions, new session, assistant and groups, at parity with the desktop companion where it applies. |
 | M4 Background notifications | Foreground service monitoring and needs-you notifications within Android background limits. |
 | M5 Release | Signed release APKs on GitHub releases with checksums and attestation. |
