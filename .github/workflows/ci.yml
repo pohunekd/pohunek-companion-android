@@ -56,6 +56,7 @@ jobs:
             rm -rf vendor/libghostty-vt
             scripts/build-libghostty-vt
           fi
+          sha256sum vendor/libghostty-vt/*/libghostty-vt.a
 
       - name: Gates
         run: scripts/gates
