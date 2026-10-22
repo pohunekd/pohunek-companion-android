@@ -64,7 +64,7 @@ private fun TerminalDemoScreen(config: TerminalDemoConfig, modifier: Modifier = 
             DemoButton(R.string.terminal_demo_alt_screen, "TerminalDemo.altScreen", session::showAltScreen)
             DemoButton(R.string.terminal_demo_clear, "TerminalDemo.clear", session::clear)
         }
-        TerminalView(controller, Modifier.weight(1f).testTag("TerminalDemo.terminal"))
+        TerminalView(controller, "TerminalDemo.terminal", Modifier.weight(1f))
     }
 }
 
