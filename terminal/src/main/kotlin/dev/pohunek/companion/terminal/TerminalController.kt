@@ -40,7 +40,8 @@ class TerminalController {
     }
 
     internal fun attach(view: GhosttyTerminalView) {
-        check(terminal == null) { "TerminalController is already attached to a view" }
+        // A recomposition that swaps views attaches the new one before the old one is released.
+        terminal?.let { releaseCallbacks(it) }
         terminal = view
         view.onInputBytes = { bytes -> inputChannel.trySend(bytes) }
         view.onGridResize = { cols, rows -> sizeState.value = TerminalSize(cols, rows) }
@@ -48,9 +49,13 @@ class TerminalController {
 
     internal fun detach(view: GhosttyTerminalView) {
         if (terminal !== view) return
-        view.onInputBytes = null
-        view.onGridResize = null
+        releaseCallbacks(view)
         terminal = null
         sizeState.value = null
+    }
+
+    private fun releaseCallbacks(view: GhosttyTerminalView) {
+        view.onInputBytes = null
+        view.onGridResize = null
     }
 }
