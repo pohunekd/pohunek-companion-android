@@ -1,5 +1,12 @@
 package dev.pohunek.companion.core.data.attach
 
+import dev.pohunek.companion.core.data.log.hostKeyField
+import dev.pohunek.companion.core.data.log.logCode
+import dev.pohunek.companion.core.domain.log.AppLog
+import dev.pohunek.companion.core.domain.log.LogField
+import dev.pohunek.companion.core.domain.log.error
+import dev.pohunek.companion.core.domain.log.info
+import dev.pohunek.companion.core.domain.log.warn
 import dev.pohunek.companion.protocol.AttachPolicy
 import dev.pohunek.companion.protocol.AttachedSession
 import dev.pohunek.companion.protocol.ClientConfig
@@ -53,7 +60,9 @@ class TerminalAttachment(
     private val policy: AttachPolicy,
     private val ioDispatcher: CoroutineDispatcher,
     private val mainDispatcher: CoroutineDispatcher,
+    private val log: AppLog,
 ) {
+    private val identity = listOf(hostKeyField(route), LogField.sessionId(sessionId))
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private val mutableState = MutableStateFlow<AttachState>(AttachState.Connecting)
     private val started = AtomicBoolean(false)
@@ -68,6 +77,7 @@ class TerminalAttachment(
     /** Starts attaching as soon as the view has a size; call once. */
     fun start() {
         check(started.compareAndSet(false, true)) { "TerminalAttachment is single-use" }
+        log.info("attach.start", identity)
         job = scope.launch { run() }
     }
 
@@ -85,10 +95,11 @@ class TerminalAttachment(
         val attached = try {
             AttachedSession.open(route, sessionId, TerminalDimensions(initial.cols, initial.rows), config, policy, ioDispatcher)
         } catch (e: ProtocolClientException) {
-            mutableState.value = AttachState.Failed(e)
+            fail(e)
             return
         }
         session = attached
+        log.info("attach.opened", identity)
         mutableState.value = AttachState.Attached(attached.streamId, null)
         try {
             coroutineScope {
@@ -97,9 +108,14 @@ class TerminalAttachment(
                 launch { pumpResizes(attached, TerminalDimensions(initial.cols, initial.rows)) }
             }
         } catch (e: ProtocolClientException) {
-            mutableState.value = AttachState.Failed(e)
+            fail(e)
             attached.close()
         }
+    }
+
+    private fun fail(cause: ProtocolClientException) {
+        log.error("attach.failed", identity + LogField.errorCode(cause.logCode()))
+        mutableState.value = AttachState.Failed(cause)
     }
 
     /** Ends by throwing: a stream that ended without [stop] is a failure, with the worker's own error when the daemon recorded one. */
@@ -138,7 +154,14 @@ class TerminalAttachment(
         }
         job?.cancelAndJoin()
         session?.close()
-        if (mutableState.value !is AttachState.Failed) mutableState.value = AttachState.Detached(detachFailure)
+        if (mutableState.value !is AttachState.Failed) {
+            if (detachFailure == null) {
+                log.info("attach.detached", identity)
+            } else {
+                log.warn("attach.detach_unconfirmed", identity + listOf(LogField.method("session.detach"), LogField.errorCode(detachFailure.logCode())))
+            }
+            mutableState.value = AttachState.Detached(detachFailure)
+        }
         scope.cancel()
     }
 }

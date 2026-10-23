@@ -8,7 +8,7 @@ import dev.pohunek.companion.protocol.ClientConfig
 import kotlin.time.Duration.Companion.milliseconds
 
 /** Validated tunables from `res/values/config.xml`. */
-class AppConfig private constructor(val client: ClientConfig, val attachPolicy: AttachPolicy) {
+class AppConfig private constructor(val client: ClientConfig, val attachPolicy: AttachPolicy, val logMaxBytes: Long) {
     companion object {
         fun load(resources: Resources): AppConfigResult = try {
             AppConfigResult.Valid(
@@ -21,10 +21,19 @@ class AppConfig private constructor(val client: ClientConfig, val attachPolicy: 
                         maxAttempts = positive(resources, "attach_attempts", R.integer.attach_attempts).toInt(),
                         retryDelay = positive(resources, "attach_retry_delay_ms", R.integer.attach_retry_delay_ms).milliseconds,
                     ),
+                    atLeast(resources, "log_max_bytes", R.integer.log_max_bytes, MIN_LOG_MAX_BYTES),
                 ),
             )
         } catch (e: InvalidKey) {
             AppConfigResult.Invalid(e.key, e.detail)
+        }
+
+        private const val MIN_LOG_MAX_BYTES = 4096L
+
+        private fun atLeast(resources: Resources, key: String, @IntegerRes id: Int, minimum: Long): Long {
+            val value = resources.getInteger(id)
+            if (value < minimum) throw InvalidKey(key, "must be at least $minimum, got $value")
+            return value.toLong()
         }
 
         private fun positive(resources: Resources, key: String, @IntegerRes id: Int): Long {

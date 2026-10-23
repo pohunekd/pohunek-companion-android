@@ -43,11 +43,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import dev.pohunek.companion.R
+import dev.pohunek.companion.config.AppConfig
+import dev.pohunek.companion.config.AppConfigResult
 import dev.pohunek.companion.core.data.attach.AttachState
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.protocol.SessionInfo
 import dev.pohunek.companion.terminal.TerminalView
 import kotlinx.coroutines.Dispatchers
+import org.koin.mp.KoinPlatform
 
 /**
  * Debug-only screen: enter a host route, list its sessions, tap one to attach the terminal. Rotation is handled in place
@@ -67,7 +70,13 @@ class AttachDebugActivity : ComponentActivity() {
             setContent { PohunekTheme { ConfigError(e.message.orEmpty(), Modifier.semantics { testTagsAsResourceId = true }) } }
             return
         }
-        val created = AttachDebugModel(config, lifecycleScope, Dispatchers.IO, Dispatchers.Main)
+        // The shared log is built from AppConfig, so an invalid app configuration stops this screen as it stops the app.
+        val app = AppConfig.load(resources)
+        if (app is AppConfigResult.Invalid) {
+            setContent { PohunekTheme { ConfigError("${app.key} ${app.detail}", Modifier.semantics { testTagsAsResourceId = true }) } }
+            return
+        }
+        val created = AttachDebugModel(config, lifecycleScope, Dispatchers.IO, Dispatchers.Main, KoinPlatform.getKoin().get())
         model = created
         registerReceiver(screenDump, IntentFilter(ScreenDumpReceiver.ACTION), ScreenDumpReceiver.SENDER_PERMISSION, null, Context.RECEIVER_EXPORTED)
         setContent {
