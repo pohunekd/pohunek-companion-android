@@ -409,8 +409,9 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     lastScrollActivityAt = android.os.SystemClock.uptimeMillis()
   }
 
-  private fun sendText(text: CharSequence) {
-    if (text.isEmpty()) return
+  /** Returns true when [text] was sent as a key chord (a lit sticky modifier) instead of as text. */
+  private fun sendText(text: CharSequence): Boolean {
+    if (text.isEmpty()) return false
     // A lit sticky modifier turns the next single-char IME commit into a key
     // chord (Ctrl+C etc.) through ghostty's encoder.
     val bar = accessoryBar
@@ -423,10 +424,11 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
           handle, keyCode, 1, meta, text[0].lowercaseChar().code, null
         )
         if (bytes != null && bytes.isNotEmpty()) sendBytes(bytes)
-        return
+        return true
       }
     }
     sendBytes(text.toString().toByteArray(Charsets.UTF_8))
+    return false
   }
 
   /** Send an accessory-bar key press with the current sticky modifiers. */
@@ -1017,14 +1019,16 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
   override fun onCheckIsTextEditor(): Boolean = true
 
   override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
-    // Visible-password + no-suggestions keeps IMEs in send-as-you-type mode
-    // (no autocorrect batching) while still allowing CJK composition.
+    // A plain text field with no suggestions: keyboards keep language switching
+    // and diacritics (a password variation limits them to Latin), and no
+    // autocorrect rewrites what was already sent.
     outAttrs.inputType = InputType.TYPE_CLASS_TEXT or
-      InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
       InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
     outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE or
       EditorInfo.IME_FLAG_NO_FULLSCREEN or
-      EditorInfo.IME_FLAG_NO_EXTRACT_UI
+      EditorInfo.IME_FLAG_NO_EXTRACT_UI or
+      EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+    composing.clear()
     return TerminalInputConnection()
   }
 
@@ -1056,7 +1060,12 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     val unicode = event.getUnicodeChar(
       metaState and (KeyEvent.META_CTRL_MASK or KeyEvent.META_META_MASK).inv()
     )
-    val utf8 = if (unicode != 0 && unicode and KeyCharacterMap.COMBINING_ACCENT == 0) {
+    // A dead key is held until the next key and typed combined with it.
+    val deadKeyText = if (action != 0) deadKeys.feed(unicode) else null
+    if (deadKeyText != null && deadKeyText.isEmpty()) return true
+    val utf8 = if (deadKeyText != null) {
+      deadKeyText.toByteArray(Charsets.UTF_8)
+    } else if (unicode != 0 && unicode and KeyCharacterMap.COMBINING_ACCENT == 0) {
       String(Character.toChars(unicode)).toByteArray(Charsets.UTF_8)
     } else {
       null
@@ -1070,28 +1079,68 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     return true
   }
 
+  // The composition of the current input connection; reset when a connection is created.
+  private val composing = ComposingText()
+  private val deadKeys = DeadKeyComposer()
+  private var deleteKeyConsumed = false
+
+  private fun applyEdit(edit: TextEdit) {
+    repeat(edit.backspaces) {
+      handleKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
+      handleKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
+    }
+    if (sendText(edit.text)) composing.markNotErasable(edit.text.codePointCount(0, edit.text.length))
+  }
+
+  // The editable of BaseInputConnection stays empty: composition is forwarded
+  // to the PTY as it changes, so the IME must never see sent text again.
   private inner class TerminalInputConnection :
     BaseInputConnection(this@GhosttyTerminalView, false) {
+    override fun setComposingText(text: CharSequence, newCursorPosition: Int): Boolean {
+      applyEdit(composing.update(text))
+      return true
+    }
+
+    override fun setComposingRegion(start: Int, end: Int): Boolean {
+      composing.clear()
+      return true
+    }
+
+    override fun finishComposingText(): Boolean {
+      composing.clear()
+      return true
+    }
+
     override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
-      sendText(text)
-      return super.commitText("", newCursorPosition)
+      applyEdit(composing.commit(text))
+      return true
     }
 
     override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
-      repeat(beforeLength) {
-        sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
-        sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
-      }
+      applyEdit(composing.deleteBefore(beforeLength))
       return true
     }
 
     override fun performEditorAction(actionCode: Int): Boolean {
+      composing.clear()
       sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
       sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
       return true
     }
 
     override fun sendKeyEvent(event: KeyEvent): Boolean {
+      // A backspace key event while composing shortens the composition like a text edit would.
+      if (event.keyCode == KeyEvent.KEYCODE_DEL) {
+        if (event.action == KeyEvent.ACTION_DOWN && composing.isComposing) {
+          applyEdit(composing.deleteBefore(1))
+          deleteKeyConsumed = true
+          return true
+        }
+        if (event.action == KeyEvent.ACTION_UP && deleteKeyConsumed) {
+          deleteKeyConsumed = false
+          return true
+        }
+      }
       if (handleKeyEvent(event)) return true
       return super.sendKeyEvent(event)
     }
