@@ -32,7 +32,7 @@
 #   scripts/ui-agent net-drop | net-restore    cut and restore the app's path to the daemon
 #   scripts/ui-agent host-stop | host-start    stop and restart the isolated daemon
 #   scripts/ui-agent health                one daemon.health request sent from the device
-#   scripts/ui-agent screen                text of the attached terminal's grid (debug build, attach debug screen)
+#   scripts/ui-agent screen                text of the attached terminal's grid (debug build, a terminal open)
 #   scripts/ui-agent session-screen ID [--size]
 #                                          the same screen as the isolated daemon renders it for session ID, or only its COLSxROWS
 #   scripts/ui-agent log [app|daemon|emulator]
