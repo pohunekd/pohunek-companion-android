@@ -1,6 +1,8 @@
 package dev.pohunek.companion.core.data.hosts
 
 import android.util.AtomicFile
+import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
+import dev.pohunek.companion.core.domain.hosts.hostProblem
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProtocolClientException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -11,12 +13,9 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
 
-/** A daemon the owner added by address; [label] is an optional display name. */
-data class ConfiguredHost(val route: HostRoute, val label: String?)
-
 /** Result of reading the hosts file. An [Unreadable] file is reported and never overwritten. */
 sealed interface HostsLoad {
-    data class Loaded(val host: ConfiguredHost?) : HostsLoad
+    data class Loaded(val hosts: List<ConfiguredHost>) : HostsLoad
 
     data class Unreadable(val reason: String) : HostsLoad
 }
@@ -31,23 +30,23 @@ private data class HostsFile(val version: Int, val hosts: List<StoredHost>)
 private data class StoredHost(val route: String, val label: String? = null)
 
 /**
- * The configured host as JSON in the app's files directory, written atomically. The file holds a list so that further hosts need no
- * format change; only one entry is accepted for now.
+ * The configured hosts as JSON in the app's files directory, written atomically. A file whose hosts break the host rules (see
+ * [hostProblem]) is reported as unreadable instead of being repaired.
  */
 class HostStore(private val file: AtomicFile, private val ioDispatcher: CoroutineDispatcher) {
     suspend fun load(): HostsLoad = withContext(ioDispatcher) { read() }
 
-    /** Replaces the stored host, or clears it when [host] is null. */
-    suspend fun save(host: ConfiguredHost?) {
+    /** Replaces the stored hosts. */
+    suspend fun save(hosts: List<ConfiguredHost>) {
         withContext(ioDispatcher) {
             (read() as? HostsLoad.Unreadable)?.let { throw HostStoreException("the hosts file is unreadable and is kept as it is: ${it.reason}") }
-            write(HostsFile(FORMAT_VERSION, listOfNotNull(host?.let { StoredHost(it.route.toString(), it.label) })))
+            write(HostsFile(FORMAT_VERSION, hosts.map { StoredHost(it.route.toString(), it.label) }))
         }
     }
 
     private fun read(): HostsLoad {
         // AtomicFile.readFully falls back to the backup left by an interrupted write.
-        if (!file.baseFile.exists() && !File(file.baseFile.path + BACKUP_SUFFIX).exists()) return HostsLoad.Loaded(null)
+        if (!file.baseFile.exists() && !File(file.baseFile.path + BACKUP_SUFFIX).exists()) return HostsLoad.Loaded(emptyList())
         return try {
             decode(JSON.decodeFromString(HostsFile.serializer(), file.readFully().decodeToString()))
         } catch (e: IOException) {
@@ -59,10 +58,10 @@ class HostStore(private val file: AtomicFile, private val ioDispatcher: Coroutin
         }
     }
 
-    private fun decode(stored: HostsFile): HostsLoad = when {
-        stored.version != FORMAT_VERSION -> HostsLoad.Unreadable("unsupported format version ${stored.version}")
-        stored.hosts.size > 1 -> HostsLoad.Unreadable("more than one host is stored")
-        else -> HostsLoad.Loaded(stored.hosts.singleOrNull()?.let { ConfiguredHost(HostRoute.parse(it.route), it.label) })
+    private fun decode(stored: HostsFile): HostsLoad {
+        if (stored.version != FORMAT_VERSION) return HostsLoad.Unreadable("unsupported format version ${stored.version}")
+        val hosts = stored.hosts.map { ConfiguredHost(HostRoute.parse(it.route), it.label) }
+        return hostProblem(hosts)?.let { HostsLoad.Unreadable(it.message) } ?: HostsLoad.Loaded(hosts)
     }
 
     private fun write(content: HostsFile) {

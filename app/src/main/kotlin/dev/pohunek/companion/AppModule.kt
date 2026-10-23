@@ -9,7 +9,9 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import dev.pohunek.companion.config.AppConfig
 import dev.pohunek.companion.config.AppConfigResult
 import dev.pohunek.companion.core.data.hosts.HostStore
+import dev.pohunek.companion.core.data.hosts.HostsRepository
 import dev.pohunek.companion.core.data.live.HostLiveFactory
+import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.log.JsonLineLog
 import dev.pohunek.companion.core.data.log.LogMirror
 import dev.pohunek.companion.core.data.log.RotatingLogFile
@@ -43,10 +45,10 @@ val appModule = module {
     single<CoroutineDispatcher>(mainDispatcher) { Dispatchers.Main }
     single { HostStore(AtomicFile(File(get<Context>().filesDir, HOSTS_FILE)), get(ioDispatcher)) }
     single<Clock> { Clock.systemUTC() }
+    single { HostsRepository(get(), get()) }
     single<AppLog> {
         val context = get<Context>()
-        val config = (AppConfig.load(context.resources) as? AppConfigResult.Valid)?.config
-            ?: error("the log is requested only after the configuration was accepted")
+        val config = validConfig(context)
         val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         JsonLineLog(
             RotatingLogFile(File(context.filesDir, LOG_DIRECTORY), LOG_FILE, config.logMaxBytes),
@@ -56,8 +58,15 @@ val appModule = module {
     }
     // The process lifecycle: the live loops run only while the app is visible.
     single<Lifecycle> { ProcessLifecycleOwner.get().lifecycle }
-    factory { (config: AppConfig) -> HostLiveFactory(config.client, config.live, get(ioDispatcher), TimeSource.Monotonic, get()) }
+    // One registry for the process: the session list and the hosts screen read the same loops.
+    single {
+        val config = validConfig(get())
+        HostRegistry(HostLiveFactory(config.client, config.live, get(ioDispatcher), TimeSource.Monotonic, get()))
+    }
 }
+
+private fun validConfig(context: Context): AppConfig = (AppConfig.load(context.resources) as? AppConfigResult.Valid)?.config
+    ?: error("this is requested only after the configuration was accepted")
 
 private fun LogLevel.priority(): Int = when (this) {
     LogLevel.Debug -> Log.DEBUG

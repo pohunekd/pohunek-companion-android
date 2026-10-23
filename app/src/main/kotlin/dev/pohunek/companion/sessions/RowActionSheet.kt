@@ -37,10 +37,10 @@ internal fun RowActionSheet(row: SessionRow, onEvent: (SessionListEvent) -> Unit
             )
             HorizontalDivider()
             if (row.attachRefusal == null) {
-                SheetAction(stringResource(R.string.row_action_open_terminal), "RowSheet.openTerminal") { onEvent(SessionListEvent.OpenSession(row.id)) }
+                SheetAction(stringResource(R.string.row_action_open_terminal), "RowSheet.openTerminal") { onEvent(SessionListEvent.OpenSession(row.ref)) }
             }
             if (row.hasLink) {
-                SheetAction(stringResource(R.string.row_action_open_link), "RowSheet.openLink") { onEvent(SessionListEvent.OpenLink(row.id)) }
+                SheetAction(stringResource(R.string.row_action_open_link), "RowSheet.openLink") { onEvent(SessionListEvent.OpenLink(row.ref)) }
             }
         }
     }

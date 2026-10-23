@@ -5,10 +5,14 @@
     <string name="config_error">Invalid configuration: %1$s %2$s (res/values/config.xml)</string>
 
     <string name="session_list_refresh">Refresh</string>
-    <string name="session_list_edit_host">Edit</string>
+    <string name="session_list_hosts">Hosts</string>
+    <string name="session_list_no_hosts">No host is configured</string>
+    <string name="session_list_add_host">Add a host</string>
+    <string name="session_list_host_unreachable">host unreachable</string>
     <string name="session_list_loading">Loading sessions</string>
     <string name="session_list_empty">No sessions</string>
-    <string name="session_list_reconnecting">Reconnecting to %1$s (attempt %2$d): %3$s</string>
+    <string name="host_status_reconnecting">%1$s: Reconnecting (attempt %2$d): %3$s</string>
+    <string name="host_status_refused">%1$s: Connection refused (%2$s): %3$s</string>
     <string name="session_list_needs_you">Needs you</string>
     <string name="session_list_other_sessions">Other sessions</string>
     <string name="owner_state_needs_owner">Needs owner</string>
@@ -22,12 +26,12 @@
     <string name="row_action_open_link">Open link</string>
     <string name="link_unavailable">The session has no link that can be opened</string>
     <string name="link_no_app">No app can open this link</string>
-    <string name="session_list_incompatible">%1$s runs an incompatible Pohunek version (attempt %2$d): %3$s</string>
 
     <string name="session_list_refusal_dismiss">Dismiss</string>
     <string name="attach_refusal_external">External sessions are read-only in Pohunek and have no terminal to attach to</string>
     <string name="attach_refusal_starting">The session is still starting; attach once it is running</string>
     <string name="attach_refusal_ended">The session has ended and has no live terminal to attach to</string>
+    <string name="attach_refusal_host_unreachable">The host is unreachable; the session shown is the last one it reported</string>
 
     <string name="terminal_connecting">Connecting</string>
     <string name="terminal_reconnecting">Reconnecting (attempt %1$d)</string>
@@ -44,5 +48,11 @@
     <string name="host_form_save">Save</string>
     <string name="host_form_cancel">Cancel</string>
     <string name="host_form_clear">Remove host</string>
-    <string name="host_storage_unreadable">The saved host cannot be read and is left untouched: %1$s</string>
+    <string name="host_storage_unreadable">The saved hosts cannot be read and are left untouched: %1$s</string>
+    <string name="hosts_title">Hosts</string>
+    <string name="hosts_add">Add a host</string>
+    <string name="host_state_connected">Connected</string>
+    <string name="host_state_connecting">Connecting</string>
+    <string name="host_state_reconnecting">Reconnecting (attempt %1$d): %2$s</string>
+    <string name="host_state_refused">Connection refused (%1$s): %2$s</string>
 </resources>

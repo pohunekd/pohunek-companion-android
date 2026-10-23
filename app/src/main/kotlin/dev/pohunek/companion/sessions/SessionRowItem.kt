@@ -6,14 +6,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -24,14 +30,14 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import dev.pohunek.companion.R
+import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** Tap opens the terminal; the trailing icon and a long press open the row's action sheet. */
+/** Tap opens the terminal; the trailing icon and a long press open the row's action sheet, which a row of a host that is not connected lacks. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> Unit) {
-    val hasActions = row.attachRefusal == null || row.hasLink
     val color = ownerStateColor(row.ownerState)
     val label = ownerStateLabel(row.ownerState)
     ListItem(
@@ -49,22 +55,51 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
                     Text(work.joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.rowWork"))
                 }
                 row.runtimeDetail?.let { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.runtimeDetail")) }
-            }
-        },
-        trailingContent = if (hasActions) {
-            {
-                IconButton(onClick = onMore, modifier = Modifier.testTag("SessionRow.more")) {
-                    MoreIcon(stringResource(R.string.row_more_actions))
+                if (row.link == HostLink.Down) {
+                    Text(
+                        stringResource(R.string.session_list_host_unreachable),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("SessionList.hostUnreachable"),
+                    )
                 }
             }
-        } else {
-            null
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                HostChip(row.hostLabel)
+                if (row.hasActions) {
+                    IconButton(onClick = onMore, modifier = Modifier.testTag("SessionRow.more")) { MoreIcon(stringResource(R.string.row_more_actions)) }
+                }
+            }
         },
         modifier = Modifier
-            .combinedClickable(onClick = onClick, onLongClick = if (hasActions) onMore else null, onLongClickLabel = stringResource(R.string.row_more_actions))
+            .alpha(if (row.reachable) 1f else PohunekTheme.DIMMED_ALPHA)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = if (row.hasActions) onMore else null,
+                onLongClickLabel = stringResource(R.string.row_more_actions),
+            )
             .semantics(mergeDescendants = true) {}
             .testTag("SessionList.row"),
     )
+}
+
+/** The host's name on a row; it is the only thing that tells two hosts' rows apart. */
+@Composable
+private fun HostChip(label: String) {
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .widthIn(max = PohunekTheme.hostChipMaxWidth)
+                .padding(horizontal = PohunekTheme.spacing.sm, vertical = PohunekTheme.spacing.xs)
+                .testTag("SessionList.host"),
+        )
+    }
 }
 
 @Composable

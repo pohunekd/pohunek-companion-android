@@ -8,6 +8,9 @@ enum class AttachRefusal {
     External,
     Starting,
     Ended,
+
+    /** The session's host is not connected, so the facts shown are the last known ones and nothing can be attached. */
+    HostUnreachable,
     ;
 
     companion object {

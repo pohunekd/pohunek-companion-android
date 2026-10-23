@@ -2,15 +2,16 @@ package dev.pohunek.companion.sessions
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -27,7 +28,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -35,14 +35,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
-import dev.pohunek.companion.core.data.hosts.ConfiguredHost
 import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.protocol.HostRoute
-import dev.pohunek.companion.protocol.ProtocolError
 
 @Composable
-fun SessionListScreen(viewModel: SessionListViewModel, onOpenTerminal: (HostRoute, String) -> Unit, modifier: Modifier = Modifier) {
+fun SessionListScreen(
+    viewModel: SessionListViewModel,
+    onOpenTerminal: (HostRoute, String) -> Unit,
+    onOpenHosts: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -51,6 +54,7 @@ fun SessionListScreen(viewModel: SessionListViewModel, onOpenTerminal: (HostRout
     CollectEffect(viewModel.effect) { effect ->
         when (effect) {
             is SessionListEffect.OpenTerminal -> onOpenTerminal(effect.route, effect.sessionId)
+            SessionListEffect.OpenHosts -> onOpenHosts()
             is SessionListEffect.OpenLink -> try {
                 context.startActivity(Intent(Intent.ACTION_VIEW, effect.url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
             } catch (_: ActivityNotFoundException) {
@@ -60,7 +64,7 @@ fun SessionListScreen(viewModel: SessionListViewModel, onOpenTerminal: (HostRout
             SessionListEffect.LinkUnavailable -> snackbar.showSnackbar(linkUnavailable)
         }
     }
-    SessionListContent(state, viewModel::onEvent, snackbar, modifier)
+    SessionListContent(state, viewModel::onEvent, onOpenHosts, snackbar, modifier)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,25 +72,26 @@ fun SessionListScreen(viewModel: SessionListViewModel, onOpenTerminal: (HostRout
 private fun SessionListContent(
     state: SessionListState,
     onEvent: (SessionListEvent) -> Unit,
+    onOpenHosts: () -> Unit,
     snackbar: SnackbarHostState,
     modifier: Modifier = Modifier,
 ) {
-    val listShown = state.host != null && state.form == null && state.storageError == null
+    val listShown = state.hostsRead && state.hasHosts && state.storageError == null
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = {
-                    Text(hostName(state.host) ?: stringResource(R.string.app_name), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                },
+                title = { Text(stringResource(R.string.app_name), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 actions = {
                     if (listShown) {
                         TextButton(onClick = { onEvent(SessionListEvent.Refresh) }, modifier = Modifier.testTag("SessionList.refresh")) {
                             Text(stringResource(R.string.session_list_refresh))
                         }
-                        TextButton(onClick = { onEvent(SessionListEvent.EditHost) }, modifier = Modifier.testTag("SessionList.editHost")) {
-                            Text(stringResource(R.string.session_list_edit_host))
+                    }
+                    if (state.hostsRead && state.storageError == null) {
+                        TextButton(onClick = onOpenHosts, modifier = Modifier.testTag("SessionList.hosts")) {
+                            Text(stringResource(R.string.session_list_hosts))
                         }
                     }
                 },
@@ -99,14 +104,19 @@ private fun SessionListContent(
             state.storageError != null -> Centered(body) {
                 Message(stringResource(R.string.host_storage_unreadable, state.storageError), "HostStorage.error", error = true)
             }
-            state.form != null -> HostFormContent(state.form, state.host != null, onEvent, body)
+            !state.hasHosts -> Centered(body) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.md)) {
+                    Message(stringResource(R.string.session_list_no_hosts), "SessionList.noHosts")
+                    Button(onClick = onOpenHosts, modifier = Modifier.testTag("SessionList.addHost")) {
+                        Text(stringResource(R.string.session_list_add_host))
+                    }
+                }
+            }
             else -> Column(body) {
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
-                (state.connection as? ListConnection.Reconnecting)?.let {
-                    ReconnectingStatus(hostName(state.host).orEmpty(), it)
-                }
+                state.statuses.forEach { HostStatusLine(it) }
                 SessionRows(state, onEvent, Modifier.weight(1f).fillMaxWidth())
-                val sheetRow = state.actionSheet?.let { id -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.id == id } }
+                val sheetRow = state.actionSheet?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
                 if (sheetRow != null) RowActionSheet(sheetRow, onEvent)
             }
         }
@@ -116,13 +126,11 @@ private fun SessionListContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> Unit, modifier: Modifier) {
-    val connection = state.connection
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier) {
         val rows = state.rows
-        val dimmed = if (connection is ListConnection.Connected) Modifier else Modifier.alpha(PohunekTheme.DIMMED_ALPHA)
-        LazyColumn(Modifier.fillMaxSize().then(dimmed).testTag("SessionList.list")) {
+        LazyColumn(Modifier.fillMaxSize().testTag("SessionList.list")) {
             when {
-                rows == null && connection is ListConnection.Reconnecting -> item { Spacer(Modifier.fillParentMaxSize()) }
+                rows == null && state.statuses.isNotEmpty() -> item { Spacer(Modifier.fillParentMaxSize()) }
                 rows == null -> item {
                     Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_loading), "SessionList.loading") }
                 }
@@ -131,10 +139,10 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
                 else -> {
                     if (state.needsYou.isNotEmpty()) {
                         item { SectionHeader(stringResource(R.string.session_list_needs_you), "SessionList.needsYou") }
-                        items(state.needsYou, key = { it.id }) { row -> RowWithDivider(row, onEvent) }
+                        items(state.needsYou, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
                         if (rows.isNotEmpty()) item { SectionHeader(stringResource(R.string.session_list_other_sessions), "SessionList.others") }
                     }
-                    items(rows, key = { it.id }) { row -> RowWithDivider(row, onEvent) }
+                    items(rows, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
                 }
             }
         }
@@ -143,7 +151,7 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
 
 @Composable
 private fun RowWithDivider(row: SessionRow, onEvent: (SessionListEvent) -> Unit) {
-    SessionRowItem(row, onClick = { onEvent(SessionListEvent.OpenSession(row.id)) }, onMore = { onEvent(SessionListEvent.OpenActions(row.id)) })
+    SessionRowItem(row, onClick = { onEvent(SessionListEvent.OpenSession(row.ref)) }, onMore = { onEvent(SessionListEvent.OpenActions(row.ref)) })
     HorizontalDivider()
 }
 
@@ -157,15 +165,14 @@ private fun SectionHeader(text: String, tag: String) {
     )
 }
 
-private fun hostName(host: ConfiguredHost?): String? = host?.let { it.label ?: it.route.toString() }
-
 @Composable
-private fun ReconnectingStatus(host: String, connection: ListConnection.Reconnecting) {
-    val incompatible = connection.code == ProtocolError.VERSION_MISMATCH_CODE
-    val text = if (incompatible) {
-        stringResource(R.string.session_list_incompatible, host, connection.attempt, connection.reason)
+private fun HostStatusLine(status: HostStatus) {
+    val connection = status.connection
+    val code = connection.code
+    val text = if (code != null) {
+        stringResource(R.string.host_status_refused, status.hostLabel, code, connection.reason)
     } else {
-        stringResource(R.string.session_list_reconnecting, host, connection.attempt, connection.reason)
+        stringResource(R.string.host_status_reconnecting, status.hostLabel, connection.attempt, connection.reason)
     }
     Text(
         text = text,
