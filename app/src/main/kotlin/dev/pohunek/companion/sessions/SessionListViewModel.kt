@@ -477,6 +477,7 @@ private fun listed(
         states = available?.layout?.states(view) ?: StateSelection.DEFAULT,
         stateChips = stateChips((listing.needsYou + listing.others).mapTo(HashSet()) { it.session.ownerState }),
         groups = available?.layout?.presentView(others, SessionRow::layoutKey, sectionTitleMaxChars, SessionRow::facts).orEmpty(),
+        ownerGroups = available?.layout?.orderedGroups().orEmpty(),
         layoutIssue = available?.issue,
         statuses = statuses,
         refreshing = feeds.values.any { it.refreshing },

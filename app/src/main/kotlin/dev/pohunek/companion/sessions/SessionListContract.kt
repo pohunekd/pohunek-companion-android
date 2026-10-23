@@ -3,6 +3,7 @@ package dev.pohunek.companion.sessions
 import dev.pohunek.companion.core.data.layout.LayoutIssue
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.domain.layout.FilterFacts
+import dev.pohunek.companion.core.domain.layout.Group
 import dev.pohunek.companion.core.domain.layout.GroupSection
 import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.domain.layout.RowFacts
@@ -114,6 +115,8 @@ data class SessionListState(
     val view: LayoutView = LayoutView.MY_GROUPS,
     /** [rows] sectioned by [view]: the owner's groups in My groups, else the derived sections; the rows of a collapsed section are listed but not shown. */
     val groups: List<GroupSection<SessionRow>> = emptyList(),
+    /** The owner's groups in order, whatever [view] is: the targets of "Move to group". */
+    val ownerGroups: List<Group> = emptyList(),
     /** The open search field's text, or null while the field is closed. The text is never stored. */
     val search: String? = null,
     /** The state chips shown, and the states of the shown view that pass. */

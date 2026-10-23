@@ -135,10 +135,10 @@ private fun SessionListContent(
 @Composable
 private fun RowWindows(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
     val sheetRow = state.actionSheet?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
-    if (sheetRow != null) RowActionSheet(sheetRow, sheetRow.ref in state.resuming, state.view.isEditable, onEvent)
+    if (sheetRow != null) RowActionSheet(sheetRow, sheetRow.ref in state.resuming, onEvent)
     state.rename?.let { RenameDialog(it, onEvent) }
     val moveRow = state.movePicker?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
-    if (moveRow != null) MoveToGroupSheet(moveRow, state.groups, onEvent)
+    if (moveRow != null) MoveToGroupSheet(moveRow, state.ownerGroups, onEvent)
     state.groups.firstOrNull { it.id == state.groupMenu }?.let { GroupMenuSheet(it, onEvent) }
     state.groupDraft?.let { GroupNameDialog(it, onEvent) }
 }
