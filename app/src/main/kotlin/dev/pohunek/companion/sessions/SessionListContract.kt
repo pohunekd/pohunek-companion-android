@@ -3,6 +3,7 @@ package dev.pohunek.companion.sessions
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.OwnerState
+import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.domain.sessions.SessionDetails
 import dev.pohunek.companion.protocol.HostRoute
@@ -34,13 +35,16 @@ data class SessionRow(
     /** Stop and Remove are offered per the desktop's rules and only while the host is connected; an external session has neither. */
     val canStop: Boolean,
     val canRemove: Boolean,
+    /** What the daemon's snapshot says about resuming the session; acting on it needs a connected host. */
+    val resume: ResumeOffer,
 ) {
     val reachable: Boolean get() = link == HostLink.Connected
 
     val ref: RowRef get() = RowRef(route, sessionId)
 
     /** Row actions need the daemon, so a row of a host that is not connected offers none. */
-    val hasActions: Boolean get() = reachable && (attachRefusal == null || hasLink || canRename || canStop || canRemove)
+    val hasActions: Boolean get() =
+        reachable && (attachRefusal == null || hasLink || canRename || canStop || canRemove || resume != ResumeOffer.NotApplicable)
 
     /** Unique across hosts and a plain string, so that the list can save its state by it. */
     val listKey: String get() = "$route|$sessionId"
@@ -101,7 +105,23 @@ data class SessionListState(
     val rename: RenameDraft? = null,
     /** The open stop or remove confirmation. */
     val actionDialog: ActionDialog? = null,
+    /** The sessions with a `session.resume` in flight; a second resume of one of them is ignored. */
+    val resuming: Set<RowRef> = emptySet(),
+    /** The last resume outcome, shown above the list until dismissed or replaced. */
+    val resumeNote: ResumeNote? = null,
 )
+
+/** What the last resume left to tell the owner; the texts are composed in the view. */
+sealed interface ResumeNote {
+    /** Resumed, but the new generation is not running yet, so the terminal is left to the owner. */
+    data class Started(val name: String) : ResumeNote
+
+    /** The request failed; [detail] is the daemon's message and recovery hint, or the transport failure. [hostLabel] is set with several hosts. */
+    data class Failed(val sessionId: String, val hostLabel: String?, val detail: String) : ResumeNote
+
+    /** A tapped ended session that the daemon cannot resume. */
+    data class Refused(val sentence: String) : ResumeNote
+}
 
 /** The rename dialog: the text being edited, the request in flight and why the last one failed. */
 data class RenameDraft(
@@ -137,6 +157,14 @@ sealed interface SessionListEvent {
     data object SubmitRename : RenameEvent
 
     data object DismissRename : RenameEvent
+
+    /** The events of resuming an ended session. */
+    sealed interface ResumeEvent : SessionListEvent
+
+    /** Resumes the ended session; ignored while a resume of it is running. */
+    data class Resume(val ref: RowRef) : ResumeEvent
+
+    data object DismissResumeNote : ResumeEvent
 
     data class OpenLink(val ref: RowRef) : SessionListEvent
 

@@ -31,3 +31,7 @@ data class SessionResizeResult(val session: SessionInfo)
 /** Result of `session.rename`: the session summary after the rename. */
 @Serializable
 data class SessionRenameResult(val session: SessionInfo)
+
+/** Result of `session.resume`: the session summary after the new generation was started. */
+@Serializable
+data class SessionResumeResult(val session: SessionInfo)

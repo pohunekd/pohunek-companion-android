@@ -126,6 +126,7 @@ private fun SessionListContent(
             }
             else -> Column(body) {
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
+                state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
                 state.statuses.forEach { HostStatusLine(it) }
                 SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())
                 RowWindows(state, onEvent)
@@ -138,7 +139,7 @@ private fun SessionListContent(
 @Composable
 private fun RowWindows(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
     val sheetRow = state.actionSheet?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
-    if (sheetRow != null) RowActionSheet(sheetRow, onEvent)
+    if (sheetRow != null) RowActionSheet(sheetRow, sheetRow.ref in state.resuming, onEvent)
     state.rename?.let { RenameDialog(it, onEvent) }
 }
 

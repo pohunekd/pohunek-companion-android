@@ -39,3 +39,30 @@ private fun refusalMessage(refusal: AttachRefusal): Int = when (refusal) {
     AttachRefusal.Ended -> R.string.attach_refusal_ended
     AttachRefusal.HostUnreachable -> R.string.attach_refusal_host_unreachable
 }
+
+/** The outcome of the last resume: a failure or refusal in the error colour, a started session as plain information. */
+@Composable
+internal fun ResumeNoteBanner(note: ResumeNote, onDismiss: () -> Unit) {
+    val spacing = PohunekTheme.spacing
+    val text = when (note) {
+        is ResumeNote.Started -> stringResource(R.string.resume_started, note.name)
+        is ResumeNote.Refused -> note.sentence
+        is ResumeNote.Failed ->
+            note.hostLabel?.let { stringResource(R.string.resume_failed_on_host, note.sessionId, it, note.detail) }
+                ?: stringResource(R.string.resume_failed, note.sessionId, note.detail)
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = spacing.gutter),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (note is ResumeNote.Started) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f).testTag("SessionList.resumeNote"),
+        )
+        TextButton(onClick = onDismiss, modifier = Modifier.testTag("SessionList.resumeNoteDismiss")) {
+            Text(stringResource(R.string.session_list_refusal_dismiss))
+        }
+    }
+}
