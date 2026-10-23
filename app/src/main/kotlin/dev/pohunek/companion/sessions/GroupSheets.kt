@@ -33,6 +33,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import dev.pohunek.companion.R
+import dev.pohunek.companion.core.domain.layout.Group
 import dev.pohunek.companion.core.domain.layout.GroupSection
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
@@ -56,7 +57,7 @@ internal fun GroupMenuSheet(section: GroupSection<SessionRow>, onEvent: (Session
 /** The groups a session can move to, then New group... which creates one and moves the session into it. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun MoveToGroupSheet(row: SessionRow, groups: List<GroupSection<SessionRow>>, onEvent: (SessionListEvent) -> Unit) {
+internal fun MoveToGroupSheet(row: SessionRow, groups: List<Group>, onEvent: (SessionListEvent) -> Unit) {
     ModalBottomSheet(
         onDismissRequest = { onEvent(SessionListEvent.DismissMoveToGroup) },
         modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("MoveSheet"),
