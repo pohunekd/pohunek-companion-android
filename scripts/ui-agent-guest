@@ -1057,6 +1057,7 @@ up() { # EXTRA_SESSIONS SHOWCASE
 
 shutdown() {
   local -a envs
+  local exited=0
   [ -r "$run_env" ] || return 0
   load_run
   if [ "$DAEMON" = isolated ]; then
@@ -1070,8 +1071,9 @@ shutdown() {
   fi
   if [ "$DEVICE" = emulator ]; then
     adbd emu kill >/dev/null 2>&1 || true
-    wait_for_emulator_exit
+    wait_for_emulator_exit || exited=1
     remove_slot_avd
+    [ "${exited:-0}" -eq 0 ] || return 1
   else
     adb disconnect "$SERIAL" >/dev/null 2>&1 || true
   fi
