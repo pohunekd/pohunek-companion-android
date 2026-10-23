@@ -1,7 +1,11 @@
 package dev.pohunek.companion.sessions
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,13 +29,20 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
+import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.protocol.AgentActivity
+import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.SessionState
 
 @Composable
-fun SessionListScreen(viewModel: SessionListViewModel, modifier: Modifier = Modifier) {
+fun SessionListScreen(viewModel: SessionListViewModel, onOpenTerminal: (HostRoute, String) -> Unit, modifier: Modifier = Modifier) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    CollectEffect(viewModel.effect) { effect ->
+        when (effect) {
+            is SessionListEffect.OpenTerminal -> onOpenTerminal(effect.route, effect.sessionId)
+        }
+    }
     SessionListContent(state, viewModel::onEvent, modifier)
 }
 
@@ -71,15 +82,18 @@ private fun SessionListContent(state: SessionListState, onEvent: (SessionListEve
                 Message(stringResource(R.string.host_storage_unreadable, state.storageError), "HostStorage.error", error = true)
             }
             state.form != null -> HostFormContent(state.form, state.host != null, onEvent, body)
-            else -> SessionRows(state, { onEvent(SessionListEvent.Refresh) }, body)
+            else -> Column(body) {
+                state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
+                SessionRows(state, onEvent, Modifier.weight(1f).fillMaxWidth())
+            }
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SessionRows(state: SessionListState, onRefresh: () -> Unit, modifier: Modifier) {
-    PullToRefreshBox(isRefreshing = state.loading, onRefresh = onRefresh, modifier = modifier) {
+private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> Unit, modifier: Modifier) {
+    PullToRefreshBox(isRefreshing = state.loading, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier) {
         LazyColumn(Modifier.fillMaxSize().testTag("SessionList.list")) {
             val rows = state.rows
             val error = state.error
@@ -90,7 +104,7 @@ private fun SessionRows(state: SessionListState, onRefresh: () -> Unit, modifier
                 }
                 rows.isEmpty() -> item { Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_empty), "SessionList.empty") } }
                 else -> items(rows) { row ->
-                    SessionRowItem(row)
+                    SessionRowItem(row) { onEvent(SessionListEvent.OpenSession(row.id)) }
                     HorizontalDivider()
                 }
             }
@@ -109,12 +123,12 @@ private fun ListFailure(error: ListError) {
 }
 
 @Composable
-private fun SessionRowItem(row: SessionRow) {
+private fun SessionRowItem(row: SessionRow, onClick: () -> Unit) {
     val summary = listOfNotNull(row.agent, stateLabel(row.state), row.activity?.let { activityLabel(it) }).joinToString(" · ")
     ListItem(
         headlineContent = { Text(row.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = { Text(summary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        modifier = Modifier.semantics(mergeDescendants = true) {}.testTag("SessionList.row"),
+        modifier = Modifier.clickable(onClick = onClick).semantics(mergeDescendants = true) {}.testTag("SessionList.row"),
     )
 }
 

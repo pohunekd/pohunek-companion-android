@@ -3,11 +3,12 @@ package dev.pohunek.companion.config
 import android.content.res.Resources
 import androidx.annotation.IntegerRes
 import dev.pohunek.companion.R
+import dev.pohunek.companion.protocol.AttachPolicy
 import dev.pohunek.companion.protocol.ClientConfig
 import kotlin.time.Duration.Companion.milliseconds
 
 /** Validated tunables from `res/values/config.xml`. */
-class AppConfig private constructor(val client: ClientConfig) {
+class AppConfig private constructor(val client: ClientConfig, val attachPolicy: AttachPolicy) {
     companion object {
         fun load(resources: Resources): AppConfigResult = try {
             AppConfigResult.Valid(
@@ -15,6 +16,10 @@ class AppConfig private constructor(val client: ClientConfig) {
                     ClientConfig(
                         connectTimeout = positive(resources, "connect_timeout_ms", R.integer.connect_timeout_ms).milliseconds,
                         requestTimeout = positive(resources, "request_timeout_ms", R.integer.request_timeout_ms).milliseconds,
+                    ),
+                    AttachPolicy(
+                        maxAttempts = positive(resources, "attach_attempts", R.integer.attach_attempts).toInt(),
+                        retryDelay = positive(resources, "attach_retry_delay_ms", R.integer.attach_retry_delay_ms).milliseconds,
                     ),
                 ),
             )

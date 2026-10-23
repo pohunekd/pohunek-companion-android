@@ -169,6 +169,15 @@ scripts/ui-agent pohunek ARGS...
   dev.pohunek.companion/.debug.GestureDemoActivity`) is a scratch list for
   `drag`: rows `GestureDemo.row`, the current order in `GestureDemo.order`,
   and `GestureDemo.copy` puts that order on the clipboard.
+- **Terminal.** Tapping a `SessionList.row` of a running session opens `Terminal` full
+  screen: `Terminal.view` is the terminal (tap it before `type` or `key`), `Terminal.status`
+  and `Terminal.error` (with `Terminal.back`) float over it while connecting or after a
+  failed attach. System back detaches and returns to the list (the daemon records
+  `attach_closed`; press it twice while the soft keyboard is open, the first press hides
+  it, and never past the list, which leaves the app). A stopped, done, failed, external, or
+  starting session opens nothing and shows `SessionList.refusal` (`SessionList.refusalDismiss`
+  clears it). `screen` and `session-screen ID` work on it as on the debug screen, and
+  rotation resizes the PTY in place.
 - **Attach debug screen.** Open it in a debug build with `podman exec
   pohunek-ui-agent-slot-N adb -s SERIAL shell am start -n
   dev.pohunek.companion/.debug.AttachDebugActivity` (SERIAL from `status`). Tap

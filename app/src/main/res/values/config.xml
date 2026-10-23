@@ -8,4 +8,8 @@
     <integer name="connect_timeout_ms">5000</integer>
     <!-- Milliseconds to wait for the response to one request on an open connection: an integer greater than 0. -->
     <integer name="request_timeout_ms">5000</integer>
+    <!-- How many times a failed attach is tried from session.attach, the first try included: an integer of at least 1. -->
+    <integer name="attach_attempts">2</integer>
+    <!-- Milliseconds between two attach tries: an integer greater than 0. -->
+    <integer name="attach_retry_delay_ms">500</integer>
 </resources>
