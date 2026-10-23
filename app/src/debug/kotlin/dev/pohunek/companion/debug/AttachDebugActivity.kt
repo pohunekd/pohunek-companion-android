@@ -43,6 +43,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import dev.pohunek.companion.R
+import dev.pohunek.companion.config.AppConfig
+import dev.pohunek.companion.config.AppConfigResult
 import dev.pohunek.companion.core.data.attach.AttachState
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.protocol.SessionInfo
@@ -66,6 +68,12 @@ class AttachDebugActivity : ComponentActivity() {
             AttachDebugConfig.from(resources)
         } catch (e: IllegalArgumentException) {
             setContent { PohunekTheme { ConfigError(e.message.orEmpty(), Modifier.semantics { testTagsAsResourceId = true }) } }
+            return
+        }
+        // The shared log is built from AppConfig, so an invalid app configuration stops this screen as it stops the app.
+        val app = AppConfig.load(resources)
+        if (app is AppConfigResult.Invalid) {
+            setContent { PohunekTheme { ConfigError("${app.key} ${app.detail}", Modifier.semantics { testTagsAsResourceId = true }) } }
             return
         }
         val created = AttachDebugModel(config, lifecycleScope, Dispatchers.IO, Dispatchers.Main, KoinPlatform.getKoin().get())

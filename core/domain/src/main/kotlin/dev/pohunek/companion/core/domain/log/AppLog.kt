@@ -18,7 +18,7 @@ class LogField private constructor(val name: String, val value: LogValue) {
         /** Longest text a field keeps. */
         const val MAX_TEXT_LENGTH: Int = 128
 
-        /** A short stable key of a host (see `hostKeyOf`), not its address. */
+        /** A short stable key of a host (see `hostKeyField`), not its address. */
         fun hostKey(key: String): LogField = text("host", key)
 
         /** The daemon's opaque session id. */

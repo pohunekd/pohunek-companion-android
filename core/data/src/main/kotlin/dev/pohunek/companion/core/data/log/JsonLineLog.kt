@@ -17,7 +17,7 @@ fun interface LogMirror {
 
 /**
  * Writes each event as one JSON object per line: `ts` (ISO-8601 UTC from [clock]), `level`, `event`, then the fields. A field named like
- * one of those four keys is dropped, so a line always keeps its envelope. Write failures go to [onWriteFailure]; they never reach the caller.
+ * one of those keys is dropped, so a line always keeps its envelope. Write failures go to [onWriteFailure]; they never reach the caller.
  */
 class JsonLineLog(
     private val file: RotatingLogFile,
