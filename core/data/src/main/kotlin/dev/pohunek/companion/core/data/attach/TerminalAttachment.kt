@@ -108,8 +108,11 @@ class TerminalAttachment(
         while (true) {
             val outcome = attachOnce(repaint)
             val heldFor = outcome.attachedAt?.elapsedNow()
-            if (heldFor != null) outageStart = null
-            if (heldFor != null && heldFor >= settings.reattach.maxDelay) failures = 0
+            // An attach that drops again at once is still the same outage; only one that held counts as recovered.
+            if (heldFor != null && heldFor >= settings.reattach.maxDelay) {
+                failures = 0
+                outageStart = null
+            }
             failures++
             val error = outcome.error
             val start = outageStart ?: timeSource.markNow().also { outageStart = it }
