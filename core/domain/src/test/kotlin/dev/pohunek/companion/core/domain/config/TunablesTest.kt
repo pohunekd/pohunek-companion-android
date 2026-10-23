@@ -50,6 +50,13 @@ class TunablesTest {
     }
 
     @Test
+    fun `a terminal side beyond the 16-bit wire field is refused`() {
+        val tooWide = invalid(checkOverrides(defaults, entered(Tunable.NEW_SESSION_COLS to "65536")))
+        assertEquals("must be at most 65535, got 65536", tooWide.single().message)
+        assertTrue(checkOverrides(defaults, entered(Tunable.NEW_SESSION_ROWS to "65535")) is OverrideCheck.Valid)
+    }
+
+    @Test
     fun `an initial backoff above the maximum is refused on both members`() {
         val problems = invalid(checkOverrides(defaults, entered(Tunable.RECONNECT_INITIAL_MS to "40000")))
         assertEquals(

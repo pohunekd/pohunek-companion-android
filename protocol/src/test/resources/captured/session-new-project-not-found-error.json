@@ -1,0 +1,10 @@
+{
+  "err": {
+    "class": "runtime",
+    "code": "project_not_found",
+    "msg": "no project matches \"p-nope\"",
+    "recover": "run `pohunek project list` to see known projects, or `project add` to register one"
+  },
+  "id": "req-1",
+  "v": 4
+}

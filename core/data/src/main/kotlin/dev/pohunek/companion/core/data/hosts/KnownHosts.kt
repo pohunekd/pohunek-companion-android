@@ -5,6 +5,7 @@ import dev.pohunek.companion.core.data.live.FollowedHosts
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
+import dev.pohunek.companion.core.domain.hosts.IncompatibleHost
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -12,6 +13,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+
+/** The hosts a new session can start on: the followed ones, and the peers listed but not usable because they speak another protocol. */
+data class HostOffers(val followed: List<ConfiguredHost>, val incompatible: List<IncompatibleHost>)
 
 /**
  * Every host the app lists: the configured hosts first, then the peers discovery found through them. A discovered host is not
@@ -25,6 +29,12 @@ class KnownHosts(
     /** The configured hosts followed by the discovered ones; any state other than loaded is the repository's own. */
     val state: Flow<HostsState> = combine(configured.state, discovery.state) { hosts, found ->
         if (hosts is HostsState.Loaded) HostsState.Loaded(hosts.hosts + found.peers.map { ConfiguredHost(it.host.route, it.host.label) }) else hosts
+    }
+
+    /** The followed hosts: the configured ones, then the discovered peers the latest answer still lists; the ones that left are not offered. */
+    val offers: Flow<HostOffers> = combine(configured.state, discovery.state) { hosts, found ->
+        val manual = (hosts as? HostsState.Loaded)?.hosts.orEmpty()
+        HostOffers(manual + found.peers.filter { it.present }.map { ConfiguredHost(it.host.route, it.host.label) }, found.incompatible)
     }
 
     suspend fun load() = configured.load()

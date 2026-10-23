@@ -32,6 +32,24 @@ object Requests {
         return Request(Wire.CLIENT_RANGE, id, "session.list", params)
     }
 
+    /** `params` is `{}`: no filters, as for `session.list`. */
+    fun projectList(id: String): Request = Request(Wire.CLIENT_RANGE, id, "project.list", buildJsonObject { })
+
+    fun hostInspect(id: String): Request = Request(Wire.CLIENT_RANGE, id, "host.inspect", JsonNull)
+
+    /** `name` and `input` are omitted when null; `project` is the daemon's own id, so no path crosses the wire. */
+    fun sessionNew(id: String, params: SessionNewParams): Request {
+        val body = buildJsonObject {
+            put("agent", params.agent)
+            put("cols", params.cols)
+            put("rows", params.rows)
+            put("project", params.project)
+            if (params.name != null) put("name", params.name)
+            if (params.input != null) put("input", params.input)
+        }
+        return Request(Wire.CLIENT_RANGE, id, "session.new", body)
+    }
+
     /** The daemon's own discovery cache answers; `force` stays false so a poll never makes it re-probe every peer. */
     fun hostDiscover(id: String): Request = Request(Wire.CLIENT_RANGE, id, "host.discover", buildJsonObject { put("force", false) })
 

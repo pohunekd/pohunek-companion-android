@@ -17,6 +17,8 @@ import androidx.navigation.toRoute
 import dev.pohunek.companion.config.RuntimeConfig
 import dev.pohunek.companion.hosts.HostsScreen
 import dev.pohunek.companion.hosts.HostsViewModel
+import dev.pohunek.companion.newsession.NewSessionScreen
+import dev.pohunek.companion.newsession.NewSessionViewModel
 import dev.pohunek.companion.sessions.SessionListScreen
 import dev.pohunek.companion.sessions.SessionListViewModel
 import dev.pohunek.companion.sessions.TerminalScreen
@@ -40,7 +42,7 @@ fun AppNavHost(
                 factory = viewModelFactory {
                     initializer {
                         SessionListViewModel(
-                            koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(),
+                            koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(),
                             runtime.configs.map { it.rowBadgeMaxChars }.distinctUntilChanged(),
                             runtime.configs.map { it.sectionTitleMaxChars }.distinctUntilChanged(),
                         )
@@ -58,6 +60,29 @@ fun AppNavHost(
                 },
                 onOpenHosts = { navController.navigate(HostsDestination) { launchSingleTop = true } },
                 onOpenSettings = { navController.navigate(SettingsDestination) { launchSingleTop = true } },
+                onOpenNewSession = { host, project, group ->
+                    navController.navigate(NewSessionDestination(host, project, group)) { launchSingleTop = true }
+                },
+            )
+        }
+        composable<NewSessionDestination> { entry ->
+            val destination = entry.toRoute<NewSessionDestination>()
+            val koin = remember { KoinPlatform.getKoin() }
+            val viewModel: NewSessionViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer { NewSessionViewModel(koin.get(), koin.get(), koin.get(), koin.get(), runtime::current, destination) }
+                },
+            )
+            NewSessionScreen(
+                viewModel,
+                onOpenTerminal = { route, sessionId ->
+                    // The terminal replaces the form, so back from the terminal returns to the list.
+                    navController.navigate(TerminalDestination(route.toString(), sessionId)) {
+                        popUpTo<NewSessionDestination> { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onClose = { navController.popBackStack() },
             )
         }
         composable<HostsDestination> {

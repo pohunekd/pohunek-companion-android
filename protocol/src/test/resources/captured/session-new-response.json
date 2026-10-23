@@ -1,0 +1,35 @@
+{
+  "id": "req-1",
+  "ok": {
+    "agent": "claude",
+    "agent_base": "shell",
+    "applied_input": true,
+    "capabilities": {
+      "fork": false,
+      "resume": false
+    },
+    "cols": 80,
+    "created_at": "2026-10-23T18:43:26.470638904Z",
+    "cwd": "/work/pohunek",
+    "cwd_source": "launch",
+    "external": false,
+    "id": "s-01M5N16DM3NBXC9N01QJ2YB679",
+    "is_linked_worktree": false,
+    "name": "fixture-three",
+    "pid": 1255,
+    "project_id": "p-617cf33c",
+    "rows": 24,
+    "runtime": {
+      "last_connected_at": "2026-10-23T18:43:26.574277017Z",
+      "runtime_generation": "1",
+      "started_at": "2026-10-23T18:43:26.574277017Z",
+      "state": "live",
+      "worker_id": "worker-5aafeeb71cd47838bcd836f62e057e97",
+      "worker_instance_id": "runtime-404a258e4d124c587332ae08ef1c6aba"
+    },
+    "state": "running",
+    "state_source": "process",
+    "updated_at": "2026-10-23T18:43:26.574288557Z"
+  },
+  "v": 4
+}

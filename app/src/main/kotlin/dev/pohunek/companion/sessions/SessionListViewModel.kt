@@ -16,6 +16,7 @@ import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostFeed
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.log.hostKeyField
+import dev.pohunek.companion.core.data.newsession.PendingPlacementBook
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
@@ -29,6 +30,7 @@ import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
 import dev.pohunek.companion.core.domain.log.info
+import dev.pohunek.companion.core.domain.log.warn
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.HostSessions
 import dev.pohunek.companion.core.domain.sessions.HostedSession
@@ -71,6 +73,7 @@ class SessionListViewModel(
     private val registry: HostRegistry,
     private val commands: SessionCommands,
     private val actions: SessionActionRunner,
+    private val placements: PendingPlacementBook,
     private val processLifecycle: Lifecycle,
     private val log: AppLog,
     badgeMaxChars: Flow<Int>,
@@ -114,7 +117,24 @@ class SessionListViewModel(
                 pruneCollapsed(configured, feeds, input.sectionTitleMaxChars)
             }
         }
+        viewModelScope.launch { combine(placements.state, layouts.state) { _, layout -> layout }.collect { settlePlacements(it) } }
         viewModelScope.launch { processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { hosts.run() } }
+    }
+
+    /**
+     * Moves the sessions the new session form created into the group it recorded, once the layout holds them. A group deleted in
+     * the meantime leaves the session where the layout put it.
+     */
+    private suspend fun settlePlacements(layout: LayoutState) {
+        if (placements.state.value.entries.isEmpty()) return
+        val available = layout as? LayoutState.Available ?: return
+        val settlement = placements.take(available.layout.items.mapTo(HashSet()) { it.key })
+        for (key in settlement.expired) log.warn("new_session.placement_expired", listOf(LogField.sessionId(key.sessionId)))
+        for (placement in settlement.apply) {
+            if (layouts.moveSession(placement.key, placement.group) !is LayoutEdit.Applied) {
+                log.warn("new_session.placement_dropped", listOf(LogField.groupId(placement.group), LogField.sessionId(placement.key.sessionId)))
+            }
+        }
     }
 
     override fun onEvent(event: SessionListEvent) {
@@ -128,6 +148,7 @@ class SessionListViewModel(
             is SessionListEvent.RenameEvent -> onRenameEvent(event)
             is SessionListEvent.ResumeEvent -> onResumeEvent(event)
             is SessionListEvent.OpenLink -> openLink(event.ref)
+            is SessionListEvent.NewSessionHere -> newSessionHere(event.ref)
             is SessionListEvent.ActionEvent -> onActionEvent(event)
             SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
@@ -289,6 +310,14 @@ class SessionListViewModel(
         val row = (currentState.needsYou + currentState.rows.orEmpty()).firstOrNull { it.ref == ref } ?: return
         log.info("session.open_details", listOf(LogField.sessionId(ref.sessionId)))
         updateState { it.copy(details = DetailsView(ref, row.title, sessionDetails(session, row.hostLabel, ref.route))) }
+    }
+
+    /** The form opens on the row's host and project; the new session lands in the row's group. */
+    private fun newSessionHere(ref: RowRef) {
+        updateState { it.copy(actionSheet = null) }
+        val group = currentState.groups.firstOrNull { section -> section.rows.any { it.ref == ref } }?.id
+        val project = registry.state.value[ref.route]?.sessions?.firstOrNull { it.info.id == ref.sessionId }?.info?.projectId
+        sendEffect(SessionListEffect.OpenNewSession(ref.route.toString(), project, group))
     }
 
     /** The link is read from the session as it is now and checked again, so a value that changed since the row was drawn is not opened. */

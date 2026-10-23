@@ -1,0 +1,38 @@
+{
+  "id": "req-1",
+  "ok": {
+    "daemon_version": "0.35.2",
+    "git_available": true,
+    "output_read_supported": true,
+    "protocol_version": 4,
+    "runtimes": [
+      {
+        "agent": "shell",
+        "agent_base": "shell",
+        "available": true
+      },
+      {
+        "agent": "claude",
+        "agent_base": "shell",
+        "available": true,
+        "path": "/tmp/ui-agent/iso/bin/showcase-agent"
+      },
+      {
+        "agent": "codex",
+        "agent_base": "shell",
+        "available": true,
+        "path": "/tmp/ui-agent/iso/bin/showcase-agent"
+      }
+    ],
+    "session_wait_supported": true,
+    "session_wait_turn_supported": true,
+    "supported_agents": [
+      "shell",
+      "claude",
+      "codex"
+    ],
+    "terminal_read_supported": true,
+    "worktree_supported": true
+  },
+  "v": 4
+}

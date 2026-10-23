@@ -67,6 +67,9 @@ object PohunekTheme {
         @ReadOnlyComposable
         get() = LocalStatusColors.current
 
+    /** Space below a scrolling list so that its last item can be scrolled clear of the floating action button. */
+    val fabClearance: Dp = 88.dp
+
     /** Diameter of the owner state dot on a row. */
     val stateDotSize: Dp = 10.dp
 

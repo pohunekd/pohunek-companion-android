@@ -87,6 +87,14 @@ as the desktop companion: `v0.35.2` today.
   `session_action_timeout_ms`; a removal waits for the daemon to end processes and delete a checkout. Offers follow the desktop's
   `offer_stop` and `offer_remove`. Nothing is updated optimistically: the row changes when the daemon's `session_stopped` or
   `session_removed` event arrives. A timeout or a connection that broke after the request left is reported as an unknown outcome.
+- New session: `NewSessions` reads a host's offer over a connection of its own (`project.list`, whose answer is shown at once, then
+  `host.inspect` for the agents; an agent is launchable when `available` and `supported != false`) and starts a session with exactly one
+  `session.new` over another, whose request timeout is `create_timeout_ms` (the cols and rows are `new_session_cols` and `new_session_rows`).
+  `session.new` has no idempotency key, so the request is never resent: only a failure to open the connection proves it did not leave,
+  a daemon error is a refusal, and any other failure after it left is unconfirmed, which disables Create on that form. A reply whose
+  `applied_input` is not true after a prompt was sent leaves the session and disables Create too. A session started from a row's
+  "New session here" is recorded in memory (`PendingPlacementBook`, expiring after `pending_placement_max_age_secs`) and the session
+  list moves it to that row's group as a manual placement once the layout holds it.
 - Wire fixtures come from two sources: Pohunek `sdk/ts/protocol/fixtures` at the
   pinned tag (`protocol/src/test/resources/fixtures/`), and, where that
   directory has no fixture for a method or event the app uses, captures from

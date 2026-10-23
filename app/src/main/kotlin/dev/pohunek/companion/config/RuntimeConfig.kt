@@ -1,6 +1,7 @@
 package dev.pohunek.companion.config
 
 import android.content.res.Resources
+import dev.pohunek.companion.R
 import dev.pohunek.companion.core.data.settings.SettingsLoad
 import dev.pohunek.companion.core.data.settings.SettingsStore
 import dev.pohunek.companion.core.data.settings.SettingsStoreException
@@ -48,6 +49,7 @@ sealed interface ApplyResult {
  * unreadable settings file leave the state [ConfigState.Invalid] until the owner discards them.
  */
 class RuntimeConfig(resources: Resources, private val store: SettingsStore) {
+    private val attachAfterCreate: Boolean = resources.getBoolean(R.bool.attach_after_create)
     private val defaults: Map<Tunable, Long> = Tunable.entries.associateWith { resources.getInteger(it.resources().default).toLong() }
     private val writes = Mutex()
     private val mutableState = MutableStateFlow(evaluate(store.load()))
@@ -92,7 +94,7 @@ class RuntimeConfig(resources: Resources, private val store: SettingsStore) {
                 if (problem != null) {
                     ConfigState.Invalid(problem.tunable.key, problem.message, fromOverrides = true)
                 } else {
-                    ConfigState.Valid(AppConfig.build(defaults + load.overrides), defaults, load.overrides)
+                    ConfigState.Valid(AppConfig.build(defaults + load.overrides, attachAfterCreate), defaults, load.overrides)
                 }
             }
         }

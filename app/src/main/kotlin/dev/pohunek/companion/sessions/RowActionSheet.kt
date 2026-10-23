@@ -49,6 +49,9 @@ internal fun RowActionSheet(row: SessionRow, resuming: Boolean, canMove: Boolean
             if (row.canRename) {
                 SheetAction(stringResource(R.string.row_action_rename), "RowSheet.rename") { onEvent(SessionListEvent.OpenRename(row.ref)) }
             }
+            SheetAction(stringResource(R.string.row_action_new_session_here), "RowSheet.newSessionHere") {
+                onEvent(SessionListEvent.NewSessionHere(row.ref))
+            }
             if (canMove) {
                 SheetAction(stringResource(R.string.row_action_move), "RowSheet.move") { onEvent(SessionListEvent.OpenMoveToGroup(row.ref)) }
             }
