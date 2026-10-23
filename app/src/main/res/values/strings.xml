@@ -175,6 +175,7 @@
     <string name="new_session_create">Create</string>
     <string name="new_session_creating">Creating...</string>
     <string name="new_session_refused">The daemon refused: %1$s</string>
+    <string name="new_session_refused_maybe_created">The daemon reported an error that may have come after it created the session: %1$s. Check the list before trying again.</string>
     <string name="new_session_not_sent">Not sent: %1$s</string>
     <string name="new_session_unconfirmed">The daemon did not confirm the create; check the list before trying again.</string>
     <string name="new_session_prompt_unconfirmed">The session was created, but the daemon did not confirm delivering the prompt; check the list.</string>

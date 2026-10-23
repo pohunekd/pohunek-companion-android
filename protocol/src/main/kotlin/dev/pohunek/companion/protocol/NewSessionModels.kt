@@ -51,7 +51,7 @@ fun JsonElement.decodeSessionNewResult(): SessionNewResult {
     val applied = (this as? JsonObject)?.get("applied_input")
     return when {
         applied == null || applied is JsonNull -> SessionNewResult(session, null)
-        applied is JsonPrimitive && applied.booleanOrNull != null -> SessionNewResult(session, applied.booleanOrNull)
+        applied is JsonPrimitive && !applied.isString && applied.booleanOrNull != null -> SessionNewResult(session, applied.booleanOrNull)
         else -> throw ProtocolClientException.MalformedResponse("result does not match the documented shape: applied_input is not a boolean")
     }
 }

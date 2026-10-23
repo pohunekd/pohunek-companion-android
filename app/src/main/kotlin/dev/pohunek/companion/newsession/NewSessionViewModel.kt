@@ -139,6 +139,7 @@ class NewSessionViewModel(
         when (outcome) {
             is CreateOutcome.Created -> created(route, outcome)
             is CreateOutcome.Refused -> settle(CreateNotice.Refused(outcome.message), unconfirmed = false)
+            is CreateOutcome.RefusedMaybeCreated -> settle(CreateNotice.RefusedMaybeCreated(outcome.message), unconfirmed = true)
             is CreateOutcome.NotSent -> settle(CreateNotice.NotSent(outcome.message), unconfirmed = false)
             CreateOutcome.Unconfirmed -> settle(CreateNotice.Unconfirmed, unconfirmed = true)
         }

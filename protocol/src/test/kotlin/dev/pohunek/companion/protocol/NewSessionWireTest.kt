@@ -65,6 +65,8 @@ class NewSessionWireTest {
             (decode("session-new-response") as JsonObject) + ("applied_input" to JsonPrimitive("yes")),
         )
         assertThrows(ProtocolClientException.MalformedResponse::class.java) { mistyped.decodeSessionNewResult() }
+        val quoted = JsonObject((decode("session-new-response") as JsonObject) + ("applied_input" to JsonPrimitive("true")))
+        assertThrows(ProtocolClientException.MalformedResponse::class.java) { quoted.decodeSessionNewResult() }
     }
 
     @Test

@@ -7,6 +7,7 @@ import dev.pohunek.companion.protocol.AgentRuntime
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProjectInfo
 import dev.pohunek.companion.protocol.ProtocolClientException
+import dev.pohunek.companion.protocol.ProtocolError
 import dev.pohunek.companion.protocol.SessionNewParams
 import dev.pohunek.companion.protocol.SessionNewResult
 
@@ -131,43 +132,4 @@ fun sessionNewParams(form: NewSessionForm, cols: Int, rows: Int): SessionNewPara
     val project = form.project ?: return null
     val agent = form.agent ?: return null
     return SessionNewParams(agent, cols, rows, project, form.name.trim().ifEmpty { null }, form.prompt.trim().ifEmpty { null })
-}
-
-/** How a `session.new` ended. */
-sealed interface CreateOutcome {
-    /** The session exists. [promptDelivered] is false when a prompt was sent and the daemon did not confirm injecting it. */
-    data class Created(val result: SessionNewResult, val promptDelivered: Boolean) : CreateOutcome
-
-    /** The daemon answered with an error. [message] is its text with the recovery hint; the form stays editable. */
-    data class Refused(val code: String, val message: String) : CreateOutcome
-
-    /** Proven to precede the request: the connection never opened. The form stays editable. */
-    data class NotSent(val message: String) : CreateOutcome
-
-    /** The request left and no verdict arrived; it may have created a session and must not be repeated. */
-    data object Unconfirmed : CreateOutcome
-}
-
-/** The outcome of a `session.new` that answered [result]; [sentPrompt] is true when the request carried an initial prompt. */
-fun createdOutcome(result: SessionNewResult, sentPrompt: Boolean): CreateOutcome.Created =
-    CreateOutcome.Created(result, promptDelivered = !sentPrompt || result.appliedInput == true)
-
-/**
- * Splits a failed `session.new` into a daemon refusal, a failure proven to precede the request and an unknown outcome. Only a failure to
- * open the connection proves nothing was sent; everything else after the request left, a lost connection, a timeout or a malformed
- * answer, is unknown.
- */
-fun classifyCreateFailure(failure: ProtocolClientException): CreateOutcome = when (failure) {
-    is ProtocolClientException.Daemon -> CreateOutcome.Refused(failure.error.code, refusalText(failure.error.msg, failure.error.recover))
-    is ProtocolClientException.VersionMismatch ->
-        failure.error?.let { CreateOutcome.Refused(it.code, refusalText(it.msg, it.recover)) } ?: CreateOutcome.Unconfirmed
-    is ProtocolClientException.InvalidRoute, is ProtocolClientException.ConnectionFailed, is ProtocolClientException.ConnectTimeout ->
-        CreateOutcome.NotSent(sanitizeText(failure.message.orEmpty()))
-    else -> CreateOutcome.Unconfirmed
-}
-
-/** The daemon's message with its recovery hint in parentheses; both are untrusted text. */
-private fun refusalText(msg: String, recover: String?): String {
-    val hint = recover?.let(::sanitizeText)?.takeIf { it.isNotEmpty() }
-    return sanitizeText(msg) + (hint?.let { " ($it)" }.orEmpty())
 }

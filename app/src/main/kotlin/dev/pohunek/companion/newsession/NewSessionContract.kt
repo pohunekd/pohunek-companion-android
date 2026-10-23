@@ -16,6 +16,9 @@ sealed interface CreateNotice {
     /** The daemon refused; [message] is its text and recovery hint. The form is editable. */
     data class Refused(val message: String) : CreateNotice
 
+    /** The daemon answered with an error that does not prove nothing was created; Create stays disabled so that it is not repeated. */
+    data class RefusedMaybeCreated(val message: String) : CreateNotice
+
     /** The request never left; [message] says why. The form is editable. */
     data class NotSent(val message: String) : CreateNotice
 

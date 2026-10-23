@@ -236,14 +236,15 @@ scripts/ui-agent pohunek ARGS...
   `NewSession.projectSearch` and one `NewSession.project` per project (shown as soon as `project.list` answers), one `NewSession.agent`
   chip per agent (a launchable one first; `NewSession.agentNote` names why another cannot start), `NewSession.name`,
   `NewSession.prompt`, `NewSession.attach` (open the terminal after creating; starts as `attach_after_create` in `config.xml`),
-  `NewSession.create` (disabled while `NewSession.blocker` gives a reason), `NewSession.notice` (the daemon's refusal, a request that never
+  `NewSession.create` (disabled while `NewSession.blocker` gives a reason), `NewSession.notice` (the daemon's refusal, an error that may have come after the session was recorded, a request that never
   left, an unconfirmed create or an unconfirmed prompt) and `NewSession.back`. Scroll with `swipe NewSession.form up`; `click TAG N` counts
   from 0. A create the daemon did not answer within `create_timeout_ms` is shown as unconfirmed and Create stays disabled: write
   `{"version":1,"overrides":{"create_timeout_ms":30}}` with `app-file put settings.json` and `restart` to force it against the isolated
   daemon (a response takes about 100 ms), then `pohunek session list` shows exactly one new session; the daemon's own log records no
   requests. The app log has `new_session.choices_loaded`, `new_session.choices_failed`, `new_session.create`, `new_session.created`,
-  `new_session.create_failed` (error code only), `new_session.prompt_unconfirmed` and `new_session.placement_expired` or
-  `new_session.placement_dropped`; none carries a name or a prompt.
+  `new_session.create_refused` (a prompt too large for a control line), `new_session.create_failed` (error code only),
+  `new_session.prompt_unconfirmed`, `new_session.attach_skipped` (the new session was not running yet) and
+  `new_session.placement_expired` or `new_session.placement_dropped`; none carries a name or a prompt.
 - **Terminal.** Tapping a `SessionList.row` of a running session opens `Terminal` full
   screen: `Terminal.view` is the terminal (tap it before `type` or `key`), `Terminal.status`
   and `Terminal.error` (with `Terminal.back`) float over it while connecting, while

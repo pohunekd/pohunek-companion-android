@@ -112,6 +112,16 @@ class NewSessionTest {
     }
 
     @Test
+    fun `an error that may follow the recording of the session is not a proven refusal`() {
+        val error = ProtocolError(ErrorClass.Runtime, "session_runtime_reconnecting", "the runtime is reconnecting", null)
+        val outcome = classifyCreateFailure(ProtocolClientException.Daemon(error))
+        assertEquals(CreateOutcome.RefusedMaybeCreated("session_runtime_reconnecting", "the runtime is reconnecting"), outcome)
+        val versionError = ProtocolError(ErrorClass.Daemon, "version_mismatch", "no common protocol", null)
+        val refused = classifyCreateFailure(ProtocolClientException.VersionMismatch(ProtocolVersionRange(4, 4), 5, versionError))
+        assertEquals(CreateOutcome.Refused("version_mismatch", "no common protocol"), refused)
+    }
+
+    @Test
     fun `only a failure to open the connection proves the request did not leave`() {
         val refused = classifyCreateFailure(ProtocolClientException.ConnectionFailed(route, IOException("refused")))
         assertEquals(CreateOutcome.NotSent("cannot connect to $route: refused"), refused)

@@ -295,6 +295,7 @@ private fun CreateBar(state: NewSessionState, onEvent: (NewSessionEvent) -> Unit
 @Composable
 private fun noticeText(notice: CreateNotice): String = when (notice) {
     is CreateNotice.Refused -> stringResource(R.string.new_session_refused, notice.message)
+    is CreateNotice.RefusedMaybeCreated -> stringResource(R.string.new_session_refused_maybe_created, notice.message)
     is CreateNotice.NotSent -> stringResource(R.string.new_session_not_sent, notice.message)
     CreateNotice.Unconfirmed -> stringResource(R.string.new_session_unconfirmed)
     CreateNotice.PromptUnconfirmed -> stringResource(R.string.new_session_prompt_unconfirmed)
