@@ -139,12 +139,13 @@ class NewSessionViewModel(
         val state = currentState
         val route = state.form.host
         val settings = config()
-        val plain = sessionNewParams(state.form, settings.newSession.cols, settings.newSession.rows)
-        if (state.blocker != null || route == null || plain == null) return
+        val cols = settings.newSession.cols
+        val rows = settings.newSession.rows
+        if (state.blocker != null || route == null || sessionNewParams(state.form, cols, rows) == null) return
         updateState { it.copy(activity = it.activity.copy(inFlight = true), notice = null) }
         viewModelScope.launch {
             val group = groupNameFor(layouts, log, requested.group, settings.display.groupNameMaxBytes)
-            val params = sessionNewParams(state.form, settings.newSession.cols, settings.newSession.rows, group) ?: plain
+            val params = checkNotNull(sessionNewParams(state.form, cols, rows, group)) { "the same form passed the guard in create()" }
             finish(route, newSessions.create(route, params))
         }
     }
