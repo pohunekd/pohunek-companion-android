@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_dialog_demo_title">Action dialog demo</string>
+    <string name="action_dialog_demo_remove">Remove with a runtime problem</string>
+    <string name="action_dialog_demo_busy">Busy stop</string>
+</resources>

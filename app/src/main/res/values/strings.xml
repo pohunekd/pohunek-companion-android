@@ -32,6 +32,20 @@
     <string name="rename_cancel">Cancel</string>
     <string name="rename_failed">Cannot rename %1$s: %2$s</string>
     <string name="rename_failed_on_host">Cannot rename %1$s on %2$s: %3$s</string>
+    <string name="row_action_stop">Stop</string>
+    <string name="row_action_remove">Remove</string>
+    <string name="action_heading_stop">Stop</string>
+    <string name="action_heading_remove">Remove</string>
+    <string name="action_heading_remove_anyway">Remove anyway</string>
+    <string name="action_subject">%1$s on %2$s</string>
+    <string name="action_consequence_stop">The agent ends; the session stays in the list as ended.</string>
+    <string name="action_consequence_remove">The session is deleted from the daemon (stopped first if live), together with any worktree checkout Pohunek created for it.</string>
+    <string name="action_consequence_remove_anyway">The daemon cannot confirm that all of its processes ended. They are not signalled and may keep running unsupervised after the session, its logs and its worktree are deleted.</string>
+    <string name="action_note_worktree_on_host">The worktree checkout is deleted on that host.</string>
+    <string name="action_note_runtime_problem">The session\'s runtime is in a conflicting or incompatible state, so the daemon may refuse; its message is shown here.</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_working">Working</string>
     <string name="link_unavailable">The session has no link that can be opened</string>
     <string name="link_no_app">No app can open this link</string>
 

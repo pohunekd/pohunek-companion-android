@@ -99,6 +99,15 @@ class PohunekConnection private constructor(
     suspend fun detach(streamId: String): SessionDetachResult =
         call { Requests.sessionDetach(it, streamId) }.decodeResult(SessionDetachResult.serializer())
 
+    suspend fun stop(sessionId: String): SessionStopResult = call { Requests.sessionStop(it, sessionId) }.decodeResult(SessionStopResult.serializer())
+
+    suspend fun remove(sessionId: String): SessionRemoveResult =
+        call { Requests.sessionRemove(it, sessionId) }.decodeResult(SessionRemoveResult.serializer())
+
+    /** Removes like [remove], but proceeds when the only obstacle is processes whose environment cannot be read; the owner consented to this call. */
+    suspend fun removeAcceptingUnconfirmed(sessionId: String): SessionRemoveResult =
+        call { Requests.sessionRemoveAcceptingUnconfirmed(it, sessionId) }.decodeResult(SessionRemoveResult.serializer())
+
     override fun close() {
         if (unusableReason == null) unusableReason = "the connection was closed"
         try {

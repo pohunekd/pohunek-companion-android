@@ -3,6 +3,7 @@ package dev.pohunek.companion.sessions
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.OwnerState
+import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.domain.sessions.SessionDetails
 import dev.pohunek.companion.protocol.HostRoute
 
@@ -30,13 +31,16 @@ data class SessionRow(
     val attachRefusal: AttachRefusal?,
     /** True when the daemon accepts a new name: the host is connected and the session is not external. */
     val canRename: Boolean,
+    /** Stop and Remove are offered per the desktop's rules and only while the host is connected; an external session has neither. */
+    val canStop: Boolean,
+    val canRemove: Boolean,
 ) {
     val reachable: Boolean get() = link == HostLink.Connected
 
     val ref: RowRef get() = RowRef(route, sessionId)
 
     /** Row actions need the daemon, so a row of a host that is not connected offers none. */
-    val hasActions: Boolean get() = reachable && (attachRefusal == null || hasLink || canRename)
+    val hasActions: Boolean get() = reachable && (attachRefusal == null || hasLink || canRename || canStop || canRemove)
 
     /** Unique across hosts and a plain string, so that the list can save its state by it. */
     val listKey: String get() = "$route|$sessionId"
@@ -50,6 +54,23 @@ data class DetailsView(val ref: RowRef, val name: String, val details: SessionDe
 
 /** A host whose connection is down, for the status lines above the list. */
 data class HostStatus(val hostLabel: String, val connection: HostConnection.Reconnecting)
+
+/**
+ * The confirmation of a stop or remove, kept apart from the row so that it survives the session leaving the list. [action] turns from
+ * [SessionAction.Remove] into [SessionAction.RemoveAnyway] when the daemon cannot confirm the runtime's processes ended; that consent
+ * lives only in this dialog. [error] is shown in place; [notice] reports what a removal left behind and replaces the buttons by Close.
+ */
+data class ActionDialog(
+    val ref: RowRef,
+    val name: String,
+    val hostLabel: String,
+    val action: SessionAction,
+    /** The runtime is in conflict or incompatible, so the daemon may refuse. */
+    val runtimeProblem: Boolean,
+    val busy: Boolean = false,
+    val error: String? = null,
+    val notice: String? = null,
+)
 
 data class SessionListState(
     /** False until the hosts file has been read. */
@@ -78,6 +99,8 @@ data class SessionListState(
     val details: DetailsView? = null,
     /** The open rename dialog; it closes with the session that leaves the list. */
     val rename: RenameDraft? = null,
+    /** The open stop or remove confirmation. */
+    val actionDialog: ActionDialog? = null,
 )
 
 /** The rename dialog: the text being edited, the request in flight and why the last one failed. */
@@ -116,6 +139,14 @@ sealed interface SessionListEvent {
     data object DismissRename : RenameEvent
 
     data class OpenLink(val ref: RowRef) : SessionListEvent
+
+    /** Opens the confirmation of [action], which is [SessionAction.Stop] or [SessionAction.Remove]; nothing is sent yet. */
+    data class RequestAction(val ref: RowRef, val action: SessionAction) : SessionListEvent
+
+    data object ConfirmAction : SessionListEvent
+
+    /** Closes the confirmation, whether it asked, failed or reported; ignored while the call runs. */
+    data object DismissAction : SessionListEvent
 
     /** No app handled the link intent. */
     data object LinkNotHandled : SessionListEvent
