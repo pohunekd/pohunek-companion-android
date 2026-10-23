@@ -27,10 +27,8 @@ class AttachedSession private constructor(
 
     suspend fun write(bytes: ByteArray) = raw.write(bytes)
 
-    /** Round-trips `daemon.health` on the control connection; returns when the daemon answered. */
-    suspend fun ping() {
-        control.health()
-    }
+    /** One liveness probe on the control connection; see [PohunekConnection.checkAlive]. */
+    suspend fun checkAlive(timeout: Duration) = control.checkAlive(timeout)
 
     /** Resizes the session's PTY; returns the session summary the daemon reports afterwards. */
     suspend fun resize(dimensions: TerminalDimensions): SessionInfo = control.resize(sessionId, dimensions)

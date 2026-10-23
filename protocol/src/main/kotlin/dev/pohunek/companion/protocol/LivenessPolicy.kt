@@ -1,7 +1,6 @@
 package dev.pohunek.companion.protocol
 
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 
 /**
@@ -15,11 +14,10 @@ class LivenessPolicy(val interval: Duration, val timeout: Duration) {
     }
 }
 
-/** Runs [probe] every [LivenessPolicy.interval] until it fails or the caller cancels; never returns normally. */
-suspend fun watchLiveness(policy: LivenessPolicy, probe: suspend () -> Unit): Nothing {
+/** Calls [probe] with [LivenessPolicy.timeout] every [LivenessPolicy.interval] until it throws or the caller cancels. */
+suspend fun watchLiveness(policy: LivenessPolicy, probe: suspend (timeout: Duration) -> Unit): Nothing {
     while (true) {
         delay(policy.interval)
-        withTimeoutOrNull(policy.timeout) { probe() }
-            ?: throw ProtocolClientException.LivenessTimeout(policy.timeout.inWholeMilliseconds)
+        probe(policy.timeout)
     }
 }

@@ -69,6 +69,15 @@ class PohunekConnection private constructor(
 
     suspend fun health(): DaemonHealth = call { Requests.health(it) }.decodeResult(DaemonHealth.serializer())
 
+    /**
+     * Round-trips `daemon.health` and fails with [ProtocolClientException.LivenessTimeout] when no answer arrives within [timeout]. The
+     * clock starts once the connection is free, so a slow request ahead of it is bounded by the request timeout instead.
+     */
+    suspend fun checkAlive(timeout: Duration) {
+        call(timeout, { ProtocolClientException.LivenessTimeout(timeout.inWholeMilliseconds) }) { Requests.health(it) }
+            .decodeResult(DaemonHealth.serializer())
+    }
+
     suspend fun listSessions(filters: List<SessionFilter> = emptyList()): List<SessionInfo> =
         call { Requests.sessionList(it, filters) }.decodeResult(ListSerializer(SessionInfo.serializer()))
 
@@ -91,15 +100,18 @@ class PohunekConnection private constructor(
         }
     }
 
-    private suspend fun call(build: (String) -> Request) = mutex.withLock {
+    private suspend fun call(
+        timeout: Duration = config.requestTimeout,
+        timedOut: () -> ProtocolClientException = { ProtocolClientException.RequestTimeout(config.requestTimeout.inWholeMilliseconds) },
+        build: (String) -> Request,
+    ) = mutex.withLock {
         unusableReason?.let { throw ProtocolClientException.ConnectionUnusable(it) }
         val request = build("$REQUEST_ID_PREFIX${nextRequestNumber++}")
         // An oversized request fails before anything is written, so the connection stays usable.
         val line = LineFramer.encode(request.toLine())
         var reusable = false
         try {
-            val ok = withTimeoutOrNull(config.requestTimeout) { runInterruptible(ioDispatcher) { exchange(request, line) } }
-                ?: throw ProtocolClientException.RequestTimeout(config.requestTimeout.inWholeMilliseconds)
+            val ok = withTimeoutOrNull(timeout) { runInterruptible(ioDispatcher) { exchange(request, line) } } ?: throw timedOut()
             reusable = true
             if (framer.hasPending) {
                 unusableReason = "the daemon sent bytes beyond the response"
@@ -117,18 +129,19 @@ class PohunekConnection private constructor(
         }
     }
 
-    private fun exchange(request: Request, line: ByteArray) = decoder.decode(readLine(line), request.id)
-
     /** Interrupting the blocked thread closes the channel; that surfaces as cancellation, not as a lost connection. */
-    private fun readLine(line: ByteArray): String = try {
-        val out = ByteBuffer.wrap(line)
-        while (out.hasRemaining()) channel.write(out)
-        receiveLine()
-    } catch (e: ClosedByInterruptException) {
-        throw CancellationException("interrupted while waiting for the daemon", e)
-    } catch (e: IOException) {
-        throw ProtocolClientException.ConnectionLost(e.message ?: e.javaClass.simpleName, e)
-    }
+    private fun exchange(request: Request, line: ByteArray) = decoder.decode(
+        try {
+            val out = ByteBuffer.wrap(line)
+            while (out.hasRemaining()) channel.write(out)
+            receiveLine()
+        } catch (e: ClosedByInterruptException) {
+            throw CancellationException("interrupted while waiting for the daemon", e)
+        } catch (e: IOException) {
+            throw ProtocolClientException.ConnectionLost(e.message ?: e.javaClass.simpleName, e)
+        },
+        request.id,
+    )
 
     private fun receiveLine(): String {
         while (true) {

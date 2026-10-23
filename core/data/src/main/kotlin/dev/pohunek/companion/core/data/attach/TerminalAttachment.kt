@@ -109,7 +109,7 @@ class TerminalAttachment(
                 launch { pumpOutput(attached) }
                 launch { controller.input.collect { attached.write(it) } }
                 launch { pumpResizes(attached, TerminalDimensions(initial.cols, initial.rows)) }
-                launch { watchLiveness(liveness) { attached.ping() } }
+                launch { watchLiveness(liveness) { attached.checkAlive(it) } }
             }
         } catch (e: ProtocolClientException) {
             fail(e)
