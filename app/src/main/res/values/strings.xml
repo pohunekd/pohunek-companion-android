@@ -9,15 +9,15 @@
     <string name="session_list_loading">Loading sessions</string>
     <string name="session_list_empty">No sessions</string>
     <string name="session_list_reconnecting">Reconnecting to %1$s (attempt %2$d): %3$s</string>
+    <string name="session_list_needs_you">Needs you</string>
+    <string name="session_list_other_sessions">Other sessions</string>
+    <string name="owner_state_needs_owner">Needs owner</string>
+    <string name="owner_state_working">Working</string>
+    <string name="owner_state_idle">Idle</string>
+    <string name="owner_state_runtime_problem">Runtime problem</string>
+    <string name="owner_state_ended">Ended</string>
+    <string name="owner_state_no_agent_state">No agent state</string>
     <string name="session_list_incompatible">%1$s runs an incompatible Pohunek version (attempt %2$d): %3$s</string>
-    <string name="session_state_starting">starting</string>
-    <string name="session_state_running">running</string>
-    <string name="session_state_stopped">stopped</string>
-    <string name="session_state_done">done</string>
-    <string name="session_state_failed">failed</string>
-    <string name="session_activity_working">working</string>
-    <string name="session_activity_blocked">blocked</string>
-    <string name="session_activity_idle">idle</string>
 
     <string name="session_list_refusal_dismiss">Dismiss</string>
     <string name="attach_refusal_external">External sessions are read-only in Pohunek and have no terminal to attach to</string>

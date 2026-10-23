@@ -128,8 +128,8 @@ scripts/ui-agent pohunek ARGS...
   `HostForm.route`, `type 127.0.0.1:PORT` (PORT from `status`), optionally tap
   `HostForm.label` and type a name, then `click HostForm.save`. `HostForm.error`
   carries a refused route; `HostForm.cancel` and `HostForm.clear` (remove the
-  host) appear once a host is saved. The list shows `SessionList.row` nodes and follows the daemon without a tap
-  (subscribe, periodic re-seed, reconnect with backoff). While the connection is down the rows
+  host) appear once a host is saved. The list shows `SessionList.row` nodes (the row text is the title, then `<owner state> · <agent>`, then the runtime detail of a conflict or incompatible runtime) and follows the daemon without a tap
+  (subscribe, periodic re-seed, reconnect with backoff). Sessions that need the owner are under the `SessionList.needsYou` header, oldest wait first, with `SessionList.others` above the rest; while the connection is down there is no Needs you section. While the connection is down the rows
   stay and are dimmed and `SessionList.status` names the host, the attempt and the reason (a
   `version_mismatch` refusal carries the daemon's message); recovery can take up to the current
   backoff, so wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh

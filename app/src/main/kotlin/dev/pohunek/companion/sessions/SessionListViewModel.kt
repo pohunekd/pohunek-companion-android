@@ -10,10 +10,14 @@ import dev.pohunek.companion.core.data.hosts.HostsLoad
 import dev.pohunek.companion.core.data.live.HostLive
 import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.live.LiveUpdate
+import dev.pohunek.companion.core.domain.sessions.OwnerSession
+import dev.pohunek.companion.core.domain.sessions.partitionNeedsYou
+import dev.pohunek.companion.core.domain.sessions.runtimeDetail
+import dev.pohunek.companion.core.domain.sessions.sanitizeText
+import dev.pohunek.companion.core.domain.sessions.sessionDisplayName
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProtocolClientException
-import dev.pohunek.companion.protocol.SessionInfo
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -60,7 +64,7 @@ class SessionListViewModel(
     private fun openSession(id: String) {
         val state = currentState
         val host = state.host ?: return
-        val row = state.rows?.firstOrNull { it.id == id } ?: return
+        val row = (state.needsYou + state.rows.orEmpty()).firstOrNull { it.id == id } ?: return
         val refusal = row.attachRefusal
         updateState { it.copy(refusal = refusal) }
         if (refusal == null) sendEffect(SessionListEffect.OpenTerminal(host.route, row.id))
@@ -79,7 +83,7 @@ class SessionListViewModel(
         live = session
         liveJob = viewModelScope.launch {
             processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                updateState { it.copy(connection = ListConnection.Connecting, refreshing = false) }
+                updateState { it.copy(connection = ListConnection.Connecting, refreshing = false).relist() }
                 session.updates().collect { update -> updateState { it.apply(update) } }
             }
         }
@@ -117,7 +121,17 @@ class SessionListViewModel(
                 return@launch
             }
             stopLive()
-            updateState { it.copy(host = host, form = null, rows = null, connection = ListConnection.Connecting, refreshing = false) }
+            updateState {
+                it.copy(
+                    host = host,
+                    form = null,
+                    sessions = null,
+                    needsYou = emptyList(),
+                    rows = null,
+                    connection = ListConnection.Connecting,
+                    refreshing = false,
+                )
+            }
             startLive(route)
         }
     }
@@ -141,18 +155,27 @@ class SessionListViewModel(
     private fun updateForm(transform: (HostForm) -> HostForm) = updateState { state -> state.copy(form = state.form?.let(transform)) }
 }
 
-private fun SessionInfo.toRow() = SessionRow(
-    id = id,
-    title = name?.trim()?.ifEmpty { null } ?: id,
-    agent = agent,
-    state = state,
-    activity = activity,
-    attachRefusal = AttachRefusal.forSession(external, state),
+private fun OwnerSession.toRow() = SessionRow(
+    id = info.id,
+    title = sessionDisplayName(info),
+    agent = sanitizeText(info.agent),
+    ownerState = ownerState,
+    runtimeDetail = runtimeDetail(info),
+    attachRefusal = AttachRefusal.forSession(info.external, info.state),
 )
 
+/** Splits [sessions] into the Needs you section and the other rows; a host that is not connected has no Needs you section. */
+private fun SessionListState.relist(): SessionListState {
+    val sessions = sessions ?: return copy(needsYou = emptyList(), rows = null)
+    val listing = partitionNeedsYou(sessions, hostReachable = connection is ListConnection.Connected)
+    return copy(needsYou = listing.needsYou.map { it.toRow() }, rows = listing.others.map { it.toRow() })
+}
+
 private fun SessionListState.apply(update: LiveUpdate): SessionListState = when (update) {
+    // Needs you stays empty until the first list of this connection arrives, so the list from before the outage is not counted.
     LiveUpdate.Connected -> copy(connection = ListConnection.Connected, refreshing = false)
-    is LiveUpdate.Sessions -> copy(rows = update.sessions.map { it.info.toRow() })
-    LiveUpdate.Reseeded -> copy(refreshing = false)
-    is LiveUpdate.Reconnecting -> copy(connection = ListConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false)
+    is LiveUpdate.Sessions -> copy(sessions = update.sessions).relist()
+    LiveUpdate.Reseeded -> copy(refreshing = false).relist()
+    is LiveUpdate.Reconnecting ->
+        copy(connection = ListConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false).relist()
 }
