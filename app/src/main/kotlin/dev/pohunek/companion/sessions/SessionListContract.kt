@@ -103,13 +103,17 @@ sealed interface SessionListEvent {
     data class OpenDetails(val ref: RowRef) : SessionListEvent
 
     data object CloseDetails : SessionListEvent
-    data class OpenRename(val ref: RowRef) : SessionListEvent
 
-    data class EditRename(val text: String) : SessionListEvent
+    /** The events of the rename dialog. */
+    sealed interface RenameEvent : SessionListEvent
 
-    data object SubmitRename : SessionListEvent
+    data class OpenRename(val ref: RowRef) : RenameEvent
 
-    data object DismissRename : SessionListEvent
+    data class EditRename(val text: String) : RenameEvent
+
+    data object SubmitRename : RenameEvent
+
+    data object DismissRename : RenameEvent
 
     data class OpenLink(val ref: RowRef) : SessionListEvent
 
