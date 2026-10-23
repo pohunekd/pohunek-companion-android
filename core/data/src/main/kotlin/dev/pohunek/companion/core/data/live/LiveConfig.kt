@@ -14,6 +14,10 @@ class LiveConfig(
     val livenessInterval: Duration,
     /** Time one probe, connecting included, may take before the connection is declared dead. */
     val livenessTimeout: Duration,
+    /** How long a session must stay idle, with no subagent or background work, before it is shown as Idle. */
+    val idleThreshold: Duration,
+    /** Records requested per `notification.list` page; the page is halved while the daemon reports it as too large. */
+    val notificationPageSize: Int,
 ) {
     init {
         require(reseedInterval.isPositive()) { "reseedInterval must be positive" }
@@ -21,5 +25,7 @@ class LiveConfig(
         require(reconnectMax >= reconnectInitial) { "reconnectMax must be at least reconnectInitial" }
         require(livenessInterval.isPositive()) { "livenessInterval must be positive" }
         require(livenessTimeout.isPositive()) { "livenessTimeout must be positive" }
+        require(idleThreshold.isPositive()) { "idleThreshold must be positive" }
+        require(notificationPageSize >= 1) { "notificationPageSize must be at least 1" }
     }
 }

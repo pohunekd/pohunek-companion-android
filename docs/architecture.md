@@ -43,6 +43,15 @@ as the desktop companion: `v0.35.2` today.
 - State: seed with `session.list` and `notification.list`, then keep current
   with one `subscribe` connection. Re-seed on every reconnect and
   periodically.
+- Owner state: the store derives, per session, one of Needs owner, Working, Idle,
+  Runtime problem, Ended, and No agent state, with the rules of the desktop's
+  `owner_state.rs`. `agent_state`, `subagent_state` and `background_state` apply only
+  when the event's runtime matches the snapshot and its revision is newer for the same
+  (epoch, runtime); the attention set holds the unread or read `agent_blocked` and
+  `approval_required` records that the seed lists (`notification.list` per kind, paged
+  by `notification_page_size`, halved on `notification_list_too_large`) and the
+  `notification_*` events keep current. A session idle without running work becomes Idle
+  after `idle_threshold_secs`; the live loop wakes at that deadline, so no event is needed.
 - Liveness (departs from the desktop on purpose): the desktop keeps its store
   when a periodic re-seed fails and has no heartbeat, which on a phone leaves a
   frozen list that looks live. Here a failed re-seed, or a `daemon.health` probe

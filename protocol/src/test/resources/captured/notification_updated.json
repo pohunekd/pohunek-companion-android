@@ -1,0 +1,23 @@
+{
+  "event": "notification_updated",
+  "record": {
+    "agent_kind": "shell",
+    "body": "",
+    "created_at": "2026-10-23T12:23:45.945997395Z",
+    "dedupe_key": "k-4",
+    "id": "n-303-1792758225946012355-6",
+    "kind": "agent_blocked",
+    "project_id": "p-580819b0",
+    "read_at": "2026-10-23T12:23:46.183700797Z",
+    "session_id": "s-01M5MBCMAP8JVX9AXXHRBDFMMB",
+    "severity": "action_required",
+    "source": {
+      "host_local_source_id": "ui-agent-1792758225920403291",
+      "provider": "ui-agent",
+      "provider_event": "ui-agent"
+    },
+    "status": "read",
+    "title": "capture 4"
+  },
+  "v": 4
+}

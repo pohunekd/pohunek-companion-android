@@ -1,5 +1,5 @@
-// Ported to Kotlin from pohunek-companion `crates/core/src/live.rs` (run_live, cycle_inner, reseed, backoff); the liveness probe and the
-// failing re-seed are additions. Repository: https://github.com/pohunekd/pohunek-companion, MIT, Copyright (c) 2026 pohunekd.
+// Ported to Kotlin from pohunek-companion `crates/core/src/live.rs` (run_live, cycle_inner, reseed, backoff) and `connect.rs` (fetch_seed);
+// the liveness probe and the failing re-seed are additions. Repository: https://github.com/pohunekd/pohunek-companion, MIT, Copyright (c) 2026 pohunekd.
 // See THIRD_PARTY_NOTICES.md.
 package dev.pohunek.companion.core.data.live
 
@@ -10,12 +10,12 @@ import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.info
 import dev.pohunek.companion.core.domain.log.warn
 import dev.pohunek.companion.core.domain.sessions.EventOutcome
+import dev.pohunek.companion.core.domain.sessions.OwnerSession
 import dev.pohunek.companion.core.domain.sessions.SessionStore
 import dev.pohunek.companion.protocol.DaemonEvent
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProtocolClientException
 import dev.pohunek.companion.protocol.ProtocolError
-import dev.pohunek.companion.protocol.SessionInfo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.SendChannel
@@ -82,7 +82,7 @@ class HostLive(
     fun updates(): Flow<LiveUpdate> = flow {
         var failures = 0
         while (true) {
-            val connection = Connection(SessionStore(hostName), this)
+            val connection = Connection(SessionStore(hostName, timeSource, config.idleThreshold), this)
             log.info("live.connecting", listOf(hostKey, LogField.number("attempt", failures + 1L)))
             val error = try {
                 connect(connection)
@@ -103,21 +103,23 @@ class HostLive(
     private inner class Connection(val store: SessionStore, val out: FlowCollector<LiveUpdate>) {
         val inbox = Channel<StreamMessage>(Channel.UNLIMITED)
         var establishedAt: ComparableTimeMark? = null
-        var shown: List<SessionInfo>? = null
+        var shown: List<OwnerSession>? = null
         var reseedDue: ComparableTimeMark = timeSource.markNow()
         var probeDue: ComparableTimeMark = timeSource.markNow()
 
         /** Replaces the store with a fresh seed, then applies the events that arrived while it was fetched. */
         suspend fun seed(initial: Boolean) {
-            val sessions = transport.fetchSeed()
-            val change = store.applySeed(sessions)
+            val seed = transport.fetchSeed()
+            val change = store.applySeed(seed.sessions, seed.notifications)
             val buffered = drain()
             val counts = listOf(
                 hostKey,
-                LogField.number("sessions", sessions.size.toLong()),
+                LogField.number("sessions", seed.sessions.size.toLong()),
+                LogField.number("attention", seed.notifications.size.toLong()),
                 LogField.number("added", change.added.toLong()),
                 LogField.number("removed", change.removed.toLong()),
                 LogField.number("changed", change.changed.toLong()),
+                LogField.number("attention_changed", change.attention.toLong()),
                 LogField.number("buffered", buffered.toLong()),
             )
             // Events that arrived while the seed was fetched explain a difference; only an unexplained one is a missed event.
@@ -130,6 +132,9 @@ class HostLive(
             reseedDue = now + config.reseedInterval
             probeDue = now + config.livenessInterval
         }
+
+        /** Time until the next session turns Idle; unbounded while none is waiting on the idle threshold. */
+        fun untilIdleDeadline(): Duration = store.nextIdleDeadline()?.let { until(it) } ?: Duration.INFINITE
 
         /** Applies the buffered messages and returns how many there were. */
         fun drain(): Int {
@@ -152,11 +157,13 @@ class HostLive(
             probeDue = timeSource.markNow() + config.livenessInterval
         }
 
-        /** Emits the sessions when they differ from the last list emitted. */
+        /** Emits the sessions when they, their owner state or their waiting time differ from the last list emitted. */
         suspend fun publish() {
-            val current = store.sessions().values.sortedBy { it.id }
-            if (current == shown) return
+            val current = store.ownerSessions().sortedBy { it.info.id }
+            val previous = shown
+            if (current == previous) return
             shown = current
+            if (previous != null) logOwnerStateChanges(previous, current)
             out.emit(LiveUpdate.Sessions(current))
         }
     }
@@ -187,12 +194,13 @@ class HostLive(
         val wake = select {
             connection.inbox.onReceive { Wake.Message(it) }
             refresh.onReceive { Wake.Refresh }
-            onTimeout(minOf(until(connection.reseedDue), until(connection.probeDue))) { Wake.Timer }
+            onTimeout(minOf(until(connection.reseedDue), until(connection.probeDue), connection.untilIdleDeadline())) { Wake.Timer }
         }
         when {
             wake is Wake.Message -> if (connection.apply(wake.message)) connection.publish()
             wake == Wake.Refresh || connection.reseedDue.hasPassedNow() -> reseed(connection)
             connection.probeDue.hasPassedNow() -> connection.probe()
+            else -> connection.publish()
         }
     }
 
@@ -200,6 +208,17 @@ class HostLive(
         connection.seed(initial = false)
         connection.publish()
         connection.out.emit(LiveUpdate.Reseeded)
+    }
+
+    private fun logOwnerStateChanges(previous: List<OwnerSession>, current: List<OwnerSession>) {
+        val before = previous.associate { it.info.id to it.ownerState }
+        for (session in current) {
+            val was = before[session.info.id] ?: continue
+            if (was != session.ownerState) {
+                val fields = listOf(hostKey, LogField.sessionId(session.info.id), LogField.previousState(was.name), LogField.state(session.ownerState.name))
+                log.info("live.owner_state", fields)
+            }
+        }
     }
 
     private fun until(due: ComparableTimeMark): Duration = (-due.elapsedNow()).coerceAtLeast(Duration.ZERO)

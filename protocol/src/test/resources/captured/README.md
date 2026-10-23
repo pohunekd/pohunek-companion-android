@@ -10,6 +10,14 @@ Captured as received (keys sorted, pretty-printed):
 
 - `session_created.json`, `session_updated.json` (rename), `session_stopped.json`,
   `session_removed.json`: one `subscribe` event each.
+- `agent_state.json`, `notification_created.json`, `notification_updated.json` (marked read),
+  `notification_deleted.json`: one `subscribe` event each, from a `--showcase` run (its sessions
+  report activity, so `agent_state` arrives continuously; the notification events come from
+  `scripts/ui-agent pohunek notification create|read|delete` on an idle session).
+- `notification-list-page-1.json`, `notification-list-page-2.json`: `notification.list` for
+  `kind: agent_blocked` with `limit: 2`, the second page with the first one's `next_cursor`
+  (request ids rewritten to `req-1` and `req-2`; the second page holds the records the daemon's own
+  projector created for its blocked sessions).
 - `session-list-response.json`: the `session.list` response with the four fixed
   synthetic sessions and one created later; `alpha-agent` carries
   `runtime.state` `lost` with `loss_reason`, as left by a daemon restart.
@@ -25,6 +33,12 @@ restart-time events fire before a subscriber can connect):
   the event name, and for conflict `runtime.state` and for native recovery the
   new generation and `worker_instance_id` plus the two extra payload fields,
   set as documented.
+- `subagent_state.json`, `background_state.json`: shapes of the table in `docs/public-api.md` and
+  the `SubagentInfo` / `SessionBackground` types of the pinned tag; the showcase sessions run a
+  plain shell, so no subagent or background task ever reports.
+- `notification-list-too-large-response.json`: the `runtime/notification_list_too_large` error
+  envelope. The code and class are the documented ones; the `msg` and `recover` text are written
+  for the test, because the isolated daemon never produces a result that does not fit one line.
 - `unknown_event.json`: an event name the daemon does not emit today.
 
 ## Capture command

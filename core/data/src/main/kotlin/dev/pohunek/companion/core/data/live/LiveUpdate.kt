@@ -1,14 +1,14 @@
 package dev.pohunek.companion.core.data.live
 
-import dev.pohunek.companion.protocol.SessionInfo
+import dev.pohunek.companion.core.domain.sessions.OwnerSession
 
 /** What a host's live loop tells its collector. */
 sealed interface LiveUpdate {
     /** The subscription is acknowledged and the store is seeded. */
     data object Connected : LiveUpdate
 
-    /** The current sessions ordered by id; sent only when they differ from the last list sent. */
-    data class Sessions(val sessions: List<SessionInfo>) : LiveUpdate
+    /** The current sessions with their owner state, ordered by id; sent only when they differ from the last list sent. */
+    data class Sessions(val sessions: List<OwnerSession>) : LiveUpdate
 
     /** A re-seed finished and the store holds its result. */
     data object Reseeded : LiveUpdate

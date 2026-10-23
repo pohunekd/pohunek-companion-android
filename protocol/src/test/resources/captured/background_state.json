@@ -1,0 +1,32 @@
+{
+  "background": {
+    "items": [
+      {
+        "first_seen_ms": 1788825600000,
+        "id": "b-1",
+        "kind": "shell",
+        "label": "cargo test",
+        "last_seen_ms": 1788825600500,
+        "program": "cargo",
+        "status": "running"
+      },
+      {
+        "first_seen_ms": 1788825600000,
+        "id": "b-2",
+        "kind": "other",
+        "last_seen_ms": 1788825600500,
+        "provider_kind": "future_task",
+        "status": "other"
+      }
+    ],
+    "observed_at_ms": 1788825600500,
+    "revision": "9"
+  },
+  "event": "background_state",
+  "runtime": {
+    "runtime_generation": "2",
+    "worker_instance_id": "w-1"
+  },
+  "session_id": "s-1",
+  "v": 4
+}
