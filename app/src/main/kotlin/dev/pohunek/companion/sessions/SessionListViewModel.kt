@@ -20,6 +20,8 @@ import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
 import dev.pohunek.companion.core.domain.layout.GroupError
+import dev.pohunek.companion.core.domain.layout.LayoutView
+import dev.pohunek.companion.core.domain.layout.WorkItem
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
@@ -69,6 +71,7 @@ class SessionListViewModel(
     private val processLifecycle: Lifecycle,
     private val log: AppLog,
     badgeMaxChars: Flow<Int>,
+    sectionTitleMaxChars: Flow<Int>,
 ) : BaseViewModel<SessionListState, SessionListEvent, SessionListEffect>(SessionListState()) {
     private var firstHostRequested = false
 
@@ -80,7 +83,13 @@ class SessionListViewModel(
 
     private class Seed(val route: HostRoute, val sessionIds: List<String>)
 
-    private data class ListInputs(val configured: HostsState, val feeds: Map<HostRoute, HostFeed>, val layout: LayoutState, val badgeMaxChars: Int)
+    private data class ListInputs(
+        val configured: HostsState,
+        val feeds: Map<HostRoute, HostFeed>,
+        val layout: LayoutState,
+        val badgeMaxChars: Int,
+        val sectionTitleMaxChars: Int,
+    )
 
     init {
         viewModelScope.launch { hosts.load() }
@@ -89,8 +98,8 @@ class SessionListViewModel(
             for (seed in seeds) layouts.reconcile(seed.route, seed.sessionIds)
         }
         viewModelScope.launch {
-            combine(hosts.state, registry.state, layouts.state, badgeMaxChars) { configured, feeds, layout, badge ->
-                ListInputs(configured, feeds, layout, badge)
+            combine(hosts.state, registry.state, layouts.state, badgeMaxChars, sectionTitleMaxChars) { configured, feeds, layout, badge, title ->
+                ListInputs(configured, feeds, layout, badge, title)
             }.collect { input ->
                 val (configured, feeds, layout) = input
                 if (configured is HostsState.Loaded && configured.hosts.isEmpty() && !firstHostRequested) {
@@ -98,7 +107,8 @@ class SessionListViewModel(
                     sendEffect(SessionListEffect.OpenHosts)
                 }
                 queueSeeds(feeds)
-                updateState { listed(it, configured, feeds, layout, input.badgeMaxChars) }
+                updateState { listed(it, configured, feeds, layout, input.badgeMaxChars, input.sectionTitleMaxChars) }
+                pruneCollapsed(configured, feeds, input.sectionTitleMaxChars)
             }
         }
         viewModelScope.launch { processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { hosts.run() } }
@@ -132,7 +142,8 @@ class SessionListViewModel(
 
     private fun onLayoutEvent(event: SessionListEvent.LayoutEvent) {
         when (event) {
-            is SessionListEvent.SetGroupCollapsed -> viewModelScope.launch { layouts.setGroupCollapsed(event.id, event.collapsed) }
+            is SessionListEvent.SetSectionCollapsed -> viewModelScope.launch { layouts.setCollapsed(event.id, event.collapsed) }
+            is SessionListEvent.SelectView -> viewModelScope.launch { layouts.selectView(event.view) }
             is SessionListEvent.GroupEvent -> onGroupEvent(event)
             is SessionListEvent.OpenMoveToGroup -> updateState { it.copy(actionSheet = null, movePicker = event.ref) }
             SessionListEvent.DismissMoveToGroup -> updateState { it.copy(movePicker = null) }
@@ -190,6 +201,17 @@ class SessionListViewModel(
         viewModelScope.launch {
             if (layouts.moveSession(ref.layoutKey, groupId) !is LayoutEdit.Applied) sendEffect(SessionListEffect.LayoutEditRefused)
         }
+    }
+
+    /**
+     * Drops the collapsed state of derived-view sections that no session has any more. It waits until every configured host has sent a
+     * list, so a host that has not been heard from yet cannot make its sections look stale.
+     */
+    private fun pruneCollapsed(configured: HostsState, feeds: Map<HostRoute, HostFeed>, titleMaxChars: Int) {
+        val hostList = (configured as? HostsState.Loaded)?.hosts.orEmpty()
+        val rows = currentState.rows ?: return
+        if (hostList.any { feeds[it.route]?.sessions == null }) return
+        viewModelScope.launch { layouts.pruneCollapsedSections(rows, SessionRow::layoutKey, titleMaxChars, SessionRow::facts) }
     }
 
     /**
@@ -376,6 +398,7 @@ private fun listed(
     feeds: Map<HostRoute, HostFeed>,
     layout: LayoutState,
     badgeMaxChars: Int,
+    sectionTitleMaxChars: Int,
 ): SessionListState {
     val hostList = (configured as? HostsState.Loaded)?.hosts.orEmpty()
     val entries = hostList.map { host -> HostSessions(host, feeds[host.route].link(), feeds[host.route]?.sessions.orEmpty()) }
@@ -404,7 +427,8 @@ private fun listed(
         needsYou = listing.needsYou.map { it.toRow(badgeMaxChars) },
         // The list waits for the layout, so that it never shows once flat and then arranged.
         rows = if (awaiting || available == null) null else others,
-        groups = available?.layout?.present(others, SessionRow::layoutKey).orEmpty(),
+        view = available?.layout?.view ?: LayoutView.MY_GROUPS,
+        groups = available?.layout?.presentView(others, SessionRow::layoutKey, sectionTitleMaxChars, SessionRow::facts).orEmpty(),
         layoutIssue = available?.issue,
         statuses = statuses,
         refreshing = feeds.values.any { it.refreshing },
@@ -452,7 +476,9 @@ private fun HostConnection.expectsList(): Boolean = this !is HostConnection.Reco
 
 private fun HostedSession.toRow(badgeMaxChars: Int): SessionRow {
     val info = session.info
-    val badge = workFacts(info.metadata.orEmpty())?.let(::workBadge)
+    val facts = workFacts(info.metadata.orEmpty())
+    val badge = facts?.let(::workBadge)
+    val workItem = facts?.id?.let { WorkItem(facts.provider, facts.kind, it, badge?.link.orEmpty()) }
     return SessionRow(
         route = route,
         sessionId = info.id,
@@ -460,6 +486,7 @@ private fun HostedSession.toRow(badgeMaxChars: Int): SessionRow {
         agent = sanitizeText(info.agent),
         ownerState = session.ownerState,
         project = sessionProjectLabel(info),
+        workItem = workItem,
         badge = badge?.let { clipDisplay(it.link, badgeMaxChars) },
         badgeRole = badge?.role?.let { clipDisplay(it, badgeMaxChars) },
         hasLink = reachable && openableWorkLink(info.metadata.orEmpty()) != null,

@@ -7,6 +7,8 @@ import dev.pohunek.companion.core.domain.layout.GroupError
 import dev.pohunek.companion.core.domain.layout.Layout
 import dev.pohunek.companion.core.domain.layout.MoveError
 import dev.pohunek.companion.core.domain.layout.Placement
+import dev.pohunek.companion.core.domain.layout.LayoutView
+import dev.pohunek.companion.core.domain.layout.RowFacts
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
@@ -94,13 +96,31 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
         }
     }
 
-    /** Collapses or expands a group; an unknown group changes nothing. */
-    suspend fun setGroupCollapsed(id: String, collapsed: Boolean) {
+    /** Selects the view the list shows; the choice is saved with the layout. */
+    suspend fun selectView(view: LayoutView) {
         change { layout ->
-            when (val edit = layout.setGroupCollapsed(id, collapsed)) {
+            if (layout.storedView == view.id) {
+                layout
+            } else {
+                log.info("layout.view_selected", listOf(LogField.state(view.id)))
+                layout.withView(view)
+            }
+        }
+    }
+
+    /**
+     * Collapses or expands a section of the selected view: an owner group in My groups, a section of a derived view. A derived section
+     * id carries session metadata, so only an owner group's id is logged. An unknown group changes nothing.
+     */
+    suspend fun setCollapsed(id: String, collapsed: Boolean) {
+        change { layout ->
+            when (val edit = layout.setCollapsed(id, collapsed)) {
                 is Edit.Refused -> layout
                 is Edit.Done -> {
-                    if (edit.value) log.info("layout.group_collapsed", listOf(LogField.groupId(id), LogField.number("collapsed", if (collapsed) 1 else 0)))
+                    if (edit.value) {
+                        val section = if (layout.view.isEditable) listOf(LogField.groupId(id)) else listOf(LogField.state(layout.view.id))
+                        log.info("layout.section_collapsed", section + LogField.number("collapsed", if (collapsed) 1 else 0))
+                    }
                     edit.layout
                 }
             }
@@ -154,6 +174,11 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
                 LayoutEdit.Applied(result.value)
             }
         }
+    }
+
+    /** Drops the collapsed ids of derived-view sections that none of [rows] has; see [Layout.pruneCollapsedSections]. */
+    suspend fun <R> pruneCollapsedSections(rows: List<R>, keyOf: (R) -> SessionKey, titleMaxChars: Int, factsOf: (R) -> RowFacts) {
+        change { it.pruneCollapsedSections(rows, keyOf, titleMaxChars, factsOf) }
     }
 
     private suspend fun change(edit: (Layout) -> Layout) {

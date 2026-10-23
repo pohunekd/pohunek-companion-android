@@ -136,6 +136,7 @@ private fun SessionListContent(
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
                 state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
                 state.statuses.forEach { HostStatusLine(it) }
+                ViewChips(state.view, onEvent)
                 SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())
                 RowWindows(state, onEvent)
             }

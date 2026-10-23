@@ -63,6 +63,9 @@
     <integer name="row_badge_max_chars">32</integer>
     <string name="row_badge_max_chars_help">The longest badge text (Work link or role) a session row shows before it is cut with an ellipsis.</string>
 
+    <integer name="section_title_max_chars">40</integer>
+    <string name="section_title_max_chars_help">The longest section title (project label or Work item) the By project and By Work item views show before it is cut with an ellipsis.</string>
+
     <integer name="detail_value_max_chars">48</integer>
     <string name="detail_value_max_chars_help">The longest value the session details screen shows before its middle is replaced by an ellipsis. Copying always takes the full value.</string>
 

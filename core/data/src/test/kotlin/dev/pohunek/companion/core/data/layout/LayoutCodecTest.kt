@@ -26,6 +26,7 @@ class LayoutCodecTest {
             .setGroupCollapsed(INBOX_ID, true).layout()
             .moveSession(SessionKey("127.0.0.1:1", "c"), "g1", Placement.End).layout()
             .withView(LayoutView.BY_STATE)
+            .setCollapsed("working", true).layout()
             .withFilter(LayoutView.BY_STATE, StoredFilter(states = listOf("working"), projectLabel = "p", host = "127.0.0.1:1"))
     }
 
@@ -40,7 +41,15 @@ class LayoutCodecTest {
     @Test
     fun `the file uses the schema field names and leaves out defaults`() {
         val text = LayoutCodec.encode(sample())
-        for (name in listOf("\"version\":1", "\"session_id\":\"a\"", "\"project_label\"", "\"collapsed\":true", "\"manual\":true")) {
+        val names = listOf(
+            "\"version\":1",
+            "\"session_id\":\"a\"",
+            "\"project_label\"",
+            "\"collapsed\":true",
+            "\"collapsed_sections\":{\"by-state\":[\"working\"]}",
+            "\"manual\":true",
+        )
+        for (name in names) {
             assertTrue(name, name in text)
         }
         assertFalse("\"no_project\"" in text)

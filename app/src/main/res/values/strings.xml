@@ -17,6 +17,10 @@
     <string name="host_status_reconnecting">%1$s: Reconnecting (attempt %2$d): %3$s</string>
     <string name="host_status_refused">%1$s: Connection refused (%2$s): %3$s</string>
     <string name="session_list_needs_you">Needs you</string>
+    <string name="view_my_groups">My groups</string>
+    <string name="view_by_state">By state</string>
+    <string name="view_by_project">By project</string>
+    <string name="view_by_work_item">By Work item</string>
     <string name="group_collapsed">Collapsed</string>
     <string name="group_expanded">Expanded</string>
     <string name="group_expand">Expand group</string>

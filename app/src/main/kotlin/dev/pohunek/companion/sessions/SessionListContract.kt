@@ -3,6 +3,9 @@ package dev.pohunek.companion.sessions
 import dev.pohunek.companion.core.data.layout.LayoutIssue
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.domain.layout.GroupSection
+import dev.pohunek.companion.core.domain.layout.LayoutView
+import dev.pohunek.companion.core.domain.layout.RowFacts
+import dev.pohunek.companion.core.domain.layout.WorkItem
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.domain.sessions.ResumeOffer
@@ -20,6 +23,8 @@ data class SessionRow(
     val ownerState: OwnerState,
     /** The project label, or null for a session outside a project. */
     val project: String?,
+    /** The Pohunek Work item the session is linked to, for the By Work item view; the badge above is its clipped text. */
+    val workItem: WorkItem?,
     /** The Work link badge such as `GH PR #12`, cut to the configured length, and the session's Work role. */
     val badge: String?,
     val badgeRole: String?,
@@ -42,6 +47,9 @@ data class SessionRow(
     val resume: ResumeOffer,
 ) {
     val reachable: Boolean get() = link == HostLink.Connected
+
+    /** What the derived views group by. */
+    val facts: RowFacts get() = RowFacts(ownerState, project, workItem)
 
     val ref: RowRef get() = RowRef(route, sessionId)
 
@@ -96,7 +104,9 @@ data class SessionListState(
     val needsYou: List<SessionRow> = emptyList(),
     /** The other sessions in list order, or null until a list is shown: no host has sent one, or the first one is still expected. */
     val rows: List<SessionRow>? = null,
-    /** [rows] arranged in the owner's groups, Inbox first by default; the rows of a collapsed group are listed but not shown. */
+    /** The view the list shows; the choice is kept with the layout. */
+    val view: LayoutView = LayoutView.MY_GROUPS,
+    /** [rows] sectioned by [view]: the owner's groups in My groups, else the derived sections; the rows of a collapsed section are listed but not shown. */
     val groups: List<GroupSection<SessionRow>> = emptyList(),
     /** Why the layout file is not, or not fully, saved; the list is shown regardless. */
     val layoutIssue: LayoutIssue? = null,
@@ -233,8 +243,11 @@ sealed interface SessionListEvent {
     /** The events that change the owner's layout. */
     sealed interface LayoutEvent : SessionListEvent
 
-    /** Collapses or expands an owner group; the state is saved with the layout. */
-    data class SetGroupCollapsed(val id: String, val collapsed: Boolean) : LayoutEvent
+    /** Collapses or expands a section of the shown view; the state is saved with the layout. */
+    data class SetSectionCollapsed(val id: String, val collapsed: Boolean) : LayoutEvent
+
+    /** Shows [view]; the choice is saved with the layout. */
+    data class SelectView(val view: LayoutView) : LayoutEvent
 
     /** The events of the group menu and the group name dialog. */
     sealed interface GroupEvent : LayoutEvent
