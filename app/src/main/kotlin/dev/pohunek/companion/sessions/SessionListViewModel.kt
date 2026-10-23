@@ -22,10 +22,15 @@ import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
 import dev.pohunek.companion.core.domain.layout.GroupError
+import dev.pohunek.companion.core.domain.layout.HostEntry
+import dev.pohunek.companion.core.domain.layout.HostReach
 import dev.pohunek.companion.core.domain.layout.LayoutView
+import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.SessionFilter
 import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.WorkItem
+import dev.pohunek.companion.core.domain.layout.hostOptions
+import dev.pohunek.companion.core.domain.layout.projectChips
 import dev.pohunek.companion.core.domain.layout.stateChips
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
@@ -180,6 +185,8 @@ class SessionListViewModel(
         when (event) {
             is SessionListEvent.SetSectionCollapsed -> viewModelScope.launch { layouts.setCollapsed(event.id, event.collapsed) }
             is SessionListEvent.ToggleState -> viewModelScope.launch { layouts.toggleState(event.state) }
+            is SessionListEvent.TapProject -> viewModelScope.launch { layouts.tapProject(event.chip) }
+            is SessionListEvent.TapHost -> viewModelScope.launch { layouts.tapHost(event.key) }
             is SessionListEvent.SelectView -> viewModelScope.launch { layouts.selectView(event.view) }
             is SessionListEvent.GroupEvent -> onGroupEvent(event)
             is SessionListEvent.OpenMoveToGroup -> updateState { it.copy(actionSheet = null, movePicker = event.ref) }
@@ -459,6 +466,8 @@ private fun listed(
         (listing.needsYou + listing.others).any { it.reachable && RowRef(it.route, it.session.info.id) == ref }
     } == true
     val view = available?.layout?.view ?: LayoutView.MY_GROUPS
+    val project = available?.layout?.project(view) ?: ProjectSelection.All
+    val host = available?.layout?.host(view)
     return state.copy(
         actionSheet = state.actionSheet.takeIf { sheetOpen },
         movePicker = state.movePicker.takeIf { picker ->
@@ -476,6 +485,10 @@ private fun listed(
         view = view,
         states = available?.layout?.states(view) ?: StateSelection.DEFAULT,
         stateChips = stateChips((listing.needsYou + listing.others).mapTo(HashSet()) { it.session.ownerState }),
+        project = project,
+        projectChips = projectChips((listing.needsYou + listing.others).map { sessionProjectLabel(it.session.info) }, project),
+        host = host,
+        hostOptions = hostOptions(hostList.map { it.toEntry(feeds[it.route].link()) }, host),
         groups = available?.layout?.presentView(others, SessionRow::layoutKey, sectionTitleMaxChars, SessionRow::facts).orEmpty(),
         ownerGroups = available?.layout?.orderedGroups().orEmpty(),
         layoutIssue = available?.issue,
@@ -491,7 +504,7 @@ private fun listed(
 
 /** The lists the screen shows: [SessionListState.needsYou] and [SessionListState.groups] narrowed by the state selection and the search. */
 private fun SessionListState.filtered(): SessionListState {
-    val filter = SessionFilter(search.orEmpty(), states)
+    val filter = SessionFilter(search.orEmpty(), states, project, host)
     val needs = filter.filterRows(needsYou, SessionRow::filterFacts)
     val sections = filter.filterSections(groups, SessionRow::filterFacts)
     val listed = needsYou.isNotEmpty() || rows.orEmpty().isNotEmpty()
@@ -526,6 +539,9 @@ private fun refreshedDetails(open: DetailsView, shown: List<HostedSession>, feed
 /** The dialog closes with the session that left the list; a host that went down keeps it, so the owner's text survives. */
 private fun RenameDraft?.stillListed(sessions: List<HostedSession>): RenameDraft? =
     takeIf { draft -> draft != null && sessions.any { RowRef(it.route, it.session.info.id) == draft.ref } }
+
+private fun ConfiguredHost.toEntry(link: HostLink) =
+    HostEntry(route.toString(), hostDisplayLabel(this), if (link == HostLink.Connected) HostReach.Connected else HostReach.Unreachable)
 
 private fun HostFeed?.link(): HostLink = when (this?.connection) {
     HostConnection.Connected -> HostLink.Connected

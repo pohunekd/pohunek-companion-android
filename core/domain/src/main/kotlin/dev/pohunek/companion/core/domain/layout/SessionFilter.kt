@@ -1,4 +1,4 @@
-// Ported to Kotlin from pohunek-companion `crates/core/src/filter.rs` (state selection, state chips, query matching, filter_sections).
+// Ported to Kotlin from pohunek-companion `crates/core/src/filter.rs` (state selection, state chips, query matching, filter_sections, SessionFilter).
 // Repository: https://github.com/pohunekd/pohunek-companion, MIT, Copyright (c) 2026 pohunekd. See THIRD_PARTY_NOTICES.md.
 package dev.pohunek.companion.core.domain.layout
 
@@ -64,34 +64,50 @@ data class StateSelection(val states: Set<OwnerState>) {
  * What a query matches in a row. [texts] (name, project label, agent, Work badge) match as subsequences; [identifiers] (session id,
  * Work id) match as substrings, because a random-looking id contains almost any short subsequence.
  */
-data class FilterFacts(val ownerState: OwnerState, val texts: List<String>, val identifiers: List<String>)
+data class FilterFacts(
+    val ownerState: OwnerState,
+    val texts: List<String>,
+    val identifiers: List<String>,
+    /** The session's project label, or null when it has none. */
+    val project: String?,
+    /** The host part of the session's key. */
+    val host: String,
+)
 
 /**
- * The state selection and the query narrowing a list. The query is split on whitespace; a row matches when its state is selected and
- * every token matches at least one of its fields, case-insensitively. An empty query matches every row.
+ * The state selection, project, host and query narrowing a list. The query is split on whitespace; a row matches when its state,
+ * project and host are selected and every token matches at least one of its fields, case-insensitively. An empty query matches every row.
  */
-class SessionFilter(query: String, val states: StateSelection) {
+class SessionFilter(
+    query: String,
+    val states: StateSelection,
+    private val project: ProjectSelection = ProjectSelection.All,
+    /** Key of the host the list is narrowed to; null shows every host. */
+    private val host: String? = null,
+) {
     private val tokens: List<IntArray> = tokenize(query).map(::codePoints)
 
-    /** Whether a query narrows the list; section expansion and hiding of empty sections follow this, not the state selection. */
-    val isSearching: Boolean get() = tokens.isNotEmpty()
+    /** Whether a query, project or host narrows the list; section expansion and hiding of empty sections follow this, not the state selection. */
+    val isSearching: Boolean get() = tokens.isNotEmpty() || project != ProjectSelection.All || host != null
 
     /** Whether any part of the filter hides rows. */
     val isActive: Boolean get() = isSearching || !states.isAll
 
     fun matches(facts: FilterFacts): Boolean {
-        if (facts.ownerState !in states) return false
+        if (facts.ownerState !in states || !project.admits(facts.project) || !admitsHost(facts.host)) return false
         if (tokens.isEmpty()) return true
         val texts = facts.texts.map(::codePoints)
         val identifiers = facts.identifiers.map(::codePoints)
         return tokens.all { token -> texts.any { isSubsequence(token, it) } || identifiers.any { isSubstring(token, it) } }
     }
 
+    private fun admitsHost(key: String): Boolean = host == null || key == host
+
     /** The rows that match, in their order. An inactive filter keeps all of them. */
     fun <R> filterRows(rows: List<R>, factsOf: (R) -> FilterFacts): List<R> = if (isActive) rows.filter { matches(factsOf(it)) } else rows
 
     /**
-     * Keeps only the matching rows of each section, in their order. While a query is set, sections left without a row are dropped and
+     * Keeps only the matching rows of each section, in their order. While a query, project or host is set, sections left without a row are dropped and
      * the rest are shown expanded so their matches are visible. With only a state selection, sections the filter emptied are dropped,
      * sections that were already empty stay, and collapsing is kept.
      */

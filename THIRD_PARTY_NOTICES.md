@@ -184,8 +184,9 @@ packages. Re-take it when `ghostty_commit` changes.
   `core/domain/.../newsession/CreateOutcome.kt`; `pending_placement.rs`
   (`Pending::add`, `Pending::settle`; held in memory, without the file and its lock) as
   `core/domain/.../newsession/PendingPlacements.kt`.
-  `filter.rs` (state selection, state chips, query matching, `filter_sections`; the project and host parts are planned) as
-  `core/domain/.../layout/SessionFilter.kt`.
+  `filter.rs` (state selection, state chips, query matching, `filter_sections`) as
+  `core/domain/.../layout/SessionFilter.kt` and (`ProjectSelection`, `project_chips`, `host_options`) as
+  `core/domain/.../layout/ProjectHostFilter.kt`.
   Planned: `view.rs`. Pinned commit for the license text:
   `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 

@@ -5,7 +5,10 @@ import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.domain.layout.FilterFacts
 import dev.pohunek.companion.core.domain.layout.Group
 import dev.pohunek.companion.core.domain.layout.GroupSection
+import dev.pohunek.companion.core.domain.layout.HostOption
 import dev.pohunek.companion.core.domain.layout.LayoutView
+import dev.pohunek.companion.core.domain.layout.ProjectChip
+import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.RowFacts
 import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.WorkItem
@@ -56,7 +59,13 @@ data class SessionRow(
 
     /** What the search matches: name, project, agent and the full Work badge as text, session id and Work id as identifiers. */
     val filterFacts: FilterFacts
-        get() = FilterFacts(ownerState, listOfNotNull(title, project, agent, workItem?.title), listOfNotNull(sessionId, workItem?.id))
+        get() = FilterFacts(
+            ownerState,
+            listOfNotNull(title, project, agent, workItem?.title),
+            listOfNotNull(sessionId, workItem?.id),
+            project,
+            layoutKey.host,
+        )
 
     val ref: RowRef get() = RowRef(route, sessionId)
 
@@ -122,7 +131,13 @@ data class SessionListState(
     /** The state chips shown, and the states of the shown view that pass. */
     val stateChips: List<OwnerState> = emptyList(),
     val states: StateSelection = StateSelection.DEFAULT,
-    /** [needsYou] and [groups] after the state selection and the search; the unfiltered lists stay the source of every row action. */
+    /** The project chips of every session and the project the shown view is narrowed to. */
+    val projectChips: List<ProjectChip> = emptyList(),
+    val project: ProjectSelection = ProjectSelection.All,
+    /** The host selector entries, empty while it is hidden, and the key of the host the shown view is narrowed to. */
+    val hostOptions: List<HostOption> = emptyList(),
+    val host: String? = null,
+    /** [needsYou] and [groups] after the state selection, project, host and search; the unfiltered lists stay the source of every row action. */
     val shownNeedsYou: List<SessionRow> = emptyList(),
     val shownGroups: List<GroupSection<SessionRow>> = emptyList(),
     /** True when the filter hides every session of a list that has some. */
@@ -283,6 +298,12 @@ sealed interface SessionListEvent {
 
     /** Toggles [state] in the selection of the shown view; the choice is saved with the layout. */
     data class ToggleState(val state: OwnerState) : LayoutEvent
+
+    /** Taps a project chip of the shown view: selects the project, or clears it when it is already selected. */
+    data class TapProject(val chip: ProjectSelection) : LayoutEvent
+
+    /** Taps a host of the shown view (null: All hosts): selects it, or shows every host when it is already selected. */
+    data class TapHost(val key: String?) : LayoutEvent
 
     /** Shows [view]; the choice is saved with the layout. */
     data class SelectView(val view: LayoutView) : LayoutEvent

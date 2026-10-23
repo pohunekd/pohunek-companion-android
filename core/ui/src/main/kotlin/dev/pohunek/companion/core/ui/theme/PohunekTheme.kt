@@ -84,6 +84,9 @@ object PohunekTheme {
     /** Widest a host chip on a session row grows before its label is cut. */
     val hostChipMaxWidth: Dp = 120.dp
 
+    /** Widest a project or host filter chip grows before its label is cut. */
+    val filterChipMaxWidth: Dp = 160.dp
+
     /** Diameter and stroke width of a progress indicator inside a button. */
     val progressSize: Dp = 18.dp
     val progressStroke: Dp = 2.dp

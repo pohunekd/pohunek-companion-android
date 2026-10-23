@@ -4,6 +4,7 @@ import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.domain.sessions.SessionKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -312,6 +313,28 @@ class LayoutTest {
         val loaded = (Layout.load(1, null, file, emptyMap(), listOf(inbox), emptyList()) as LayoutLoad.Loaded).layout
         assertEquals(listOf("working", "runtime-problem", "ended"), loaded.filter(LayoutView.BY_STATE).states)
         assertEquals(StoredFilter(), loaded.filter(LayoutView.BY_PROJECT))
+    }
+
+    @Test
+    fun `project and host are stored per view keeping the rest of the filter`() {
+        val layout = Layout.default().withStates(LayoutView.BY_STATE, StateSelection.DEFAULT.toggled(OwnerState.Ended))
+        val project = layout.withProject(LayoutView.BY_STATE, ProjectSelection.Project("ripgrep")).withHost(LayoutView.BY_STATE, "h")
+        assertEquals(ProjectSelection.Project("ripgrep"), project.project(LayoutView.BY_STATE))
+        assertEquals("h", project.host(LayoutView.BY_STATE))
+        assertEquals(ProjectSelection.All, project.project(LayoutView.BY_PROJECT))
+        assertNull(project.host(LayoutView.BY_PROJECT))
+        assertEquals(StateSelection.DEFAULT.toggled(OwnerState.Ended), project.states(LayoutView.BY_STATE))
+
+        val none = project.withProject(LayoutView.BY_STATE, ProjectSelection.NoProject)
+        assertTrue(none.filter(LayoutView.BY_STATE).noProject)
+        assertNull(none.filter(LayoutView.BY_STATE).projectLabel)
+        // A project label wins over the flag, and the default filter is stored as no entry.
+        val both = Layout.default().withFilter(LayoutView.BY_STATE, StoredFilter(projectLabel = "x", noProject = true))
+        assertEquals(ProjectSelection.Project("x"), both.project(LayoutView.BY_STATE))
+        val cleared = none.withHost(LayoutView.BY_STATE, null).withStates(LayoutView.BY_STATE, StateSelection.DEFAULT)
+            .withProject(LayoutView.BY_STATE, ProjectSelection.All)
+        assertTrue(cleared.filters.isEmpty())
+        assertNull(Layout.default().withFilter(LayoutView.BY_STATE, StoredFilter(host = "")).host(LayoutView.BY_STATE))
     }
 
     private fun loading(groups: List<Group>, items: List<Item> = emptyList(), version: Int = 1) =

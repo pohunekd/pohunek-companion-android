@@ -8,7 +8,9 @@ import dev.pohunek.companion.core.domain.layout.Layout
 import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.domain.layout.MoveError
 import dev.pohunek.companion.core.domain.layout.Placement
+import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.RowFacts
+import dev.pohunek.companion.core.domain.layout.tappedHost
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
@@ -116,6 +118,26 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
             val next = layout.states(view).toggled(state)
             log.info("layout.states_changed", listOf(LogField.state(view.id), LogField.number("selected", next.states.size.toLong())))
             layout.withStates(view, next)
+        }
+    }
+
+    /** Applies a tap on the project chip [chip] to the selected view: selects it, or clears the project when it is already selected. */
+    suspend fun tapProject(chip: ProjectSelection) {
+        change { layout ->
+            val view = layout.view
+            val next = layout.project(view).tapped(chip)
+            log.info("layout.project_changed", listOf(LogField.state(view.id), LogField.number("selected", if (next == ProjectSelection.All) 0 else 1)))
+            layout.withProject(view, next)
+        }
+    }
+
+    /** Applies a tap on the host [key] (null: All hosts) to the selected view: selects it, or shows every host when it is already selected. */
+    suspend fun tapHost(key: String?) {
+        change { layout ->
+            val view = layout.view
+            val next = tappedHost(layout.host(view), key)
+            log.info("layout.host_changed", listOf(LogField.state(view.id), LogField.number("selected", if (next == null) 0 else 1)))
+            layout.withHost(view, next)
         }
     }
 

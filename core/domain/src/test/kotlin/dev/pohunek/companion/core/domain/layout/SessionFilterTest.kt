@@ -18,12 +18,18 @@ class SessionFilterTest {
         agent: String = "shell",
         badge: String? = null,
         work: String? = null,
+        host: String = "h1",
     ): String {
-        facts[id] = FilterFacts(state, listOfNotNull(name, project, agent, badge), listOfNotNull(id, work))
+        facts[id] = FilterFacts(state, listOfNotNull(name, project, agent, badge), listOfNotNull(id, work), project, host)
         return id
     }
 
-    private fun filter(query: String = "", states: StateSelection = StateSelection.DEFAULT) = SessionFilter(query, states)
+    private fun filter(
+        query: String = "",
+        states: StateSelection = StateSelection.DEFAULT,
+        project: ProjectSelection = ProjectSelection.All,
+        host: String? = null,
+    ) = SessionFilter(query, states, project, host)
 
     private fun SessionFilter.hits(vararg ids: String) = ids.filter { matches(facts.getValue(it)) }
 
@@ -132,5 +138,61 @@ class SessionFilterTest {
         assertEquals(listOf(input), filter(states = all).sections(input))
         assertFalse(filter(states = all).isActive)
         assertTrue(filter("x", all).isActive)
+    }
+
+    @Test
+    fun `a project or host narrows further and ends collapsing like a query`() {
+        row("a", "alpha", project = "ripgrep", host = "h1")
+        row("b", "beta", project = "Ripgrep", host = "h2")
+        row("c", "gamma", host = "h2")
+        val ids = arrayOf("a", "b", "c")
+        assertEquals(listOf("a"), filter(project = ProjectSelection.Project("ripgrep")).hits(*ids))
+        assertEquals(listOf("c"), filter(project = ProjectSelection.NoProject).hits(*ids))
+        assertEquals(listOf("b", "c"), filter(host = "h2").hits(*ids))
+        assertEquals(listOf("b"), filter("beta", project = ProjectSelection.Project("Ripgrep"), host = "h2").hits(*ids))
+        // A project that no longer exists and a host that is not followed keep filtering as empty.
+        assertTrue(filter(project = ProjectSelection.Project("gone")).hits(*ids).isEmpty())
+        assertTrue(filter(host = "h9").hits(*ids).isEmpty())
+
+        val sections = filter(host = "h1").sections(section("g1", "a", collapsed = true), section("g2", "b", "c"))
+        assertEquals(listOf("g1"), sections.map { it.id })
+        assertFalse(sections.single().collapsed)
+    }
+
+    @Test
+    fun `project chips are sorted ignoring case and keep the selected project`() {
+        val rows = listOf("beta", "Alpha", null, "alpha2", "beta")
+        assertEquals(
+            listOf(null, "Alpha", "alpha2", "beta", null),
+            projectChips(rows, ProjectSelection.All).map { it.label },
+        )
+        assertEquals(
+            listOf(ProjectSelection.All, ProjectSelection.Project("Alpha"), ProjectSelection.Project("alpha2")),
+            projectChips(rows, ProjectSelection.All).map { it.selection }.take(3),
+        )
+        assertEquals(ProjectSelection.NoProject, projectChips(rows, ProjectSelection.All).last().selection)
+        val withoutNone = projectChips(listOf("beta"), ProjectSelection.Project("gone"))
+        assertEquals(listOf(null, "beta", "gone"), withoutNone.map { it.label })
+        assertEquals(listOf("gone"), withoutNone.filter { it.selected }.map { it.label })
+        assertEquals(listOf(ProjectSelection.All, ProjectSelection.NoProject), projectChips(emptyList(), ProjectSelection.NoProject).map { it.selection })
+        assertEquals(ProjectSelection.All, ProjectSelection.Project("a").tapped(ProjectSelection.Project("a")))
+        assertEquals(ProjectSelection.NoProject, ProjectSelection.Project("a").tapped(ProjectSelection.NoProject))
+    }
+
+    @Test
+    fun `host options are hidden below two hosts and keep a selected host that is gone`() {
+        val one = listOf(HostEntry("h1", "one", HostReach.Connected))
+        val two = one + HostEntry("h2", "two", HostReach.Unreachable)
+        assertTrue(hostOptions(one, null).isEmpty())
+        assertEquals(listOf(null, "h1", "h2"), hostOptions(two, null).map { it.key })
+        assertEquals(listOf(true, false, false), hostOptions(two, null).map { it.selected })
+        assertEquals(listOf(HostReach.Connected, HostReach.Unreachable), hostOptions(two, null).mapNotNull { it.reach })
+        val stale = hostOptions(one, "h9")
+        assertEquals(listOf(null, "h1", "h9"), stale.map { it.key })
+        assertEquals(HostReach.Unreachable, stale.last().reach)
+        assertTrue(stale.last().selected)
+        assertNull(tappedHost("h1", "h1"))
+        assertEquals("h2", tappedHost("h1", "h2"))
+        assertNull(tappedHost("h1", null))
     }
 }
