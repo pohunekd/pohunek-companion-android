@@ -7,8 +7,8 @@ import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.commands.CommandResult
 import dev.pohunek.companion.core.data.commands.ResumeResult
 import dev.pohunek.companion.core.data.commands.SessionCommands
-import dev.pohunek.companion.core.data.hosts.HostsRepository
 import dev.pohunek.companion.core.data.hosts.HostsState
+import dev.pohunek.companion.core.data.hosts.KnownHosts
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostFeed
 import dev.pohunek.companion.core.data.live.HostRegistry
@@ -46,18 +46,15 @@ import dev.pohunek.companion.core.domain.sessions.workFacts
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.protocol.HostRoute
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
- * The union list of every configured host. The live loops run in [registry] while [processLifecycle] is started, that is while the app
- * is visible; each return to the foreground reconnects every host and re-seeds at once.
+ * The union list of every known host, configured or discovered. The live loops run in [registry] while [processLifecycle] is started,
+ * that is while the app is visible; each return to the foreground reconnects every host and re-seeds at once.
  */
 @Suppress("TooManyFunctions") // One state holder for the events of the list screen; the row and list derivations live below it.
 class SessionListViewModel(
-    private val hosts: HostsRepository,
+    private val hosts: KnownHosts,
     private val registry: HostRegistry,
     private val commands: SessionCommands,
     private val actions: SessionActionRunner,
@@ -78,10 +75,7 @@ class SessionListViewModel(
                 updateState { listed(it, configured, feeds, badgeMaxChars) }
             }
         }
-        viewModelScope.launch {
-            val routes = hosts.state.filterIsInstance<HostsState.Loaded>().map { loaded -> loaded.hosts.map { it.route } }.distinctUntilChanged()
-            processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { registry.run(routes) }
-        }
+        viewModelScope.launch { processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { hosts.run() } }
     }
 
     override fun onEvent(event: SessionListEvent) {
@@ -278,7 +272,7 @@ private fun listed(state: SessionListState, configured: HostsState, feeds: Map<H
     }
     val received = hostList.any { feeds[it.route]?.sessions != null }
     // A host that has neither sent a list nor failed is still expected to send one.
-    val expecting = hostList.any { feeds[it.route]?.let { feed -> feed.sessions == null && feed.connection !is HostConnection.Reconnecting } ?: true }
+    val expecting = hostList.any { feeds[it.route]?.let { feed -> feed.sessions == null && feed.connection.expectsList() } ?: true }
     val empty = listing.needsYou.isEmpty() && listing.others.isEmpty()
     // Row actions need the daemon: the sheet closes with the session or with its host's connection.
     val sheetOpen = state.actionSheet?.let { ref ->
@@ -322,9 +316,12 @@ private fun RenameDraft?.stillListed(sessions: List<HostedSession>): RenameDraft
 
 private fun HostFeed?.link(): HostLink = when (this?.connection) {
     HostConnection.Connected -> HostLink.Connected
-    is HostConnection.Reconnecting -> HostLink.Down
+    is HostConnection.Reconnecting, HostConnection.NotReported -> HostLink.Down
     HostConnection.Connecting, null -> HostLink.Connecting
 }
+
+/** A host that is down or no longer reported by discovery will not send a list on its own. */
+private fun HostConnection.expectsList(): Boolean = this !is HostConnection.Reconnecting && this != HostConnection.NotReported
 
 private fun HostedSession.toRow(badgeMaxChars: Int): SessionRow {
     val info = session.info

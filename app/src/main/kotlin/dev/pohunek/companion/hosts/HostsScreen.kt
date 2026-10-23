@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -93,6 +94,7 @@ private fun HostList(state: HostsScreenState, onEvent: (HostsEvent) -> Unit, mod
                 )
                 HorizontalDivider()
             }
+            discoveryItems(state)
         }
         Button(
             onClick = { onEvent(HostsEvent.AddHost) },
@@ -103,11 +105,58 @@ private fun HostList(state: HostsScreenState, onEvent: (HostsEvent) -> Unit, mod
     }
 }
 
+/** The discovery errors of the configured hosts, then the hosts discovery found; none of these rows is tappable. */
+private fun LazyListScope.discoveryItems(state: HostsScreenState) {
+    items(state.discoveryErrors, key = { "error:${it.hostLabel}" }) { error ->
+        Text(
+            stringResource(R.string.hosts_discovery_failed, error.hostLabel, error.detail),
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(PohunekTheme.spacing.gutter).testTag("Hosts.discoveryError"),
+        )
+    }
+    if (state.discovered.isEmpty() && state.incompatible.isEmpty()) return
+    item(key = "discovered-header") {
+        Text(
+            stringResource(R.string.hosts_discovered_header),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(PohunekTheme.spacing.gutter).testTag("Hosts.discoveredHeader"),
+        )
+    }
+    items(state.discovered, key = { "found:${it.route}" }) { found ->
+        ListItem(
+            headlineContent = { Text(found.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            supportingContent = {
+                Column {
+                    Text(found.route, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    ConnectionText(found.connection)
+                }
+            },
+            modifier = Modifier.semantics(mergeDescendants = true) {}.testTag("Hosts.discoveredRow"),
+        )
+        HorizontalDivider()
+    }
+    items(state.incompatible, key = { "incompatible:${it.label}:${it.protocolVersion}" }) { peer ->
+        ListItem(
+            headlineContent = { Text(peer.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            supportingContent = {
+                Text(
+                    stringResource(R.string.hosts_discovered_incompatible, peer.protocolVersion),
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.testTag("Hosts.incompatibleNote"),
+                )
+            },
+            modifier = Modifier.semantics(mergeDescendants = true) {}.testTag("Hosts.incompatibleRow"),
+        )
+        HorizontalDivider()
+    }
+}
+
 @Composable
 private fun ConnectionText(connection: HostConnection?) {
     val text = when (connection) {
         HostConnection.Connected -> stringResource(R.string.host_state_connected)
         HostConnection.Connecting, null -> stringResource(R.string.host_state_connecting)
+        HostConnection.NotReported -> stringResource(R.string.host_state_not_reported)
         is HostConnection.Reconnecting -> {
             val code = connection.code
             if (code != null) {

@@ -10,8 +10,10 @@ import dev.pohunek.companion.config.AppConfig
 import dev.pohunek.companion.config.AppConfigResult
 import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.commands.SessionCommands
+import dev.pohunek.companion.core.data.discovery.HostDiscovery
 import dev.pohunek.companion.core.data.hosts.HostStore
 import dev.pohunek.companion.core.data.hosts.HostsRepository
+import dev.pohunek.companion.core.data.hosts.KnownHosts
 import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.log.JsonLineLog
@@ -65,6 +67,12 @@ val appModule = module {
         val config = validConfig(get())
         HostRegistry(HostLiveFactory(config.client, config.live, get(ioDispatcher), TimeSource.Monotonic, get()))
     }
+    // One discovery for the process: the hosts screen shows what the session list's foreground period found.
+    single {
+        val config = validConfig(get())
+        HostDiscovery(config.client, config.discovery, get(ioDispatcher), get())
+    }
+    single { KnownHosts(get(), get(), get()) }
     single { SessionCommands(validConfig(get()).client, get(ioDispatcher), get()) }
     single { SessionActionRunner(validConfig(get()).actionClient, get(ioDispatcher), get()) }
 }

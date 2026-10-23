@@ -176,8 +176,10 @@ packages. Re-take it when `ghostty_commit` changes.
   `copy_all`) as `core/domain/.../sessions/SessionDetails.kt`; `session.rs` (`offer_stop`, `offer_remove`)
   and `lifecycle.rs` (`LifecycleAction`, the removal notice) as `core/domain/.../sessions/SessionActions.kt`,
   with the wording of `confirm.rs` in the app's string resources; `resume.rs` (`resume_offer`,
-  `refusal_sentence`) as `core/domain/.../sessions/ResumeOffer.kt`.
-  Planned: `filter.rs`, `discovery.rs`, `view.rs`. Pinned commit for the license text:
+  `refusal_sentence`) as `core/domain/.../sessions/ResumeOffer.kt`; `discovery.rs` (`plan`, `host_key`,
+  `label`, `configured_entry`; without the New session dialog's host list) as
+  `core/domain/.../hosts/Discovery.kt`.
+  Planned: `filter.rs`, `view.rs`. Pinned commit for the license text:
   `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 
 ## Pohunek wire fixtures

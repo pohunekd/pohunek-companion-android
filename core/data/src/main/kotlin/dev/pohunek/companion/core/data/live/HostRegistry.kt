@@ -20,7 +20,13 @@ sealed interface HostConnection {
 
     /** The connection is down; [code] is the daemon's protocol error code when it refused, such as `version_mismatch`. */
     data class Reconnecting(val attempt: Int, val reason: String, val code: String?) : HostConnection
+
+    /** Discovery no longer lists the host: its loop is stopped and its last rows are kept. */
+    data object NotReported : HostConnection
 }
+
+/** The routes the registry follows and the routes whose loop is stopped but whose last feed stays, marked [HostConnection.NotReported]. */
+data class FollowedHosts(val followed: List<HostRoute>, val retained: List<HostRoute> = emptyList())
 
 /** What the registry knows about one host. */
 data class HostFeed(
@@ -42,19 +48,26 @@ class HostRegistry(private val factory: HostLiveFactory) {
     val state: StateFlow<Map<HostRoute, HostFeed>> get() = feeds
 
     /**
-     * Runs the loop of every route [hosts] names until cancelled; a route that appears starts its loop and one that disappears stops
-     * it and drops its feed. A start begins with every kept feed connecting again.
+     * Runs the loop of every followed route [hosts] names until cancelled; a route that appears starts its loop and one that disappears
+     * stops it and drops its feed, unless it is retained: then the feed stays, not reported. A start begins with every followed feed
+     * connecting again.
      */
-    suspend fun run(hosts: Flow<List<HostRoute>>): Nothing = supervisorScope {
+    suspend fun run(hosts: Flow<FollowedHosts>): Nothing = supervisorScope {
         val jobs = mutableMapOf<HostRoute, Job>()
         try {
-            hosts.collect { wanted ->
+            hosts.collect { (wanted, retained) ->
                 val wantedSet = wanted.toSet()
+                val retainedSet = retained.toSet() - wantedSet
                 for (gone in jobs.keys - wantedSet) {
                     jobs.remove(gone)?.cancel()
                     lives.remove(gone)
                 }
-                feeds.update { map -> map.filterKeys { it in wantedSet } }
+                feeds.update { map ->
+                    map.filterKeys { it in wantedSet || it in retainedSet }
+                        .mapValues { (route, feed) ->
+                            if (route in retainedSet) feed.copy(connection = HostConnection.NotReported, refreshing = false) else feed
+                        }
+                }
                 for (route in wanted) {
                     if (route !in jobs) jobs[route] = launch { follow(route) }
                 }

@@ -82,6 +82,14 @@ class PohunekConnection private constructor(
     suspend fun listSessions(filters: List<SessionFilter> = emptyList()): List<SessionInfo> =
         call { Requests.sessionList(it, filters) }.decodeResult(ListSerializer(SessionInfo.serializer()))
 
+    /**
+     * Asks the daemon for its overlay peers. The daemon probes peers before it answers, so [timeout] replaces the request timeout of the
+     * connection. Peers speaking another protocol come back as [HostClass.VersionMismatch], because the request advertises this client's range.
+     */
+    suspend fun discoverHosts(timeout: Duration): List<HostRecord> =
+        call(timeout, { ProtocolClientException.RequestTimeout(timeout.inWholeMilliseconds) }) { Requests.hostDiscover(it) }
+            .decodeResult(ListSerializer(HostRecord.serializer()))
+
     suspend fun listNotifications(params: NotificationListParams): NotificationListResult =
         call { Requests.notificationList(it, params) }.decodeResult(NotificationListResult.serializer())
 
