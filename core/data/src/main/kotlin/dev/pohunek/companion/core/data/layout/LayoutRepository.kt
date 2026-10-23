@@ -9,10 +9,12 @@ import dev.pohunek.companion.core.domain.log.error
 import dev.pohunek.companion.core.domain.log.info
 import dev.pohunek.companion.core.domain.sessions.SessionKey
 import dev.pohunek.companion.protocol.HostRoute
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** What is wrong with the layout file; the layout in use is then not, or not fully, saved. */
 sealed interface LayoutIssue {
@@ -98,20 +100,25 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
         }
     }
 
-    /** Writes [layout] when it differs from the file and the file may be replaced; a failure is published, never thrown. */
+    /**
+     * Writes [layout] when it differs from the file and the file may be replaced; a failure is published, never thrown. The write
+     * is not cancelled with the caller, so memory and file never end up apart without an issue saying so.
+     */
     private suspend fun persist(layout: Layout) {
-        if (!writable || layout == saved) return
-        val issue = try {
-            store.save(layout)
-            saved = layout
-            log.info("layout.saved", sizeFields(layout))
-            null
-        } catch (e: LayoutStoreException) {
-            log.error("layout.save_failed", listOf(LogField.errorCode("write")))
-            LayoutIssue.SaveFailed(e.message.orEmpty())
-        }
+        if (!writable) return
+        val issue = if (layout == saved) null else withContext(NonCancellable) { save(layout) }
         val now = current.value as? LayoutState.Available ?: return
         if (now.issue != issue) current.value = now.copy(issue = issue)
+    }
+
+    private suspend fun save(layout: Layout): LayoutIssue? = try {
+        store.save(layout)
+        saved = layout
+        log.info("layout.saved", sizeFields(layout))
+        null
+    } catch (e: LayoutStoreException) {
+        log.error("layout.save_failed", listOf(LogField.errorCode("write")))
+        LayoutIssue.SaveFailed(e.message.orEmpty())
     }
 
     private fun sizeFields(layout: Layout) =

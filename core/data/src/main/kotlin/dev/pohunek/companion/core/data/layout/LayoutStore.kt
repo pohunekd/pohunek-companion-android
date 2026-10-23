@@ -29,25 +29,37 @@ class LayoutStore(private val file: AtomicFile, private val ioDispatcher: Corout
         // AtomicFile.readFully falls back to the backup left by an interrupted write.
         if (!file.baseFile.exists() && !File(file.baseFile.path + BACKUP_SUFFIX).exists()) return LayoutRead.Loaded(Layout.default(), repaired = false)
         return try {
-            LayoutCodec.decode(file.readFully().decodeToString())
+            LayoutCodec.decode(file.readFully().decodeToString(throwOnInvalidSequence = true))
         } catch (e: IOException) {
             LayoutRead.Unreadable(e.message ?: e.javaClass.simpleName)
         }
     }
 
     private fun write(text: String) {
+        val bytes = text.encodeToByteArray()
         val out = try {
             file.startWrite()
         } catch (e: IOException) {
             throw LayoutStoreException("cannot write the layout file: ${e.message}", e)
         }
         try {
-            out.write(text.encodeToByteArray())
+            out.write(bytes)
             file.finishWrite(out)
         } catch (e: IOException) {
             file.failWrite(out)
             throw LayoutStoreException("cannot write the layout file: ${e.message}", e)
         }
+        verifyWritten(bytes)
+    }
+
+    /** AtomicFile.finishWrite reports a failed sync or rename only to logcat, so the result is read back. */
+    private fun verifyWritten(bytes: ByteArray) {
+        val written = try {
+            file.readFully()
+        } catch (e: IOException) {
+            throw LayoutStoreException("cannot read back the layout file: ${e.message}", e)
+        }
+        if (!written.contentEquals(bytes)) throw LayoutStoreException("the layout file does not hold what was written")
     }
 
     private companion object {
