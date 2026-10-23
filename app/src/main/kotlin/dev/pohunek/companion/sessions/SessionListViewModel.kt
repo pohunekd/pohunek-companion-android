@@ -9,6 +9,8 @@ import dev.pohunek.companion.core.data.commands.ResumeResult
 import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.hosts.HostsState
 import dev.pohunek.companion.core.data.hosts.KnownHosts
+import dev.pohunek.companion.core.data.layout.LayoutRepository
+import dev.pohunek.companion.core.data.layout.LayoutState
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostFeed
 import dev.pohunek.companion.core.data.live.HostRegistry
@@ -45,6 +47,7 @@ import dev.pohunek.companion.core.domain.sessions.workBadge
 import dev.pohunek.companion.core.domain.sessions.workFacts
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.protocol.HostRoute
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -55,6 +58,7 @@ import kotlinx.coroutines.launch
 @Suppress("TooManyFunctions") // One state holder for the events of the list screen; the row and list derivations live below it.
 class SessionListViewModel(
     private val hosts: KnownHosts,
+    private val layouts: LayoutRepository,
     private val registry: HostRegistry,
     private val commands: SessionCommands,
     private val actions: SessionActionRunner,
@@ -64,16 +68,30 @@ class SessionListViewModel(
 ) : BaseViewModel<SessionListState, SessionListEvent, SessionListEffect>(SessionListState()) {
     private var firstHostRequested = false
 
+    /** The ids of the last list reconciled into the layout per host, so that only a list that changed is sent again. */
+    private val reconciled = HashMap<HostRoute, List<String>>()
+
+    /** Lists to reconcile in the order the hosts sent them; one consumer applies them, so an older list never lands after a newer one. */
+    private val seeds = Channel<Seed>(Channel.UNLIMITED)
+
+    private class Seed(val route: HostRoute, val sessionIds: List<String>)
+
     init {
         viewModelScope.launch { hosts.load() }
         viewModelScope.launch {
-            combine(hosts.state, registry.state) { configured, feeds -> configured to feeds }.collect { (configured, feeds) ->
-                if (configured is HostsState.Loaded && configured.hosts.isEmpty() && !firstHostRequested) {
-                    firstHostRequested = true
-                    sendEffect(SessionListEffect.OpenHosts)
+            layouts.load()
+            for (seed in seeds) layouts.reconcile(seed.route, seed.sessionIds)
+        }
+        viewModelScope.launch {
+            combine(hosts.state, registry.state, layouts.state) { configured, feeds, layout -> Triple(configured, feeds, layout) }
+                .collect { (configured, feeds, layout) ->
+                    if (configured is HostsState.Loaded && configured.hosts.isEmpty() && !firstHostRequested) {
+                        firstHostRequested = true
+                        sendEffect(SessionListEffect.OpenHosts)
+                    }
+                    queueSeeds(feeds)
+                    updateState { listed(it, configured, feeds, layout, badgeMaxChars) }
                 }
-                updateState { listed(it, configured, feeds, badgeMaxChars) }
-            }
         }
         viewModelScope.launch { processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { hosts.run() } }
     }
@@ -89,11 +107,36 @@ class SessionListViewModel(
             is SessionListEvent.RenameEvent -> onRenameEvent(event)
             is SessionListEvent.ResumeEvent -> onResumeEvent(event)
             is SessionListEvent.OpenLink -> openLink(event.ref)
+            is SessionListEvent.ActionEvent -> onActionEvent(event)
+            SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
+            SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
+            is SessionListEvent.LayoutEvent -> onLayoutEvent(event)
+        }
+    }
+
+    private fun onActionEvent(event: SessionListEvent.ActionEvent) {
+        when (event) {
             is SessionListEvent.RequestAction -> requestAction(event.ref, event.action)
             SessionListEvent.ConfirmAction -> confirmAction()
             SessionListEvent.DismissAction -> dismissAction()
-            SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
-            SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
+        }
+    }
+
+    private fun onLayoutEvent(event: SessionListEvent.LayoutEvent) {
+        when (event) {
+            is SessionListEvent.SetGroupCollapsed -> viewModelScope.launch { layouts.setGroupCollapsed(event.id, event.collapsed) }
+        }
+    }
+
+    /**
+     * Queues the list of each connected host that differs from the one last queued for it. A host that is connecting or down keeps
+     * its last list, which must not prune anything, so it is skipped; a list that arrives while the host is connected is the seed.
+     */
+    private fun queueSeeds(feeds: Map<HostRoute, HostFeed>) {
+        reconciled.keys.retainAll(feeds.keys)
+        for ((route, feed) in feeds) {
+            val ids = feed.takeIf { it.connection == HostConnection.Connected }?.sessions?.map { it.info.id } ?: continue
+            if (reconciled.put(route, ids) != ids) seeds.trySend(Seed(route, ids))
         }
     }
 
@@ -263,17 +306,22 @@ internal fun afterAction(dialog: ActionDialog, outcome: SessionActionOutcome): A
     return dialog.copy(busy = false, error = failure, action = if (needsConsent) SessionAction.RemoveAnyway else dialog.action)
 }
 
-private fun listed(state: SessionListState, configured: HostsState, feeds: Map<HostRoute, HostFeed>, badgeMaxChars: Int): SessionListState {
+private fun listed(
+    state: SessionListState,
+    configured: HostsState,
+    feeds: Map<HostRoute, HostFeed>,
+    layout: LayoutState,
+    badgeMaxChars: Int,
+): SessionListState {
     val hostList = (configured as? HostsState.Loaded)?.hosts.orEmpty()
     val entries = hostList.map { host -> HostSessions(host, feeds[host.route].link(), feeds[host.route]?.sessions.orEmpty()) }
     val listing = partitionNeedsYou(entries)
     val statuses = hostList.mapNotNull { host ->
         (feeds[host.route]?.connection as? HostConnection.Reconnecting)?.let { HostStatus(hostDisplayLabel(host), it) }
     }
-    val received = hostList.any { feeds[it.route]?.sessions != null }
-    // A host that has neither sent a list nor failed is still expected to send one.
-    val expecting = hostList.any { feeds[it.route]?.let { feed -> feed.sessions == null && feed.connection.expectsList() } ?: true }
-    val empty = listing.needsYou.isEmpty() && listing.others.isEmpty()
+    val awaiting = awaitsList(hostList, feeds, empty = listing.needsYou.isEmpty() && listing.others.isEmpty())
+    val others = listing.others.map { it.toRow(badgeMaxChars) }
+    val available = layout as? LayoutState.Available
     // Row actions need the daemon: the sheet closes with the session or with its host's connection.
     val sheetOpen = state.actionSheet?.let { ref ->
         (listing.needsYou + listing.others).any { it.reachable && RowRef(it.route, it.session.info.id) == ref }
@@ -286,7 +334,10 @@ private fun listed(state: SessionListState, configured: HostsState, feeds: Map<H
         storageError = (configured as? HostsState.Unreadable)?.reason,
         hasHosts = hostList.isNotEmpty(),
         needsYou = listing.needsYou.map { it.toRow(badgeMaxChars) },
-        rows = if (!received || (empty && expecting)) null else listing.others.map { it.toRow(badgeMaxChars) },
+        // The list waits for the layout, so that it never shows once flat and then arranged.
+        rows = if (awaiting || available == null) null else others,
+        groups = available?.layout?.present(others, SessionRow::layoutKey).orEmpty(),
+        layoutIssue = available?.issue,
         statuses = statuses,
         refreshing = feeds.values.any { it.refreshing },
         details = state.details?.let { refreshedDetails(it, listing.needsYou + listing.others, feeds, hostList) },
@@ -295,6 +346,14 @@ private fun listed(state: SessionListState, configured: HostsState, feeds: Map<H
             it == AttachRefusal.HostUnreachable && entries.none { e -> e.host.route == state.refusalHost && e.link == HostLink.Down }
         },
     )
+}
+
+/** True until a list can be shown: no host has sent one, or the lists sent are empty while a host's first one is still expected. */
+private fun awaitsList(hostList: List<ConfiguredHost>, feeds: Map<HostRoute, HostFeed>, empty: Boolean): Boolean {
+    val received = hostList.any { feeds[it.route]?.sessions != null }
+    // A host that has neither sent a list nor failed is still expected to send one.
+    val expecting = hostList.any { feeds[it.route]?.let { feed -> feed.sessions == null && feed.connection.expectsList() } ?: true }
+    return !received || (empty && expecting)
 }
 
 /**

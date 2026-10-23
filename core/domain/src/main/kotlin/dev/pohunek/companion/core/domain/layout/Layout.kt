@@ -152,6 +152,11 @@ data class Layout private constructor(
             val sections = if (next.isEmpty()) collapsedSections - current.id else collapsedSections + (current.id to next)
             return Edit.Done(copy(collapsedSections = sections), next != ids)
         }
+        return setGroupCollapsed(id, collapsed)
+    }
+
+    /** Collapses or expands an owner group whatever the selected view is. The value is whether the collapsed state changed. */
+    fun setGroupCollapsed(id: String, collapsed: Boolean): Edit<Boolean, GroupError> {
         val index = groups.indexOfFirst { it.id == id }
         if (index < 0) return Edit.Refused(GroupError.UnknownGroup(id))
         val group = groups[index]
@@ -204,6 +209,17 @@ data class Layout private constructor(
         return orderedGroups().map { group ->
             GroupSection(group.id, group.name, group.collapsed, groupItems(group.id).mapNotNull { byKey[it.key] })
         }
+    }
+
+    /**
+     * [arrange], with the rows that have no placement yet at the end of Inbox in list order, which is where the next reconcile puts them,
+     * so a list that arrives before its reconcile is shown whole.
+     */
+    fun <R> present(rows: List<R>, keyOf: (R) -> SessionKey): List<GroupSection<R>> {
+        val placed = items.mapTo(HashSet()) { it.key }
+        val unplaced = rows.filter { keyOf(it) !in placed }
+        val sections = arrange(rows, keyOf)
+        return if (unplaced.isEmpty()) sections else sections.map { if (it.id == INBOX_ID) it.copy(rows = it.rows + unplaced) else it }
     }
 
     private fun nameTaken(name: String, except: String?): Boolean {

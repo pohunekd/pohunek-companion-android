@@ -14,7 +14,12 @@
     <string name="host_status_reconnecting">%1$s: Reconnecting (attempt %2$d): %3$s</string>
     <string name="host_status_refused">%1$s: Connection refused (%2$s): %3$s</string>
     <string name="session_list_needs_you">Needs you</string>
-    <string name="session_list_other_sessions">Other sessions</string>
+    <string name="group_collapsed">Collapsed</string>
+    <string name="group_expanded">Expanded</string>
+    <string name="group_expand">Expand group</string>
+    <string name="group_collapse">Collapse group</string>
+    <string name="layout_unreadable">The layout file cannot be read and is kept as it is (%1$s). Sessions are shown in Inbox and changes are not saved.</string>
+    <string name="layout_save_failed">The layout could not be saved: %1$s</string>
     <string name="owner_state_needs_owner">Needs owner</string>
     <string name="owner_state_working">Working</string>
     <string name="owner_state_idle">Idle</string>

@@ -164,7 +164,8 @@ packages. Re-take it when `ghostty_commit` changes.
   and its halving) as `protocol/.../Notifications.kt` and `core/data/.../live/HostTransport.kt`;
   `sort_key.rs` and `layout.rs` (groups,
   Inbox, manual order, reconcile, validation; without placement rules, derived-view
-  sections, and the TOML store) as `core/domain/.../layout/`; and `live.rs` (connection loop,
+  sections, and the TOML store) as `core/domain/.../layout/`, with the file schema (field names, validation)
+  and the save-only-when-changed rule as `core/data/.../layout/`; and `live.rs` (connection loop,
   re-seed, backoff; with a liveness probe the desktop lacks) as `core/data/.../live/HostLive.kt`;
   `needs_you.rs` and `tray_summary.rs` (`needs_owner_order`), with `session.rs` (`runtime_detail`)
   and `badge.rs` (`sanitize`), as `core/domain/.../sessions/NeedsYouListing.kt`, which also

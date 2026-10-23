@@ -103,9 +103,16 @@ as the desktop companion: `v0.35.2` today.
   next to its value, and are read once at start-up into a validated `AppConfig`;
   an invalid value shows a configuration error screen that names the key. Later
   issues add their keys to the same file.
-- **App data** (hosts now; layout and settings later) is JSON written with
+- **App data** (hosts and layout now; settings later) is JSON written with
   kotlinx-serialization through `AtomicFile` in the app's files directory. An
   unreadable file is shown as an error and never overwritten.
+- **Layout** (`layout.json`, schema version 1 of the desktop's layout with its field names) holds the owner's groups, the
+  placement of each session by `(route, session id)` and the collapsed state; it never goes into session metadata. The
+  layout lives in a process-wide `LayoutRepository`: every list a connected host sends is reconciled into it for that host
+  only (new sessions join the end of Inbox, that host's missing ones leave), and it is saved only when its content
+  changed. A host that is connecting or down never prunes. A file that cannot be read or is invalid is shown as an error
+  above the list and kept as it is; the app then runs with an unsaved Inbox-only layout. The list shows the owner's groups
+  (My groups) whatever view the file stores; other views arrive with their own issue.
 - **Hosts** are a list of `(route, optional label)` in `hosts.json`; a route is
   listed once, so the same daemon under two spellings of its address (such as
   `127.0.0.1:PORT` and `localhost:PORT`) counts as two hosts. One live loop

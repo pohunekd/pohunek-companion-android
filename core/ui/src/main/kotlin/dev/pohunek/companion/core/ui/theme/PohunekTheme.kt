@@ -74,6 +74,10 @@ object PohunekTheme {
     val moreDotRadius: Dp = 2.dp
     val moreDotSpacing: Dp = 6.dp
 
+    /** Size and stroke width of the chevron of a group header. */
+    val chevronSize: Dp = 16.dp
+    val chevronStroke: Dp = 2.dp
+
     /** Widest a host chip on a session row grows before its label is cut. */
     val hostChipMaxWidth: Dp = 120.dp
 

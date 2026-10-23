@@ -146,8 +146,14 @@ scripts/ui-agent pohunek ARGS...
   the runtime detail of a conflict or incompatible runtime, then `host unreachable` when its host is down)
   with the host's label, else its route, in `SessionList.host`, and follows the daemons without a tap
   (subscribe, periodic re-seed, reconnect with backoff, one loop per host). Sessions that need the owner on
-  a connected host are under the `SessionList.needsYou` header, oldest wait first, with `SessionList.others`
-  above the rest. The rows of a host that is not connected stay, dimmed, never count in Needs you, and a tap
+  a connected host are under the `SessionList.needsYou` header, oldest wait first; the other rows follow in
+  the owner's groups, Inbox first, each under a `SessionList.groupHeader` (name, count, chevron; a tap collapses
+  or expands the group, a collapsed group keeps its count and still lifts its needs-you sessions into Needs you).
+  The layout is `files/layout.json` (`scripts/ui-agent app-file cat layout.json`; groups, then one item per session
+  by host route and session id, then `collapsed` per group); it changes only when a host's list adds or drops a
+  session or the owner collapses a group, and a host that is connecting or down never prunes. A layout file that cannot
+  be read (`app-file put layout.json` with broken JSON, then `restart`) shows `Layout.error` above the list, keeps the
+  file byte for byte, and runs with an unsaved Inbox-only layout. The rows of a host that is not connected stay, dimmed, never count in Needs you, and a tap
   opens nothing and shows `SessionList.refusal`; one `SessionList.status` line per such host names it, the
   attempt and the reason (`<label>: Reconnecting (attempt N): reason`, `<label>: Connection refused (code):
   reason` for a daemon refusal such as `version_mismatch`). Recovery can take up to the current backoff, so

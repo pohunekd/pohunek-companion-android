@@ -125,6 +125,7 @@ private fun SessionListContent(
                 }
             }
             else -> Column(body) {
+                state.layoutIssue?.let { LayoutIssueBanner(it) }
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
                 state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
                 state.statuses.forEach { HostStatusLine(it) }
@@ -160,9 +161,11 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
                     if (state.needsYou.isNotEmpty()) {
                         item { SectionHeader(stringResource(R.string.session_list_needs_you), "SessionList.needsYou") }
                         items(state.needsYou, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
-                        if (rows.isNotEmpty()) item { SectionHeader(stringResource(R.string.session_list_other_sessions), "SessionList.others") }
                     }
-                    items(rows, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
+                    for (section in state.groups) {
+                        item(key = "group:${section.id}") { GroupHeader(section, onEvent) }
+                        if (!section.collapsed) items(section.rows, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
+                    }
                 }
             }
         }

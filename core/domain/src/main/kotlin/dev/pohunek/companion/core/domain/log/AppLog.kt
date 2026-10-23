@@ -24,6 +24,9 @@ class LogField private constructor(val name: String, val value: LogValue) {
         /** The daemon's opaque session id. */
         fun sessionId(id: String): LogField = text("session", id)
 
+        /** The id of a layout group (`inbox`, `g<n>`), never its name. */
+        fun groupId(id: String): LogField = text("group", id)
+
         /** A protocol method name such as `session.detach`. */
         fun method(name: String): LogField = text("method", name)
 
