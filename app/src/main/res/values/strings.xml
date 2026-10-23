@@ -148,6 +148,14 @@
     <string name="settings_reset_all">Reset all to defaults</string>
     <string name="settings_default">Default: %1$s %2$s</string>
     <string name="settings_about">About</string>
+    <string name="settings_logs_title">Logs</string>
+    <string name="settings_logs_content">The app\'s log is one JSON object per line. It contains the time, an event name, host keys (a short hash of a host\'s address, not the address), session ids, group ids, method names, error codes, setting names and numbers such as counts and sizes. It does not contain host addresses, session names, working directories, prompts, terminal content or the daemons\' error messages.</string>
+    <string name="settings_logs_export">Export logs</string>
+    <string name="settings_logs_exporting">Preparing the export...</string>
+    <string name="settings_logs_empty">The log has no lines yet; there is nothing to export.</string>
+    <string name="settings_logs_failed">Cannot export the logs: %1$s</string>
+    <string name="settings_logs_share_subject">Pohunek Companion logs</string>
+    <string name="settings_logs_share_title">Share the logs</string>
     <string name="unit_ms">ms</string>
     <string name="unit_secs">s</string>
     <string name="unit_bytes">bytes</string>

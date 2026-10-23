@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The provider serves this one cache subdirectory, which holds only the exported log file. -->
+<paths>
+    <cache-path name="log_export" path="log-export/" />
+</paths>

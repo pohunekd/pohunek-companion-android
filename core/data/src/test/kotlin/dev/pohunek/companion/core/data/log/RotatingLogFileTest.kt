@@ -44,6 +44,30 @@ class RotatingLogFileTest {
     }
 
     @Test
+    fun `copyAllTo writes the rotated file before the active one and replaces the target`() {
+        val dir = folder.newFolder("logs")
+        val log = RotatingLogFile(dir, "app.log", 120)
+        for (n in 1..5) log.append(line(n))
+        assertTrue(File(dir, "app.log.1").exists())
+        val target = File(folder.newFolder("out"), "export.jsonl").also { it.writeText("stale content that is longer than the export would be, ".repeat(20)) }
+
+        val written = log.copyAllTo(target)
+
+        val expected = File(dir, "app.log.1").readBytes() + File(dir, "app.log").readBytes()
+        assertEquals(expected.size.toLong(), written)
+        assertEquals(expected.toList(), target.readBytes().toList())
+        assertEquals(listOf(3, 4, 5), target.readLines().map { it.substringAfter("line-").substringBefore("-").toInt() })
+    }
+
+    @Test
+    fun `copyAllTo of a log that was never written produces an empty file`() {
+        val log = RotatingLogFile(File(folder.root, "none"), "app.log", 120)
+        val target = File(folder.root, "export.jsonl")
+        assertEquals(0L, log.copyAllTo(target))
+        assertEquals(0L, target.length())
+    }
+
+    @Test
     fun `a line longer than the limit is refused`() {
         val log = RotatingLogFile(folder.newFolder("logs"), "app.log", 10)
         try {

@@ -25,5 +25,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Hands the exported log to the share sheet: not exported, a grant is made per share through FLAG_GRANT_READ_URI_PERMISSION and covers only the one file below. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.logexport"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/log_export_paths" />
+            <grant-uri-permission android:path="/log_export/pohunek-companion-logs.jsonl" />
+        </provider>
     </application>
 </manifest>

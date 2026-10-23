@@ -24,6 +24,7 @@ class SettingsViewModel(
     private val runtime: RuntimeConfig,
     private val registry: HostRegistry,
     private val log: AppLog,
+    private val exporter: LogExporter,
 ) : BaseViewModel<SettingsState, SettingsEvent, SettingsEffect>(initialState(runtime)) {
     private val defaults: Map<Tunable, Long> = Tunable.entries.associateWith { runtime.defaultOf(it) }
 
@@ -35,6 +36,7 @@ class SettingsViewModel(
                 checked(it.copy(items = it.items.map { item -> item.copy(text = item.default.toString()) }, outcome = null))
             }
             SettingsEvent.Save -> save()
+            SettingsEvent.ExportLogs -> exportLogs()
         }
     }
 
@@ -93,6 +95,30 @@ class SettingsViewModel(
             is ApplyResult.StorageFailed -> {
                 log.warn("settings.save_failed", listOf(LogField.errorCode("storage")))
                 updateState { it.copy(outcome = SaveOutcome.StorageFailed(result.reason)) }
+            }
+        }
+    }
+
+    private fun exportLogs() {
+        if (currentState.exporting) return
+        updateState { it.copy(exporting = true, exportNote = null) }
+        viewModelScope.launch {
+            val result = try {
+                exporter.export()
+            } finally {
+                // Left set by a cancelled export, the flag would keep the button disabled.
+                updateState { it.copy(exporting = false) }
+            }
+            when (result) {
+                is LogExport.Ready -> {
+                    log.info("logs.exported", listOf(LogField.number("bytes", result.bytes)))
+                    sendEffect(SettingsEffect.ShareLogs(result.uri))
+                }
+                LogExport.Empty -> updateState { it.copy(exportNote = ExportNote.Empty) }
+                is LogExport.Failed -> {
+                    log.warn("logs.export_failed", listOf(LogField.errorCode("storage")))
+                    updateState { it.copy(exportNote = ExportNote.Failed(result.reason)) }
+                }
             }
         }
     }

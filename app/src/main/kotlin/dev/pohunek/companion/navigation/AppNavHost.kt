@@ -91,7 +91,8 @@ fun AppNavHost(
         }
         composable<SettingsDestination> {
             val koin = remember { KoinPlatform.getKoin() }
-            val viewModel: SettingsViewModel = viewModel(factory = viewModelFactory { initializer { SettingsViewModel(runtime, koin.get(), koin.get()) } })
+            val viewModel: SettingsViewModel =
+                viewModel(factory = viewModelFactory { initializer { SettingsViewModel(runtime, koin.get(), koin.get(), koin.get()) } })
             SettingsScreen(
                 viewModel,
                 onOpenAbout = { navController.navigate(AboutDestination) { launchSingleTop = true } },

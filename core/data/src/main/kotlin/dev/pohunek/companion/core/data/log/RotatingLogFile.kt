@@ -24,6 +24,11 @@ class RotatingLogFile(private val directory: File, private val name: String, pri
         active.appendBytes(line)
     }
 
+    /** Replaces [target] with the previous file followed by the active file, oldest line first; returns the bytes written. A missing file adds nothing. */
+    fun copyAllTo(target: File): Long = target.outputStream().use { out ->
+        listOf(previous, active).filter { it.exists() }.sumOf { source -> source.inputStream().use { it.copyTo(out) } }
+    }
+
     private fun rotate() {
         if (previous.exists() && !previous.delete()) throw IOException("cannot remove the previous log file")
         if (active.exists() && !active.renameTo(previous)) throw IOException("cannot rotate the log file")
