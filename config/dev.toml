@@ -40,7 +40,7 @@ emulator_screen = "720x1600x320"
 
 # The app under test: package and the activity `start` launches (relative to the
 # package). The debug build also has .debug.AttachDebugActivity (lists the sessions of a daemon and attaches the terminal; it links to the
-# terminal demo screen), which is opened with `am start` (see verification.md).
+# terminal demo screen) and .debug.GestureDemoActivity (a scratch list for `ui-agent drag`), which are opened with `am start` (see verification.md).
 app_package = "dev.pohunek.companion"
 launch_activity = ".MainActivity"
 
@@ -70,3 +70,13 @@ container_stop_secs = 10
 
 # Lines printed by `scripts/ui-agent log`: a positive integer.
 log_lines = 400
+
+# scripts/ui-agent gestures (swipe, long-press, drag): positive integers.
+# Milliseconds a swipe takes.
+gesture_swipe_ms = 400
+# Milliseconds a long-press holds; must exceed Android's long-press timeout (500).
+gesture_long_press_ms = 800
+# Intermediate move events of a drag between press and release, and the pause
+# between two of them in milliseconds.
+gesture_drag_steps = 12
+gesture_drag_step_ms = 40

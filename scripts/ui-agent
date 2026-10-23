@@ -16,6 +16,18 @@
 #   scripts/ui-agent click TAG [N]         tap the centre of the Nth (0-based) match
 #   scripts/ui-agent type TEXT [--enter]   type text, optionally followed by Enter
 #   scripts/ui-agent key esc|ctrl-c|tab|up|down|left|right|enter
+#   scripts/ui-agent swipe TAG up|down|left|right
+#                                          swipe across the element (isolated emulator runs only, like the commands below)
+#   scripts/ui-agent long-press TAG [N]    press and hold the centre of the Nth match
+#   scripts/ui-agent drag TAG [N] --to TAG [M] [--after]
+#                                          long-press the source, move to the target (its centre, or three quarters down with --after), release
+#   scripts/ui-agent background | foreground
+#                                          send the app to the background (home) and bring its task back without a restart
+#   scripts/ui-agent clipboard             print the device clipboard text
+#   scripts/ui-agent app-file cat|put|rm PATH
+#                                          read (stdout), write (stdin) or remove a file below the app's files directory (run-as, debug build)
+#   scripts/ui-agent sockets               the app's open TCP connections in the device, as STATE LOCAL REMOTE lines
+#   scripts/ui-agent pohunek ARGS...       the Pohunek CLI against the isolated daemon (session new|rename|stop|rm; notification create|delete|list)
 #   scripts/ui-agent rotate                toggle portrait and landscape
 #   scripts/ui-agent net-drop | net-restore    cut and restore the app's path to the daemon
 #   scripts/ui-agent host-stop | host-start    stop and restart the isolated daemon
@@ -332,8 +344,25 @@ case "${1:-}" in
   click) guest click "${2:?element tag required}" "${3:-0}" ;;
   type) guest type "${2:?text required}" "${3:-}" ;;
   key) guest key "${2:?key required}" ;;
+  swipe) guest swipe "${2:?element tag required}" "${3:?direction required}" ;;
+  long-press) guest long-press "${2:?element tag required}" "${3:-0}" ;;
+  drag)
+    shift
+    src="${1:?source tag required}"; shift
+    src_n=0; dst_n=0; after=""
+    if [[ "${1:-}" =~ ^[0-9]+$ ]]; then src_n="$1"; shift; fi
+    [ "${1:-}" = --to ] || die "usage: drag TAG [N] --to TAG [M] [--after]"
+    shift
+    dst="${1:?target tag required}"; shift
+    if [[ "${1:-}" =~ ^[0-9]+$ ]]; then dst_n="$1"; shift; fi
+    if [ "${1:-}" = --after ]; then after=--after; shift; fi
+    [ $# -eq 0 ] || die "unexpected drag argument: $1"
+    guest drag "$src" "$src_n" "$dst" "$dst_n" $after ;;
+  background | foreground | clipboard | sockets) guest "$1" ;;
+  app-file) guest app-file "${2:?cat, put or rm required}" "${3:?path required}" ;;
+  pohunek) shift; guest pohunek "$@" ;;
   rotate) guest rotate ;;
   net-drop | net-restore | host-stop | host-start | health) guest "$1" ;;
   log) warn_unpublishable; guest log "${2:-app}" ;;
-  *) sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

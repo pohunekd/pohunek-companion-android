@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gesture_demo_title">Gesture demo</string>
+    <string name="gesture_demo_copy">Copy order</string>
+    <string name="gesture_demo_item">Item %1$d</string>
+
+    <!-- Rows of the scratch list that `ui-agent drag` reorders. -->
+    <integer name="gesture_demo_items">6</integer>
+</resources>
