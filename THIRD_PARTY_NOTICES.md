@@ -160,8 +160,10 @@ packages. Re-take it when `ghostty_commit` changes.
   `app/.../sessions/AttachRefusal.kt`) and `model.rs` (session seed and event
   reconcile, without attention, owner state, and the `agent_state`,
   `subagent_state`, `background_state` handling) as
-  `core/domain/.../sessions/SessionStore.kt`. Planned: `live.rs`, `needs_you.rs`, `filter.rs`,
-  `layout.rs`, `discovery.rs`, `view.rs`, `sort_key.rs`. Pinned commit for the license text:
+  `core/domain/.../sessions/SessionStore.kt`; `sort_key.rs` and `layout.rs` (groups,
+  Inbox, manual order, reconcile, validation; without placement rules, derived-view
+  sections, and the TOML store) as `core/domain/.../layout/`. Planned: `live.rs`,
+  `needs_you.rs`, `filter.rs`, `discovery.rs`, `view.rs`. Pinned commit for the license text:
   `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 
 ## Pohunek wire fixtures
