@@ -22,12 +22,12 @@ import dev.pohunek.companion.core.domain.log.info
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.HostSessions
 import dev.pohunek.companion.core.domain.sessions.HostedSession
+import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.domain.sessions.SessionActionOutcome
 import dev.pohunek.companion.core.domain.sessions.UNCONFIRMED_PROCESSES_CODE
 import dev.pohunek.companion.core.domain.sessions.actionFailureText
 import dev.pohunek.companion.core.domain.sessions.actionSubject
-import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.clipDisplay
 import dev.pohunek.companion.core.domain.sessions.hasConflictingRuntime
 import dev.pohunek.companion.core.domain.sessions.offersRemove
@@ -93,14 +93,20 @@ class SessionListViewModel(
             // At most one of the sheet and the details is open, so both events close whichever is.
             SessionListEvent.DismissActions, SessionListEvent.CloseDetails -> updateState { it.copy(actionSheet = null, details = null) }
             is SessionListEvent.RenameEvent -> onRenameEvent(event)
-            is SessionListEvent.Resume -> currentRow(event.ref)?.let(::resume)
-            SessionListEvent.DismissResumeNote -> updateState { it.copy(resumeNote = null) }
+            is SessionListEvent.ResumeEvent -> onResumeEvent(event)
             is SessionListEvent.OpenLink -> openLink(event.ref)
             is SessionListEvent.RequestAction -> requestAction(event.ref, event.action)
             SessionListEvent.ConfirmAction -> confirmAction()
             SessionListEvent.DismissAction -> dismissAction()
             SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
+        }
+    }
+
+    private fun onResumeEvent(event: SessionListEvent.ResumeEvent) {
+        when (event) {
+            is SessionListEvent.Resume -> currentRow(event.ref)?.let(::resume)
+            SessionListEvent.DismissResumeNote -> updateState { it.copy(resumeNote = null) }
         }
     }
 

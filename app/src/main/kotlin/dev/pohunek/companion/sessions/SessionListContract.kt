@@ -158,10 +158,13 @@ sealed interface SessionListEvent {
 
     data object DismissRename : RenameEvent
 
-    /** Resumes the ended session; ignored while a resume of it is running. */
-    data class Resume(val ref: RowRef) : SessionListEvent
+    /** The events of resuming an ended session. */
+    sealed interface ResumeEvent : SessionListEvent
 
-    data object DismissResumeNote : SessionListEvent
+    /** Resumes the ended session; ignored while a resume of it is running. */
+    data class Resume(val ref: RowRef) : ResumeEvent
+
+    data object DismissResumeNote : ResumeEvent
 
     data class OpenLink(val ref: RowRef) : SessionListEvent
 
