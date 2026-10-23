@@ -27,6 +27,9 @@ object PohunekSpacing {
 /** Entry point for design tokens beyond Material's scheme. */
 object PohunekTheme {
     val spacing: PohunekSpacing get() = PohunekSpacing
+
+    /** Opacity of content that may be out of date, such as session rows while the host is unreachable. */
+    const val DIMMED_ALPHA: Float = 0.5f
 }
 
 /** Material 3 theme that follows the system light/dark setting unless [darkTheme] is given. */

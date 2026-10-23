@@ -16,8 +16,16 @@ data class SessionRow(
     val attachRefusal: AttachRefusal?,
 )
 
-/** Why the list could not be loaded; [incompatible] marks a host that speaks no protocol version this app does. */
-data class ListError(val incompatible: Boolean, val message: String)
+/** Where the live connection to the host stands. */
+sealed interface ListConnection {
+    /** Connecting for the first time or after the app came back to the foreground. */
+    data object Connecting : ListConnection
+
+    data object Connected : ListConnection
+
+    /** The connection is down; [code] is the daemon's protocol error code when it refused, such as `version_mismatch`. */
+    data class Reconnecting(val attempt: Int, val reason: String, val code: String?) : ListConnection
+}
 
 /** The host form; [error] is the reason the last save was refused. */
 data class HostForm(val route: String = "", val label: String = "", val error: String? = null, val saving: Boolean = false)
@@ -28,9 +36,11 @@ data class SessionListState(
     /** Set when the hosts file is unreadable; nothing is saved then. */
     val storageError: String? = null,
     val host: ConfiguredHost? = null,
-    val loading: Boolean = false,
+    /** Null until the first list arrives; kept, though out of date, while the connection is down. */
     val rows: List<SessionRow>? = null,
-    val error: ListError? = null,
+    val connection: ListConnection = ListConnection.Connecting,
+    /** True from a requested re-seed until it finishes or the connection fails. */
+    val refreshing: Boolean = false,
     /** Non-null while the host form is shown. */
     val form: HostForm? = null,
     /** Why the last tapped session was not opened; shown until dismissed, refreshed, or another session opens. */

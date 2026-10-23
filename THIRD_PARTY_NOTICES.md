@@ -162,8 +162,9 @@ packages. Re-take it when `ghostty_commit` changes.
   `subagent_state`, `background_state` handling) as
   `core/domain/.../sessions/SessionStore.kt`; `sort_key.rs` and `layout.rs` (groups,
   Inbox, manual order, reconcile, validation; without placement rules, derived-view
-  sections, and the TOML store) as `core/domain/.../layout/`. Planned: `live.rs`,
-  `needs_you.rs`, `filter.rs`, `discovery.rs`, `view.rs`. Pinned commit for the license text:
+  sections, and the TOML store) as `core/domain/.../layout/`; and `live.rs` (connection loop,
+  re-seed, backoff; with a liveness probe the desktop lacks) as `core/data/.../live/HostLive.kt`.
+  Planned: `needs_you.rs`, `filter.rs`, `discovery.rs`, `view.rs`. Pinned commit for the license text:
   `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 
 ## Pohunek wire fixtures

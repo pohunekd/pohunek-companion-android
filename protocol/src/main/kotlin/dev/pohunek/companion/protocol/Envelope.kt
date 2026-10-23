@@ -49,6 +49,9 @@ object Requests {
         return Request(Wire.CLIENT_RANGE, id, "session.resize", params)
     }
 
+    /** Turns the connection into the daemon's event stream; the `ok` result is `{"subscribed":true}`. */
+    fun subscribe(id: String): Request = Request(Wire.CLIENT_RANGE, id, "subscribe", JsonNull)
+
     fun sessionDetach(id: String, streamId: String): Request =
         Request(Wire.CLIENT_RANGE, id, "session.detach", buildJsonObject { put("stream_id", streamId) })
 }

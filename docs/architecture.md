@@ -43,6 +43,18 @@ as the desktop companion: `v0.35.2` today.
 - State: seed with `session.list` and `notification.list`, then keep current
   with one `subscribe` connection. Re-seed on every reconnect and
   periodically.
+- Liveness (departs from the desktop on purpose): the desktop keeps its store
+  when a periodic re-seed fails and has no heartbeat, which on a phone leaves a
+  frozen list that looks live. Here a failed re-seed, or a `daemon.health` probe
+  (own connection, every `liveness_interval_ms`, bounded by
+  `liveness_timeout_ms`) that fails, ends the connection and the loop reconnects
+  with backoff. The probe detects a dead network path; it does not look at the
+  subscription socket itself.
+- Lifecycle (until M4's foreground service): the live loops run only while the
+  app is visible (`ProcessLifecycleOwner` started) and stop when it goes to the
+  background, which closes their sockets. On return they reconnect and re-seed
+  at once. M4 replaces this with the foreground service where background
+  monitoring is wanted.
 - Attach: `session.attach` returns a one-shot `stream_id` (10 s TTL). A second
   TCP connection sends `{"attach":"<id>"}\n` and from then on carries raw PTY
   bytes: the snapshot repaint arrives first, and the bytes are never assumed to

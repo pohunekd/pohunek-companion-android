@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,16 +24,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
+import dev.pohunek.companion.core.data.hosts.ConfiguredHost
 import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.protocol.AgentActivity
 import dev.pohunek.companion.protocol.HostRoute
+import dev.pohunek.companion.protocol.ProtocolError
 import dev.pohunek.companion.protocol.SessionState
 
 @Composable
@@ -55,12 +59,7 @@ private fun SessionListContent(state: SessionListState, onEvent: (SessionListEve
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        state.host?.let {
-                            it.label ?: it.route.toString()
-                        } ?: stringResource(R.string.app_name),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+                    Text(hostName(state.host) ?: stringResource(R.string.app_name), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
                 actions = {
                     if (listShown) {
@@ -84,6 +83,9 @@ private fun SessionListContent(state: SessionListState, onEvent: (SessionListEve
             state.form != null -> HostFormContent(state.form, state.host != null, onEvent, body)
             else -> Column(body) {
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
+                (state.connection as? ListConnection.Reconnecting)?.let {
+                    ReconnectingStatus(hostName(state.host).orEmpty(), it)
+                }
                 SessionRows(state, onEvent, Modifier.weight(1f).fillMaxWidth())
             }
         }
@@ -93,12 +95,13 @@ private fun SessionListContent(state: SessionListState, onEvent: (SessionListEve
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> Unit, modifier: Modifier) {
-    PullToRefreshBox(isRefreshing = state.loading, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier) {
-        LazyColumn(Modifier.fillMaxSize().testTag("SessionList.list")) {
-            val rows = state.rows
-            val error = state.error
+    val connection = state.connection
+    PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier) {
+        val rows = state.rows
+        val dimmed = if (connection is ListConnection.Connected) Modifier else Modifier.alpha(PohunekTheme.DIMMED_ALPHA)
+        LazyColumn(Modifier.fillMaxSize().then(dimmed).testTag("SessionList.list")) {
             when {
-                error != null -> item { Centered(Modifier.fillParentMaxSize()) { ListFailure(error) } }
+                rows == null && connection is ListConnection.Reconnecting -> item { Spacer(Modifier.fillParentMaxSize()) }
                 rows == null -> item {
                     Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_loading), "SessionList.loading") }
                 }
@@ -112,14 +115,22 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
     }
 }
 
+private fun hostName(host: ConfiguredHost?): String? = host?.let { it.label ?: it.route.toString() }
+
 @Composable
-private fun ListFailure(error: ListError) {
-    val text = if (error.incompatible) {
-        stringResource(R.string.session_list_incompatible, error.message)
+private fun ReconnectingStatus(host: String, connection: ListConnection.Reconnecting) {
+    val incompatible = connection.code == ProtocolError.VERSION_MISMATCH_CODE
+    val text = if (incompatible) {
+        stringResource(R.string.session_list_incompatible, host, connection.attempt, connection.reason)
     } else {
-        stringResource(R.string.session_list_error, error.message)
+        stringResource(R.string.session_list_reconnecting, host, connection.attempt, connection.reason)
     }
-    Message(text, "SessionList.error", error = true)
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.fillMaxWidth().padding(PohunekTheme.spacing.gutter).testTag("SessionList.status"),
+    )
 }
 
 @Composable

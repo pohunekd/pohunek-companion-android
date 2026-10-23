@@ -128,11 +128,17 @@ scripts/ui-agent pohunek ARGS...
   `HostForm.route`, `type 127.0.0.1:PORT` (PORT from `status`), optionally tap
   `HostForm.label` and type a name, then `click HostForm.save`. `HostForm.error`
   carries a refused route; `HostForm.cancel` and `HostForm.clear` (remove the
-  host) appear once a host is saved. The list shows `SessionList.row` nodes,
-  `SessionList.refresh` reloads, `SessionList.editHost` opens the form,
-  `SessionList.error`, `SessionList.empty` and `SessionList.loading` carry the
-  other states, and `ConfigError.message` replaces the app when a value in
-  `app/src/main/res/values/config.xml` is invalid. The saved host survives
+  host) appear once a host is saved. The list shows `SessionList.row` nodes and follows the daemon without a tap
+  (subscribe, periodic re-seed, reconnect with backoff). While the connection is down the rows
+  stay and are dimmed and `SessionList.status` names the host, the attempt and the reason (a
+  `version_mismatch` refusal carries the daemon's message); recovery can take up to the current
+  backoff, so wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh
+  and `SessionList.refresh` ask for a re-seed, `SessionList.editHost` opens the form,
+  `SessionList.empty` and `SessionList.loading` carry the other states, and `ConfigError.message`
+  replaces the app when a value in `app/src/main/res/values/config.xml` is invalid. The loops run
+  only while the app is visible: after `background` (the process lifecycle stops about 700 ms
+  later) `sockets` shows no ESTABLISHED connection to the daemon, and `foreground` reconnects and
+  re-seeds. The saved host survives
   `restart`. `ui-agent` has no way to clear a text field yet: delete characters
   with `podman exec pohunek-ui-agent-slot-N adb -s SERIAL shell input keyevent
   KEYCODE_DEL` (SERIAL from `status`).
