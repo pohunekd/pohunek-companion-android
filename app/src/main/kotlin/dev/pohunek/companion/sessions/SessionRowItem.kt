@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,19 +51,10 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
                 }
                 Text(summary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val work = listOfNotNull(row.project, row.badge, row.badgeRole)
-                if (work.isNotEmpty() || row.notShared) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.sm)) {
-                        if (work.isNotEmpty()) {
-                            Text(
-                                work.joinToString(" · "),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false).testTag("SessionList.rowWork"),
-                            )
-                        }
-                        if (row.notShared) NotSharedLabel()
-                    }
+                if (work.isNotEmpty()) {
+                    Text(work.joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.rowWork"))
                 }
+                if (row.notShared) NotSharedLabel()
                 row.runtimeDetail?.let { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.runtimeDetail")) }
                 if (row.link == HostLink.Down) {
                     Text(
