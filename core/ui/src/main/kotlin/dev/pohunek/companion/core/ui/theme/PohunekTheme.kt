@@ -74,6 +74,9 @@ object PohunekTheme {
     val moreDotRadius: Dp = 2.dp
     val moreDotSpacing: Dp = 6.dp
 
+    /** Widest a host chip on a session row grows before its label is cut. */
+    val hostChipMaxWidth: Dp = 120.dp
+
     /** Opacity of content that may be out of date, such as session rows while the host is unreachable. */
     const val DIMMED_ALPHA: Float = 0.5f
 }

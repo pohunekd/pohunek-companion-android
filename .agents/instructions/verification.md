@@ -124,24 +124,35 @@ scripts/ui-agent pohunek ARGS...
   `host-stop` and `host-start` stop and restart the daemon with the same
   directories. `health` sends one `daemon.health` line from the device with
   toybox `nc` through the reversed port and prints the reply.
-- **Session list.** `MainActivity` opens the host form on a fresh install: tap
-  `HostForm.route`, `type 127.0.0.1:PORT` (PORT from `status`), optionally tap
-  `HostForm.label` and type a name, then `click HostForm.save`. `HostForm.error`
-  carries a refused route; `HostForm.cancel` and `HostForm.clear` (remove the
-  host) appear once a host is saved. The list shows `SessionList.row` nodes (the row text is the title, then `<owner state> · <agent>`, then the runtime detail of a conflict or incompatible runtime) and follows the daemon without a tap
-  (subscribe, periodic re-seed, reconnect with backoff). Sessions that need the owner are under the `SessionList.needsYou` header, oldest wait first, with `SessionList.others` above the rest; while the connection is down there is no Needs you section. While the connection is down the rows
-  stay and are dimmed and `SessionList.status` names the host, the attempt and the reason (a
-  `version_mismatch` refusal carries the daemon's message); recovery can take up to the current
-  backoff, so wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh
-  and `SessionList.refresh` ask for a re-seed, `SessionList.editHost` opens the form,
-  `SessionList.empty` and `SessionList.loading` carry the other states, each row has `SessionList.rowWork` (project, Work badge and role) and `SessionRow.more`, which, like a long press on the row, opens the action sheet `RowSheet` (`RowSheet.title`, `RowSheet.openTerminal`, `RowSheet.openLink` when the session has an openable link; the sheet is a separate window, so `tree` lists it only while it is open), and `ConfigError.message`
-  replaces the app when a value in `app/src/main/res/values/config.xml` is invalid. The app log
-  (`scripts/ui-agent app-file cat logs/app.log`) records `live.owner_state` with the session id and
-  the previous and new owner state each time a session changes state, which is how a
-  `pohunek notification create|delete` is observed without waiting for a re-seed. The loops run
+- **Session list.** `MainActivity` opens the Hosts screen with the host form on a fresh install (no host
+  configured): tap `HostForm.route`, `type 127.0.0.1:PORT` (PORT from `status`), optionally tap
+  `HostForm.label` and type a name, then `click HostForm.save`; saving the first host returns to the list.
+  `SessionList.hosts` (and `SessionList.addHost` on an empty list) opens the Hosts screen: `Hosts.row` per
+  host (tap to edit), `Hosts.status` with its connection (Connected, Connecting, `Reconnecting (attempt N):
+  reason`, `Connection refused (code): reason`), `Hosts.add`, `Hosts.back`. The form shows `HostForm.error`
+  for a refused route or a duplicate route; `HostForm.cancel` (when a host exists) and `HostForm.clear`
+  (remove the host being edited; removing the last host reopens the empty form) appear. A route is listed
+  once: for the same daemon twice use `localhost:PORT` next to `127.0.0.1:PORT`. The list shows
+  `SessionList.row` nodes from every host (the row text is the title, then `<owner state> · <agent>`, then
+  the runtime detail of a conflict or incompatible runtime, then `host unreachable` when its host is down)
+  with the host's label, else its route, in `SessionList.host`, and follows the daemons without a tap
+  (subscribe, periodic re-seed, reconnect with backoff, one loop per host). Sessions that need the owner on
+  a connected host are under the `SessionList.needsYou` header, oldest wait first, with `SessionList.others`
+  above the rest. The rows of a host that is not connected stay, dimmed, never count in Needs you, and a tap
+  opens nothing and shows `SessionList.refusal`; one `SessionList.status` line per such host names it, the
+  attempt and the reason (`<label>: Reconnecting (attempt N): reason`, `<label>: Connection refused (code):
+  reason` for a daemon refusal such as `version_mismatch`). Recovery can take up to the current backoff, so
+  wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh and
+  `SessionList.refresh` ask every host for a re-seed, `SessionList.empty` and `SessionList.loading` carry the
+  other states, each row has `SessionList.rowWork` (project, Work badge and role) and, on a connected host, `SessionRow.more`, which, like a long press on the row, opens the action sheet `RowSheet` (`RowSheet.title`, `RowSheet.openTerminal`, `RowSheet.openLink` when the session has an openable link; the sheet is a separate window, so `tree` lists it only while it is open), and `ConfigError.message` replaces the app when a value in
+  `app/src/main/res/values/config.xml` is invalid. The app log
+  (`scripts/ui-agent app-file cat logs/app.log`) records `host.added`, `host.edited` and `host.removed` with
+  the host key, and `live.owner_state` with the session id and the previous and new owner state each time a
+  session changes state, which is how a `pohunek notification create|delete` is observed without waiting for
+  a re-seed. The loops run
   only while the app is visible: after `background` (the process lifecycle stops about 700 ms
   later) `sockets` shows no ESTABLISHED connection to the daemon, and `foreground` reconnects and
-  re-seeds. The saved host survives
+  re-seeds. The saved hosts survive
   `restart`. `ui-agent` has no way to clear a text field yet: delete characters
   with `podman exec pohunek-ui-agent-slot-N adb -s SERIAL shell input keyevent
   KEYCODE_DEL` (SERIAL from `status`).

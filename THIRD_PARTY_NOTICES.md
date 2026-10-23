@@ -167,7 +167,10 @@ packages. Re-take it when `ghostty_commit` changes.
   sections, and the TOML store) as `core/domain/.../layout/`; and `live.rs` (connection loop,
   re-seed, backoff; with a liveness probe the desktop lacks) as `core/data/.../live/HostLive.kt`;
   `needs_you.rs` and `tray_summary.rs` (`needs_owner_order`), with `session.rs` (`runtime_detail`)
-  and `badge.rs` (`sanitize`), as `core/domain/.../sessions/NeedsYouListing.kt`.
+  and `badge.rs` (`sanitize`), as `core/domain/.../sessions/NeedsYouListing.kt`, which also
+  holds the union of several hosts' lists (`HostsView::union` of `crates/app/src/main.rs`);
+  `config.rs` (the host rules: non-empty, unique, label not blank, display label) as
+  `core/domain/.../hosts/ConfiguredHost.kt`.
   `badge.rs` (`WorkFacts`, `WorkBadge`, `clip_display`, `clip_middle`), `open.rs` (`is_openable_url`,
   link selection) and `session.rs` (project label) as `core/domain/.../sessions/WorkLink.kt`.
   Planned: `filter.rs`, `discovery.rs`, `view.rs`. Pinned commit for the license text:

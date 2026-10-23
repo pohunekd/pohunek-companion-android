@@ -37,4 +37,5 @@ private fun refusalMessage(refusal: AttachRefusal): Int = when (refusal) {
     AttachRefusal.External -> R.string.attach_refusal_external
     AttachRefusal.Starting -> R.string.attach_refusal_starting
     AttachRefusal.Ended -> R.string.attach_refusal_ended
+    AttachRefusal.HostUnreachable -> R.string.attach_refusal_host_unreachable
 }

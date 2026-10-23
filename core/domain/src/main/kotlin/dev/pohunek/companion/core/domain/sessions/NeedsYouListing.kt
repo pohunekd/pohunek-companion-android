@@ -1,33 +1,61 @@
 // Ported to Kotlin from pohunek-companion `crates/core/src/needs_you.rs` (with_needs_you) and `tray_summary.rs` (needs_owner_order, wait_order),
-// and from `session.rs` / `badge.rs` (runtime_detail, sanitize). Repository: https://github.com/pohunekd/pohunek-companion, MIT,
-// Copyright (c) 2026 pohunekd. See THIRD_PARTY_NOTICES.md.
+// and from `session.rs` / `badge.rs` (runtime_detail, sanitize), and from `crates/app/src/main.rs` (HostsView::union). Repository:
+// https://github.com/pohunekd/pohunek-companion, MIT, Copyright (c) 2026 pohunekd. See THIRD_PARTY_NOTICES.md.
 package dev.pohunek.companion.core.domain.sessions
 
+import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
+import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
+import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.RuntimeState
 import dev.pohunek.companion.protocol.SessionInfo
 import java.time.OffsetDateTime
 
-/** The sessions of one host split for display: those that need the owner in wait order, and all the others, in the order given. */
-data class NeedsYouListing(val needsYou: List<OwnerSession>, val others: List<OwnerSession>)
+/** Where a host's connection stands, as far as its rows are concerned. */
+enum class HostLink {
+    Connected,
+
+    /** The first connection of this foreground period is not established yet. */
+    Connecting,
+
+    /** The connection failed and is being retried, or the daemon refused it. */
+    Down,
+}
+
+/** One host with the last sessions it sent; they may be out of date unless [link] is [HostLink.Connected]. */
+data class HostSessions(val host: ConfiguredHost, val link: HostLink, val sessions: List<OwnerSession>)
+
+/** A session of the union list with the host it came from. */
+data class HostedSession(val route: HostRoute, val hostLabel: String, val link: HostLink, val session: OwnerSession) {
+    /** Two daemons can hold the same session id, so a session is identified by its host as well. */
+    val key: SessionKey get() = SessionKey(route.toString(), session.info.id)
+
+    /** Facts of a host that is not connected are the last known ones: the row offers nothing that needs the daemon. */
+    val reachable: Boolean get() = link == HostLink.Connected
+}
+
+/** The union of every host's sessions split for display: those that need the owner in wait order, and all the others. */
+data class NeedsYouListing(val needsYou: List<HostedSession>, val others: List<HostedSession>)
 
 /**
- * Lifts the sessions that need the owner out of [sessions]. Display only: nothing about the sessions changes. While the host is not
- * [hostReachable] its sessions may be out of date, so none of them counts as needing the owner.
+ * The union of [hosts] keyed by `(route, id)`, with the sessions that need the owner lifted out. Display only: nothing about the sessions
+ * changes. A host that is not connected keeps its rows in [NeedsYouListing.others], because its facts may be out of date, so none of its
+ * sessions counts as needing the owner.
  */
-fun partitionNeedsYou(sessions: List<OwnerSession>, hostReachable: Boolean): NeedsYouListing {
-    if (!hostReachable) return NeedsYouListing(emptyList(), sessions)
-    val (needing, rest) = sessions.partition { it.ownerState == OwnerState.NeedsOwner }
+fun partitionNeedsYou(hosts: List<HostSessions>): NeedsYouListing {
+    val all = hosts.flatMap { entry ->
+        val label = hostDisplayLabel(entry.host)
+        entry.sessions.map { HostedSession(entry.host.route, label, entry.link, it) }
+    }
+    val (needing, rest) = all.partition { it.reachable && it.session.ownerState == OwnerState.NeedsOwner }
     return NeedsYouListing(needing.sortedWith(needsOwnerOrder), rest)
 }
 
-/**
- * Longest waiting first, then display name and id; a session without a known waiting time comes after those with one. The list is of
- * one host, so the host never separates two sessions.
- */
-internal val needsOwnerOrder: Comparator<OwnerSession> =
-    compareBy<OwnerSession, OffsetDateTime?>(nullsLast(naturalOrder())) { it.waitingSince }
-        .thenBy { sessionDisplayName(it.info) }
-        .thenBy { it.info.id }
+/** Longest waiting first, then display name, host and id; a session without a known waiting time comes after those with one. */
+internal val needsOwnerOrder: Comparator<HostedSession> =
+    compareBy<HostedSession, OffsetDateTime?>(nullsLast(naturalOrder())) { it.session.waitingSince }
+        .thenBy { sessionDisplayName(it.session.info) }
+        .thenBy { it.key.host }
+        .thenBy { it.key.sessionId }
 
 /** The session's sanitized name, or its id when it has none. */
 fun sessionDisplayName(info: SessionInfo): String = info.name?.let(::sanitizeText)?.ifEmpty { null } ?: info.id

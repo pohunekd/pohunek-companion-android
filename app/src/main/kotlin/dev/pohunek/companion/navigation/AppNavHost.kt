@@ -13,10 +13,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.pohunek.companion.config.AppConfig
+import dev.pohunek.companion.hosts.HostsScreen
+import dev.pohunek.companion.hosts.HostsViewModel
 import dev.pohunek.companion.sessions.SessionListScreen
 import dev.pohunek.companion.sessions.SessionListViewModel
 import dev.pohunek.companion.sessions.TerminalScreen
-import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatform
 
 @Composable
@@ -30,13 +31,22 @@ fun AppNavHost(
             val koin = remember { KoinPlatform.getKoin() }
             val viewModel: SessionListViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { SessionListViewModel(koin.get(), koin.get { parametersOf(config) }, koin.get(), koin.get(), config.rowBadgeMaxChars) }
+                    initializer { SessionListViewModel(koin.get(), koin.get(), koin.get(), koin.get(), config.rowBadgeMaxChars) }
                 },
             )
-            SessionListScreen(viewModel, onOpenTerminal = { route, sessionId ->
-                // Single-top: a double tap on a row must not stack two terminals.
-                navController.navigate(TerminalDestination(route.toString(), sessionId)) { launchSingleTop = true }
-            })
+            SessionListScreen(
+                viewModel,
+                onOpenTerminal = { route, sessionId ->
+                    // Single-top: a double tap on a row must not stack two terminals.
+                    navController.navigate(TerminalDestination(route.toString(), sessionId)) { launchSingleTop = true }
+                },
+                onOpenHosts = { navController.navigate(HostsDestination) { launchSingleTop = true } },
+            )
+        }
+        composable<HostsDestination> {
+            val koin = remember { KoinPlatform.getKoin() }
+            val viewModel: HostsViewModel = viewModel(factory = viewModelFactory { initializer { HostsViewModel(koin.get(), koin.get()) } })
+            HostsScreen(viewModel, onBack = { navController.popBackStack() })
         }
         composable<TerminalDestination> { entry ->
             val destination = entry.toRoute<TerminalDestination>()

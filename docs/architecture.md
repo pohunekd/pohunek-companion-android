@@ -101,6 +101,13 @@ as the desktop companion: `v0.35.2` today.
 - **App data** (hosts now; layout and settings later) is JSON written with
   kotlinx-serialization through `AtomicFile` in the app's files directory. An
   unreadable file is shown as an error and never overwritten.
+- **Hosts** are a list of `(route, optional label)` in `hosts.json`; a route is
+  listed once, so the same daemon under two spellings of its address (such as
+  `127.0.0.1:PORT` and `localhost:PORT`) counts as two hosts. One live loop
+  per host runs in a process-wide registry (`HostRegistry`); a loop never
+  touches another host's loop or rows. The list is the union of the hosts'
+  latest sessions keyed by host and session id, and the rows of a host that is
+  not connected stay, dimmed, with their last known facts.
 
 ## Security boundary
 
