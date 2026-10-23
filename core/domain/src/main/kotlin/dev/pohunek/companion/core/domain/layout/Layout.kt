@@ -1,0 +1,280 @@
+// Ported to Kotlin from pohunek-companion `crates/core/src/layout.rs`.
+// Repository: https://github.com/pohunekd/pohunek-companion, MIT, Copyright (c) 2026 pohunekd. See THIRD_PARTY_NOTICES.md.
+package dev.pohunek.companion.core.domain.layout
+
+import dev.pohunek.companion.core.domain.sessions.SessionKey
+
+/**
+ * The owner's client-side layout: groups of sessions in a manual order. Immutable; every edit returns the new layout, so a refused
+ * edit leaves the receiver as it was. Never stored in session metadata and never sent to the daemon; persistence is the caller's.
+ */
+@ConsistentCopyVisibility
+@Suppress("TooManyFunctions") // One cohesive set of edits; splitting it would scatter the invariants they share.
+data class Layout private constructor(
+    /** Id of the selected view as stored; an unknown value survives until the owner picks a view. */
+    val storedView: String?,
+    /** Filter of each view by view id; a view without an entry uses the default filter. */
+    val filters: Map<String, StoredFilter>,
+    /** Ids of the collapsed sections of each derived view by view id. My groups keeps its state on the groups themselves. */
+    val collapsedSections: Map<String, Set<String>>,
+    val groups: List<Group>,
+    val items: List<Item>,
+) {
+    /** The selected view; My groups when none is stored or the stored id is unknown. */
+    val view: LayoutView get() = storedView?.let(LayoutView::parse) ?: LayoutView.MY_GROUPS
+
+    /** The stored filter of [view]; the default filter when none is stored. */
+    fun filter(view: LayoutView): StoredFilter = filters[view.id] ?: StoredFilter()
+
+    /** Selects the view. */
+    fun withView(view: LayoutView): Layout = copy(storedView = view.id)
+
+    /** Stores the filter of [view]; the default filter is stored as no entry. */
+    fun withFilter(view: LayoutView, filter: StoredFilter): Layout =
+        copy(filters = if (filter == StoredFilter()) filters - view.id else filters + (view.id to filter))
+
+    /** Groups in display order. */
+    fun orderedGroups(): List<Group> = groups.sortedWith(compareBy<Group>({ it.order }, { it.id }))
+
+    /** Items of [group] in display order. */
+    fun groupItems(group: String): List<Item> =
+        items.filter { it.group == group }.sortedWith(compareBy<Item>({ it.order }, { it.key.host }, { it.key.sessionId }))
+
+    /**
+     * Appends sessions the layout does not know to the end of Inbox, in list order, and drops placements of [host]'s sessions missing
+     * from [current], the full seeded list of that host. Items of other hosts are never pruned, so a host that is disconnected or not
+     * yet seeded keeps its placements.
+     */
+    fun reconcile(host: String, current: List<SessionKey>): Reconciliation {
+        val listed = current.toSet()
+        val (kept, dropped) = items.partition { it.key.host != host || it.key in listed }
+        val known = kept.mapTo(HashSet()) { it.key }
+        var last = kept.filter { it.group == INBOX_ID }.maxOfOrNull { it.order }
+        val added = mutableListOf<Item>()
+        for (key in current) {
+            if (!known.add(key)) continue
+            val order = SortKey.between(last, null)
+            last = order
+            added += Item(key, INBOX_ID, order)
+        }
+        return Reconciliation(copy(items = kept + added), added.map { it.key }, dropped.map { it.key })
+    }
+
+    /**
+     * Moves [key] into [group] at [placement] and marks it manually placed. Only that session's item changes: its group and one new
+     * sort key. The value is whether anything changed. A drop where the session already is, or on itself, keeps its position but
+     * still marks it manually placed, so only the flag changes.
+     */
+    fun moveSession(key: SessionKey, group: String, placement: Placement): Edit<Boolean, MoveError> {
+        val index = items.indexOfFirst { it.key == key }
+        return when {
+            groups.none { it.id == group } -> Edit.Refused(MoveError.UnknownGroup(group))
+            index < 0 -> Edit.Refused(MoveError.UnknownSession(key.sessionId))
+            else -> placeItem(index, group, placement)
+        }
+    }
+
+    private fun placeItem(index: Int, group: String, placement: Placement): Edit<Boolean, MoveError> {
+        val item = items[index]
+        val anchor = placement.anchorOrNull()
+        if (anchor == item.key) return pin(index)
+        val neighbours = groupItems(group).filter { it.key != item.key }
+        val slot = if (anchor == null) {
+            neighbours.size
+        } else {
+            neighbours.indexOfFirst { it.key == anchor }.takeIf { it >= 0 }?.plus(if (placement is Placement.After) 1 else 0)
+                ?: return Edit.Refused(MoveError.AnchorNotInGroup(anchor.sessionId))
+        }
+        val lower = neighbours.getOrNull(slot - 1)?.order
+        val upper = neighbours.getOrNull(slot)?.order
+        val stays = item.group == group && (lower == null || lower < item.order) && (upper == null || item.order < upper)
+        return when {
+            stays -> pin(index)
+            lower != null && upper != null && lower >= upper -> Edit.Refused(MoveError.AmbiguousOrder(group))
+            else -> Edit.Done(
+                copy(items = items.replaced(index, item.copy(group = group, order = SortKey.between(lower, upper), manual = true))),
+                true,
+            )
+        }
+    }
+
+    /** Marks the item manually placed; the value is whether the flag changed. */
+    private fun pin(index: Int): Edit<Boolean, MoveError> {
+        val item = items[index]
+        return if (item.manual) Edit.Done(this, false) else Edit.Done(copy(items = items.replaced(index, item.copy(manual = true))), true)
+    }
+
+    /** Appends a group after the last one; the value is its id (`g<n>`). */
+    fun createGroup(name: String): Edit<String, GroupError> {
+        val clean = cleanName(name) ?: return Edit.Refused(GroupError.EmptyName)
+        if (nameTaken(clean, except = null)) return Edit.Refused(GroupError.DuplicateName(clean))
+        val id = generateSequence(groups.size) { it + 1 }.map { "g$it" }.first { candidate -> groups.none { it.id == candidate } }
+        val order = SortKey.between(orderedGroups().lastOrNull()?.order, null)
+        return Edit.Done(copy(groups = groups + Group(id, clean, order)), id)
+    }
+
+    /** Appends a group and moves [key] to its end as one change; on any refusal the layout is as it was. The value is the group's id. */
+    fun createGroupAndMove(name: String, key: SessionKey): Edit<String, CreateAndMoveError> {
+        if (items.none { it.key == key }) return Edit.Refused(CreateAndMoveError.Move(MoveError.UnknownSession(key.sessionId)))
+        val created = when (val created = createGroup(name)) {
+            is Edit.Refused -> return Edit.Refused(CreateAndMoveError.Group(created.error))
+            is Edit.Done -> created
+        }
+        return when (val moved = created.layout.moveSession(key, created.value, Placement.End)) {
+            is Edit.Refused -> Edit.Refused(CreateAndMoveError.Move(moved.error))
+            is Edit.Done -> Edit.Done(moved.layout, created.value)
+        }
+    }
+
+    /** Renames a group; Inbox keeps its name. The value is whether the name changed. */
+    fun renameGroup(id: String, name: String): Edit<Boolean, GroupError> {
+        val index = groups.indexOfFirst { it.id == id }
+        val clean = cleanName(name)
+        return when {
+            index < 0 -> Edit.Refused(GroupError.UnknownGroup(id))
+            id == INBOX_ID -> Edit.Refused(GroupError.InboxFixed)
+            clean == null -> Edit.Refused(GroupError.EmptyName)
+            nameTaken(clean, except = id) -> Edit.Refused(GroupError.DuplicateName(clean))
+            groups[index].name == clean -> Edit.Done(this, false)
+            else -> Edit.Done(copy(groups = groups.replaced(index, groups[index].copy(name = clean))), true)
+        }
+    }
+
+    /**
+     * Collapses or expands a section of the selected view: an owner group in My groups, a section id in a derived view. The value is
+     * whether the collapsed state changed.
+     */
+    fun setCollapsed(id: String, collapsed: Boolean): Edit<Boolean, GroupError> {
+        val current = view
+        if (!current.isEditable) {
+            val ids = collapsedSections[current.id].orEmpty()
+            val next = if (collapsed) ids + id else ids - id
+            val sections = if (next.isEmpty()) collapsedSections - current.id else collapsedSections + (current.id to next)
+            return Edit.Done(copy(collapsedSections = sections), next != ids)
+        }
+        val index = groups.indexOfFirst { it.id == id }
+        if (index < 0) return Edit.Refused(GroupError.UnknownGroup(id))
+        val group = groups[index]
+        return Edit.Done(copy(groups = groups.replaced(index, group.copy(collapsed = collapsed))), group.collapsed != collapsed)
+    }
+
+    /** Moves a group before or after another; only that group's sort key changes. The value is whether anything changed. */
+    fun moveGroup(id: String, placement: GroupPlacement): Edit<Boolean, GroupError> {
+        val index = groups.indexOfFirst { it.id == id }
+        val anchor = placement.anchorId
+        return when {
+            index < 0 -> Edit.Refused(GroupError.UnknownGroup(id))
+            groups.none { it.id == anchor } -> Edit.Refused(GroupError.UnknownGroup(anchor))
+            anchor == id -> Edit.Done(this, false)
+            else -> placeGroup(index, placement)
+        }
+    }
+
+    private fun placeGroup(index: Int, placement: GroupPlacement): Edit<Boolean, GroupError> {
+        val group = groups[index]
+        val others = orderedGroups().filter { it.id != group.id }
+        val slot = others.indexOfFirst { it.id == placement.anchorId } + if (placement is GroupPlacement.After) 1 else 0
+        val lower = others.getOrNull(slot - 1)?.order
+        val upper = others.getOrNull(slot)?.order
+        return when {
+            (lower == null || lower < group.order) && (upper == null || group.order < upper) -> Edit.Done(this, false)
+            lower != null && upper != null && lower >= upper -> Edit.Refused(GroupError.AmbiguousOrder)
+            else -> Edit.Done(copy(groups = groups.replaced(index, group.copy(order = SortKey.between(lower, upper)))), true)
+        }
+    }
+
+    /** Deletes a group and appends its sessions to the end of Inbox in their display order, keeping their manual flag. The value is the moved sessions. */
+    fun deleteGroup(id: String): Edit<List<SessionKey>, GroupError> {
+        if (groups.none { it.id == id }) return Edit.Refused(GroupError.UnknownGroup(id))
+        if (id == INBOX_ID) return Edit.Refused(GroupError.InboxFixed)
+        val moving = groupItems(id)
+        var last = items.filter { it.group == INBOX_ID }.maxOfOrNull { it.order }
+        val relocated = moving.associate { item ->
+            val order = SortKey.between(last, null)
+            last = order
+            item.key to item.copy(group = INBOX_ID, order = order)
+        }
+        val next = items.map { relocated[it.key] ?: it }
+        return Edit.Done(copy(groups = groups.filter { it.id != id }, items = next), moving.map { it.key })
+    }
+
+    /** Groups in order, each with the rows of its items in order. A row without a placement is left out until the next reconcile. */
+    fun <R> arrange(rows: List<R>, keyOf: (R) -> SessionKey): List<GroupSection<R>> {
+        val byKey = rows.associateBy(keyOf)
+        return orderedGroups().map { group ->
+            GroupSection(group.id, group.name, group.collapsed, groupItems(group.id).mapNotNull { byKey[it.key] })
+        }
+    }
+
+    private fun nameTaken(name: String, except: String?): Boolean {
+        val folded = name.lowercase()
+        return groups.any { it.id != except && it.name.lowercase() == folded }
+    }
+
+    companion object {
+        /** The stored format version this build reads. */
+        const val FORMAT_VERSION = 1
+
+        /** Inbox only. */
+        fun default(): Layout = Layout(null, emptyMap(), emptyMap(), listOf(inboxGroup(SortKey.between(null, null))), emptyList())
+
+        /**
+         * Builds a layout from stored data. Rejects a wrong version, an empty or repeated group id, an invalid sort key, an item in an
+         * unknown group and a session listed twice; re-adds a missing Inbox before the first group. An unknown view id is kept and
+         * selects My groups.
+         */
+        fun load(
+            version: Int,
+            view: String?,
+            filters: Map<String, StoredFilter>,
+            collapsedSections: Map<String, Set<String>>,
+            groups: List<Group>,
+            items: List<Item>,
+        ): LayoutLoad {
+            val problem = validate(version, groups, items)
+            if (problem != null) return LayoutLoad.Invalid(problem)
+            val repaired = groups.none { it.id == INBOX_ID }
+            val all = if (repaired) listOf(inboxGroup(SortKey.between(null, groups.minOfOrNull { it.order }))) + groups else groups
+            return LayoutLoad.Loaded(
+                Layout(view, filters.toMap(), collapsedSections.mapValues { it.value.toSet() }, all.toList(), items.toList()),
+                repaired,
+            )
+        }
+
+        private fun validate(version: Int, groups: List<Group>, items: List<Item>): String? {
+            if (version != FORMAT_VERSION) return "unsupported format version $version (this build reads version $FORMAT_VERSION)"
+            val ids = HashSet<String>()
+            val sessions = HashSet<SessionKey>()
+            return groups.firstNotNullOfOrNull { groupProblem(it, ids) } ?: items.firstNotNullOfOrNull { itemProblem(it, ids, sessions) }
+        }
+
+        private fun groupProblem(group: Group, ids: MutableSet<String>): String? = when {
+            group.id.isEmpty() || !ids.add(group.id) -> "group id \"${group.id}\" is empty or repeated"
+            !SortKey.isValid(group.order) -> "group \"${group.id}\" has an invalid order key \"${group.order}\""
+            else -> null
+        }
+
+        private fun itemProblem(item: Item, groupIds: Set<String>, sessions: MutableSet<SessionKey>): String? {
+            val id = item.key.sessionId
+            return when {
+                item.group !in groupIds -> "session \"$id\" is in unknown group \"${item.group}\""
+                !SortKey.isValid(item.order) -> "session \"$id\" has an invalid order key \"${item.order}\""
+                !sessions.add(item.key) -> "session \"$id\" is listed twice"
+                else -> null
+            }
+        }
+
+        private fun inboxGroup(order: String) = Group(INBOX_ID, INBOX_NAME, order)
+    }
+}
+
+private fun Placement.anchorOrNull(): SessionKey? = when (this) {
+    is Placement.Before -> anchor
+    is Placement.After -> anchor
+    Placement.End -> null
+}
+
+/** The name as stored: trimmed, or null when empty. */
+private fun cleanName(name: String): String? = name.trim().ifEmpty { null }
+
+private fun <T> List<T>.replaced(index: Int, value: T): List<T> = toMutableList().also { it[index] = value }
