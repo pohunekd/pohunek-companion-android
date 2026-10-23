@@ -3,6 +3,8 @@ package dev.pohunek.companion.debug
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import dev.pohunek.companion.core.data.attach.AttachSettings
+import dev.pohunek.companion.core.data.attach.ReattachPolicy
 import dev.pohunek.companion.core.data.attach.TerminalAttachment
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.protocol.HostRoute
@@ -13,6 +15,7 @@ import dev.pohunek.companion.terminal.TerminalController
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlin.time.TimeSource
 
 /** One entry into a session: the attachment and the controller of the terminal view it drives. */
 internal class ActiveAttach(val sessionId: String, val controller: TerminalController, val attachment: TerminalAttachment)
@@ -20,6 +23,7 @@ internal class ActiveAttach(val sessionId: String, val controller: TerminalContr
 /** State of the attach debug screen: the route, the session list of that daemon, and the attach in progress, if any. */
 internal class AttachDebugModel(
     private val config: AttachDebugConfig,
+    private val reattach: ReattachPolicy,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
     private val mainDispatcher: CoroutineDispatcher,
@@ -63,9 +67,8 @@ internal class AttachDebugModel(
             listed,
             session.id,
             controller,
-            config.client,
-            config.policy,
-            config.liveness,
+            AttachSettings(config.client, config.policy, config.liveness, reattach),
+            TimeSource.Monotonic,
             ioDispatcher,
             mainDispatcher,
             log,

@@ -36,6 +36,18 @@
     <integer name="attach_liveness_interval_ms">5000</integer>
     <!-- Milliseconds a liveness check may take before the attach fails with a liveness error: an integer greater than 0. -->
     <integer name="attach_liveness_timeout_ms">3000</integer>
+    <!-- Milliseconds before the first re-attach of an open terminal whose attachment broke; the wait doubles per consecutive failure: an integer greater than 0. -->
+    <integer name="reattach_initial_ms">500</integer>
+    <!--
+      Longest wait in milliseconds between two re-attaches, and how long an attach must hold before the failure count resets:
+      an integer of at least reattach_initial_ms.
+    -->
+    <integer name="reattach_max_ms">10000</integer>
+    <!--
+      Milliseconds an open terminal may stay without an attachment before it stops retrying and shows a final error (a session the
+      daemon reports ended or removed stops it at once): an integer greater than 0.
+    -->
+    <integer name="reattach_give_up_ms">600000</integer>
     <!--
       Seconds a session must stay idle, with no running subagent or background task, before it is shown as Idle instead of Working:
       an integer greater than 0.

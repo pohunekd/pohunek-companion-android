@@ -3,6 +3,8 @@ package dev.pohunek.companion.config
 import android.content.res.Resources
 import androidx.annotation.IntegerRes
 import dev.pohunek.companion.R
+import dev.pohunek.companion.core.data.attach.AttachSettings
+import dev.pohunek.companion.core.data.attach.ReattachPolicy
 import dev.pohunek.companion.core.data.live.LiveConfig
 import dev.pohunek.companion.protocol.AttachPolicy
 import dev.pohunek.companion.protocol.ClientConfig
@@ -13,33 +15,48 @@ import kotlin.time.Duration.Companion.seconds
 /** Validated tunables from `res/values/config.xml`. */
 class AppConfig private constructor(
     val client: ClientConfig,
-    val attachPolicy: AttachPolicy,
-    val attachLiveness: LivenessPolicy,
+    val attachSettings: AttachSettings,
     val live: LiveConfig,
     val logMaxBytes: Long,
 ) {
     companion object {
         fun load(resources: Resources): AppConfigResult = try {
+            val client = ClientConfig(
+                connectTimeout = positive(resources, "connect_timeout_ms", R.integer.connect_timeout_ms).milliseconds,
+                requestTimeout = positive(resources, "request_timeout_ms", R.integer.request_timeout_ms).milliseconds,
+            )
             AppConfigResult.Valid(
                 AppConfig(
-                    ClientConfig(
-                        connectTimeout = positive(resources, "connect_timeout_ms", R.integer.connect_timeout_ms).milliseconds,
-                        requestTimeout = positive(resources, "request_timeout_ms", R.integer.request_timeout_ms).milliseconds,
-                    ),
-                    AttachPolicy(
-                        maxAttempts = positive(resources, "attach_attempts", R.integer.attach_attempts).toInt(),
-                        retryDelay = positive(resources, "attach_retry_delay_ms", R.integer.attach_retry_delay_ms).milliseconds,
-                    ),
-                    LivenessPolicy(
-                        interval = positive(resources, "attach_liveness_interval_ms", R.integer.attach_liveness_interval_ms).milliseconds,
-                        timeout = positive(resources, "attach_liveness_timeout_ms", R.integer.attach_liveness_timeout_ms).milliseconds,
-                    ),
+                    client,
+                    attachSettings(resources, client),
                     liveConfig(resources),
                     atLeast(resources, "log_max_bytes", R.integer.log_max_bytes, MIN_LOG_MAX_BYTES),
                 ),
             )
         } catch (e: InvalidKey) {
             AppConfigResult.Invalid(e.key, e.detail)
+        }
+
+        private fun attachSettings(resources: Resources, client: ClientConfig) = AttachSettings(
+            client,
+            AttachPolicy(
+                maxAttempts = positive(resources, "attach_attempts", R.integer.attach_attempts).toInt(),
+                retryDelay = positive(resources, "attach_retry_delay_ms", R.integer.attach_retry_delay_ms).milliseconds,
+            ),
+            LivenessPolicy(
+                interval = positive(resources, "attach_liveness_interval_ms", R.integer.attach_liveness_interval_ms).milliseconds,
+                timeout = positive(resources, "attach_liveness_timeout_ms", R.integer.attach_liveness_timeout_ms).milliseconds,
+            ),
+            reattachPolicy(resources),
+        )
+
+        private fun reattachPolicy(resources: Resources): ReattachPolicy {
+            val initial = positive(resources, "reattach_initial_ms", R.integer.reattach_initial_ms)
+            return ReattachPolicy(
+                initialDelay = initial.milliseconds,
+                maxDelay = atLeast(resources, "reattach_max_ms", R.integer.reattach_max_ms, initial).milliseconds,
+                giveUpAfter = positive(resources, "reattach_give_up_ms", R.integer.reattach_give_up_ms).milliseconds,
+            )
         }
 
         private fun liveConfig(resources: Resources): LiveConfig {

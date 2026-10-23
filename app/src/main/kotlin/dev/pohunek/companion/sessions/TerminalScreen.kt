@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
 import dev.pohunek.companion.config.AppConfig
 import dev.pohunek.companion.core.data.attach.AttachState
+import dev.pohunek.companion.core.data.attach.FailureKind
 import dev.pohunek.companion.core.data.attach.TerminalAttachment
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.debug.RegisterScreenDump
@@ -34,6 +35,7 @@ import dev.pohunek.companion.terminal.TerminalController
 import dev.pohunek.companion.terminal.TerminalView
 import kotlinx.coroutines.CoroutineDispatcher
 import org.koin.mp.KoinPlatform
+import kotlin.time.TimeSource
 
 /** The terminal of one session, full screen. Leaving the destination detaches; every entry attaches anew. */
 @Composable
@@ -74,7 +76,7 @@ private fun BoxScope.AttachedTerminal(config: AppConfig, route: HostRoute, sessi
         val controller = TerminalController()
         val koin = KoinPlatform.getKoin()
         val attachment = TerminalAttachment(
-            route, sessionId, controller, config.client, config.attachPolicy, config.attachLiveness,
+            route, sessionId, controller, config.attachSettings, TimeSource.Monotonic,
             koin.get<CoroutineDispatcher>(ioDispatcher), koin.get<CoroutineDispatcher>(mainDispatcher), koin.get(),
         )
         TerminalSession(controller, attachment)
@@ -91,9 +93,16 @@ private fun BoxScope.AttachedTerminal(config: AppConfig, route: HostRoute, sessi
         AttachState.Connecting -> StatusPanel(Modifier.align(Alignment.TopCenter), onBack, showBack = false) {
             Text(stringResource(R.string.terminal_connecting), modifier = Modifier.testTag("Terminal.status"))
         }
+        is AttachState.Reconnecting -> StatusPanel(Modifier.align(Alignment.TopCenter), onBack, showBack = true) {
+            Text(stringResource(R.string.terminal_reconnecting, current.attempt), modifier = Modifier.testTag("Terminal.status"))
+        }
         is AttachState.Failed -> StatusPanel(Modifier.align(Alignment.TopCenter), onBack, showBack = true) {
             Text(
-                stringResource(R.string.terminal_failed, current.cause.message.orEmpty()),
+                when (current.kind) {
+                    FailureKind.SessionGone -> stringResource(R.string.terminal_session_gone)
+                    FailureKind.GaveUp -> stringResource(R.string.terminal_gave_up, current.cause.message.orEmpty())
+                    FailureKind.Unusable -> stringResource(R.string.terminal_failed, current.cause.message.orEmpty())
+                },
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.testTag("Terminal.error"),
             )

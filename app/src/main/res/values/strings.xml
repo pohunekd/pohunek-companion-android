@@ -25,6 +25,9 @@
     <string name="attach_refusal_ended">The session has ended and has no live terminal to attach to</string>
 
     <string name="terminal_connecting">Connecting</string>
+    <string name="terminal_reconnecting">Reconnecting (attempt %1$d)</string>
+    <string name="terminal_session_gone">The session has ended, was removed, or lost its terminal</string>
+    <string name="terminal_gave_up">Could not reconnect: %1$s</string>
     <string name="terminal_failed">Cannot attach: %1$s</string>
     <string name="terminal_detached">Detached</string>
     <string name="terminal_detach_unconfirmed">Detached, the daemon did not confirm: %1$s</string>
