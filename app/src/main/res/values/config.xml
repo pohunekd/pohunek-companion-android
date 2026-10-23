@@ -12,6 +12,22 @@
     <integer name="attach_attempts">2</integer>
     <!-- Milliseconds between two attach tries: an integer greater than 0. -->
     <integer name="attach_retry_delay_ms">500</integer>
+    <!-- Seconds between two periodic re-seeds (session.list) that correct what the event stream missed: an integer greater than 0. -->
+    <integer name="reseed_interval_secs">60</integer>
+    <!-- Milliseconds before the first reconnect to a daemon; the wait doubles per consecutive failure: an integer greater than 0. -->
+    <integer name="reconnect_initial_ms">500</integer>
+    <!--
+      Longest wait in milliseconds between two reconnects, and how long a connection must hold before the failure count resets:
+      an integer of at least reconnect_initial_ms.
+    -->
+    <integer name="reconnect_max_ms">30000</integer>
+    <!-- Milliseconds between two daemon.health probes that detect a silently dead connection: an integer greater than 0. -->
+    <integer name="liveness_interval_ms">10000</integer>
+    <!--
+      Milliseconds one probe, connecting included, may take before the connection is declared dead and re-established: an integer
+      greater than 0. A dead connection is noticed within liveness_interval_ms + liveness_timeout_ms.
+    -->
+    <integer name="liveness_timeout_ms">5000</integer>
     <!--
       Size limit in bytes of one log file (files/logs/app.log and the one rotated file app.log.1, so the log never takes more than twice
       this): an integer of at least 4096.

@@ -1,11 +1,15 @@
 package dev.pohunek.companion.sessions
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
 import dev.pohunek.companion.core.data.hosts.ConfiguredHost
 import dev.pohunek.companion.core.data.hosts.HostStore
 import dev.pohunek.companion.core.data.hosts.HostStoreException
 import dev.pohunek.companion.core.data.hosts.HostsLoad
-import dev.pohunek.companion.core.data.sessions.HostSessions
+import dev.pohunek.companion.core.data.live.HostLive
+import dev.pohunek.companion.core.data.live.HostLiveFactory
+import dev.pohunek.companion.core.data.live.LiveUpdate
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProtocolClientException
@@ -13,11 +17,17 @@ import dev.pohunek.companion.protocol.SessionInfo
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+/**
+ * The live loop of the saved host runs while [processLifecycle] is started, that is while the app is visible. Each return to the
+ * foreground reconnects and re-seeds at once.
+ */
 class SessionListViewModel(
     private val hosts: HostStore,
-    private val sessions: HostSessions,
+    private val liveFactory: HostLiveFactory,
+    private val processLifecycle: Lifecycle,
 ) : BaseViewModel<SessionListState, SessionListEvent, SessionListEffect>(SessionListState()) {
-    private var loadJob: Job? = null
+    private var live: HostLive? = null
+    private var liveJob: Job? = null
 
     init {
         viewModelScope.launch { applyLoaded(hosts.load()) }
@@ -42,7 +52,7 @@ class SessionListViewModel(
             is HostsLoad.Unreadable -> updateState { it.copy(hostsRead = true, storageError = load.reason) }
             is HostsLoad.Loaded -> {
                 updateState { it.copy(hostsRead = true, host = load.host, form = if (load.host == null) HostForm() else null) }
-                load.host?.let { loadSessions(it.route) }
+                load.host?.let { startLive(it.route) }
             }
         }
     }
@@ -57,27 +67,29 @@ class SessionListViewModel(
     }
 
     private fun refresh() {
-        val host = currentState.host ?: return
-        if (currentState.loading) return
-        loadSessions(host.route)
+        val live = live ?: return
+        if (currentState.refreshing) return
+        updateState { it.copy(refreshing = true, refusal = null) }
+        live.requestReseed()
     }
 
-    private fun loadSessions(route: HostRoute) {
-        loadJob?.cancel()
-        updateState { it.copy(loading = true, refusal = null) }
-        loadJob = viewModelScope.launch {
-            try {
-                val rows = sessions.list(route).map(SessionInfo::toRow)
-                updateState { it.copy(loading = false, rows = rows, error = null) }
-            } catch (e: ProtocolClientException.VersionMismatch) {
-                fail(ListError(incompatible = true, message = e.message.orEmpty()))
-            } catch (e: ProtocolClientException) {
-                fail(ListError(incompatible = false, message = e.message.orEmpty()))
+    private fun startLive(route: HostRoute) {
+        stopLive()
+        val session = liveFactory.create(route)
+        live = session
+        liveJob = viewModelScope.launch {
+            processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                updateState { it.copy(connection = ListConnection.Connecting, refreshing = false) }
+                session.updates().collect { update -> updateState { it.apply(update) } }
             }
         }
     }
 
-    private fun fail(error: ListError) = updateState { it.copy(loading = false, rows = null, error = error) }
+    private fun stopLive() {
+        liveJob?.cancel()
+        liveJob = null
+        live = null
+    }
 
     private fun openForm() {
         val state = currentState
@@ -104,9 +116,9 @@ class SessionListViewModel(
                 updateForm { it.copy(saving = false, error = e.message) }
                 return@launch
             }
-            loadJob?.cancel()
-            updateState { it.copy(host = host, form = null, rows = null, error = null) }
-            loadSessions(route)
+            stopLive()
+            updateState { it.copy(host = host, form = null, rows = null, connection = ListConnection.Connecting, refreshing = false) }
+            startLive(route)
         }
     }
 
@@ -121,7 +133,7 @@ class SessionListViewModel(
                 updateForm { it.copy(saving = false, error = e.message) }
                 return@launch
             }
-            loadJob?.cancel()
+            stopLive()
             updateState { SessionListState(hostsRead = true, form = HostForm()) }
         }
     }
@@ -137,3 +149,10 @@ private fun SessionInfo.toRow() = SessionRow(
     activity = activity,
     attachRefusal = AttachRefusal.forSession(external, state),
 )
+
+private fun SessionListState.apply(update: LiveUpdate): SessionListState = when (update) {
+    LiveUpdate.Connected -> copy(connection = ListConnection.Connected, refreshing = false)
+    is LiveUpdate.Sessions -> copy(rows = update.sessions.map(SessionInfo::toRow))
+    LiveUpdate.Reseeded -> copy(refreshing = false)
+    is LiveUpdate.Reconnecting -> copy(connection = ListConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false)
+}

@@ -4,22 +4,24 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.util.AtomicFile
 import android.util.Log
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import dev.pohunek.companion.config.AppConfig
 import dev.pohunek.companion.config.AppConfigResult
 import dev.pohunek.companion.core.data.hosts.HostStore
+import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.log.JsonLineLog
 import dev.pohunek.companion.core.data.log.LogMirror
 import dev.pohunek.companion.core.data.log.RotatingLogFile
-import dev.pohunek.companion.core.data.sessions.HostSessions
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogLevel
-import dev.pohunek.companion.protocol.ClientConfig
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import java.io.File
 import java.time.Clock
+import kotlin.time.TimeSource
 
 /** Qualifier of the dispatcher that runs blocking I/O. */
 val ioDispatcher = named("io")
@@ -52,7 +54,9 @@ val appModule = module {
             if (debuggable) LogMirror { level, _, line -> Log.println(level.priority(), LOGCAT_TAG, line) } else null,
         ) { failure -> Log.w(LOGCAT_TAG, "cannot write the log: ${failure.message}") }
     }
-    factory { (client: ClientConfig) -> HostSessions(client, get(ioDispatcher)) }
+    // The process lifecycle: the live loops run only while the app is visible.
+    single<Lifecycle> { ProcessLifecycleOwner.get().lifecycle }
+    factory { (config: AppConfig) -> HostLiveFactory(config.client, config.live, get(ioDispatcher), TimeSource.Monotonic, get()) }
 }
 
 private fun LogLevel.priority(): Int = when (this) {

@@ -8,8 +8,8 @@
     <string name="session_list_edit_host">Edit</string>
     <string name="session_list_loading">Loading sessions</string>
     <string name="session_list_empty">No sessions</string>
-    <string name="session_list_error">Cannot load sessions: %1$s</string>
-    <string name="session_list_incompatible">This host runs an incompatible Pohunek version: %1$s</string>
+    <string name="session_list_reconnecting">Reconnecting to %1$s (attempt %2$d): %3$s</string>
+    <string name="session_list_incompatible">%1$s runs an incompatible Pohunek version (attempt %2$d): %3$s</string>
     <string name="session_state_starting">starting</string>
     <string name="session_state_running">running</string>
     <string name="session_state_stopped">stopped</string>
