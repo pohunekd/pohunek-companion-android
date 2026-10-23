@@ -146,7 +146,11 @@ as the desktop companion: `v0.35.2` today.
   as no entry, and Problem is re-added to a stored selection on load), the query is kept only in memory. A query splits on
   whitespace and every token must match a name, project label, agent or Work badge as a subsequence, or a session id or Work
   id as a substring. With a query, sections without a match are dropped and the rest shown expanded; with only states,
-  sections the selection emptied are dropped. The project and host filters are separate (#63).
+  sections the selection emptied are dropped. A chip row of projects (All, labels ordered ignoring case, No project while some
+  session has none) and, with two or more hosts, a row of hosts (All hosts, each with connected or unreachable) narrow the
+  list as well; they are stored per view in the same `filters` entry (`project_label`, `no_project`, `host`), a tap on the
+  selected chip clears it, and a selected project or host that has gone keeps its chip and filters as empty. Like a query,
+  they expand the sections that match.
 - **Hosts** are a list of `(route, optional label)` in `hosts.json`; a route is
   listed once, so the same daemon under two spellings of its address (such as
   `127.0.0.1:PORT` and `localhost:PORT`) counts as two hosts. One live loop

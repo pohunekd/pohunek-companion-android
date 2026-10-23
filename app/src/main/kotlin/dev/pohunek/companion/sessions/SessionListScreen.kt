@@ -124,6 +124,8 @@ private fun SessionListContent(
                 state.statuses.forEach { HostStatusLine(it) }
                 ViewChips(state.view, onEvent)
                 StateChips(state.stateChips, state.states, onEvent)
+                if (state.projectChips.size > 1) ProjectChips(state.projectChips, onEvent)
+                if (state.hostOptions.isNotEmpty()) HostChips(state.hostOptions, onEvent)
                 SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())
                 RowWindows(state, onEvent)
             }

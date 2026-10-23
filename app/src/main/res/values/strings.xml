@@ -27,6 +27,11 @@
     <string name="state_chip_problem">Problem</string>
     <string name="state_chip_ended">Ended</string>
     <string name="state_chip_no_agent">No agent</string>
+    <string name="project_chip_all">All</string>
+    <string name="project_chip_none">No project</string>
+    <string name="host_chip_all">All hosts</string>
+    <string name="host_chip_connected">%1$s (connected)</string>
+    <string name="host_chip_unreachable">%1$s (unreachable)</string>
     <string name="view_my_groups">My groups</string>
     <string name="view_by_state">By state</string>
     <string name="view_by_project">By project</string>

@@ -177,7 +177,10 @@ scripts/ui-agent pohunek ARGS...
   `app/src/main/res/values/config.xml` is invalid. `SessionList.state.KEY` chips (KEY is `needs-you`, `working`, `idle`, `ended`, and `runtime-problem` and `no-agent-state` while a session has
   that state; a tap toggles the state of the shown view, Ended is off by default, and `layout.json` keeps the selection under `filters`, nothing when it is the default),
   `SessionList.openSearch` replacing the title by the field `SessionList.search` with `SessionList.searchClose` (type to narrow the list; the query is not stored;
-  `SessionList.noMatch` when nothing matches; delete characters with `adb shell input keyevent KEYCODE_DEL` as for Settings), the app log has `layout.states_changed`. The app log
+  `SessionList.noMatch` when nothing matches; the project chips `SessionList.projectAll`, `SessionList.project` per label (`click TAG N` counts from 0) and
+  `SessionList.projectNone` (shown while some session has no project; a tap selects the project, a second tap clears it) and, with two or more hosts, the host chips
+  `SessionList.hostFilterAll` and `SessionList.hostFilter` per host (text `<label> (connected)` or `(unreachable)`); both choices are stored per view under `filters`
+  (`project_label`, `no_project`, `host`) and the app log has `layout.project_changed` and `layout.host_changed`; delete characters with `adb shell input keyevent KEYCODE_DEL` as for Settings), the app log has `layout.states_changed`. The app log
   (`scripts/ui-agent app-file cat logs/app.log`) records `host.added`, `host.edited` and `host.removed` with
   the host key, and `live.owner_state` with the session id and the previous and new owner state each time a
   session changes state, which is how a `pohunek notification create|delete` is observed without waiting for

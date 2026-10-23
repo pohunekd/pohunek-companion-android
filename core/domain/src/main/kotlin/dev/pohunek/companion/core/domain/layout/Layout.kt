@@ -39,6 +39,30 @@ data class Layout private constructor(
     /** Stores the state selection of [view] and keeps the rest of its filter. */
     fun withStates(view: LayoutView, selection: StateSelection): Layout = withFilter(view, filter(view).copy(states = selection.storedKeys()))
 
+    /** The project [view] is narrowed to; a project label wins over the No project flag. */
+    fun project(view: LayoutView): ProjectSelection = filter(view).let { stored ->
+        when {
+            stored.projectLabel != null -> ProjectSelection.Project(stored.projectLabel)
+            stored.noProject -> ProjectSelection.NoProject
+            else -> ProjectSelection.All
+        }
+    }
+
+    /** Stores the project selection of [view] and keeps the rest of its filter. */
+    fun withProject(view: LayoutView, selection: ProjectSelection): Layout = withFilter(
+        view,
+        filter(view).copy(
+            projectLabel = (selection as? ProjectSelection.Project)?.label,
+            noProject = selection == ProjectSelection.NoProject,
+        ),
+    )
+
+    /** The key of the host [view] is narrowed to, or null for every host. */
+    fun host(view: LayoutView): String? = filter(view).host?.ifEmpty { null }
+
+    /** Stores the host of [view] (null: every host) and keeps the rest of its filter. */
+    fun withHost(view: LayoutView, host: String?): Layout = withFilter(view, filter(view).copy(host = host))
+
     /** Groups in display order. */
     fun orderedGroups(): List<Group> = groups.sortedWith(compareBy<Group>({ it.order }, { it.id }))
 

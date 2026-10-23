@@ -4,8 +4,10 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -23,6 +25,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import dev.pohunek.companion.R
+import dev.pohunek.companion.core.domain.layout.HostOption
+import dev.pohunek.companion.core.domain.layout.HostReach
+import dev.pohunek.companion.core.domain.layout.ProjectChip
+import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.filterKey
 import dev.pohunek.companion.core.domain.sessions.OwnerState
@@ -45,6 +51,62 @@ internal fun StateChips(chips: List<OwnerState>, selection: StateSelection, onEv
             )
         }
     }
+}
+
+/** The chip row that narrows the list to one project; a tap on the selected chip clears it. */
+@Composable
+internal fun ProjectChips(chips: List<ProjectChip>, onEvent: (SessionListEvent) -> Unit) {
+    ChipRow {
+        for (chip in chips) {
+            val (tag, text) = when (chip.selection) {
+                ProjectSelection.All -> "SessionList.projectAll" to stringResource(R.string.project_chip_all)
+                ProjectSelection.NoProject -> "SessionList.projectNone" to stringResource(R.string.project_chip_none)
+                is ProjectSelection.Project -> "SessionList.project" to chip.label.orEmpty()
+            }
+            FilterChip(
+                selected = chip.selected,
+                onClick = { onEvent(SessionListEvent.TapProject(chip.selection)) },
+                label = { ChipText(text) },
+                modifier = Modifier.testTag(tag),
+            )
+        }
+    }
+}
+
+/** The chip row that narrows the list to one host: All hosts, then each host with its connection. */
+@Composable
+internal fun HostChips(options: List<HostOption>, onEvent: (SessionListEvent) -> Unit) {
+    ChipRow {
+        for (option in options) {
+            val text = when (option.reach) {
+                null -> stringResource(R.string.host_chip_all)
+                HostReach.Connected -> stringResource(R.string.host_chip_connected, option.label.orEmpty())
+                HostReach.Unreachable -> stringResource(R.string.host_chip_unreachable, option.label.orEmpty())
+            }
+            FilterChip(
+                selected = option.selected,
+                onClick = { onEvent(SessionListEvent.TapHost(option.key)) },
+                label = { ChipText(text) },
+                modifier = Modifier.testTag(if (option.key == null) "SessionList.hostFilterAll" else "SessionList.hostFilter"),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChipRow(content: @Composable RowScope.() -> Unit) {
+    val spacing = PohunekTheme.spacing
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = spacing.gutter),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        content = content,
+    )
+}
+
+/** A chip label cut to one line: project labels and host names are untrusted and of any length. */
+@Composable
+private fun ChipText(text: String) {
+    Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = PohunekTheme.filterChipMaxWidth))
 }
 
 @StringRes
