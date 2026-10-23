@@ -22,10 +22,10 @@ import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** The actions of one row; an action the row cannot offer is absent. The sheet is a window of its own, so it exposes its test tags itself. */
+/** The actions of one row; an action the row cannot offer is absent. [canMove] is false in a derived view, which is read-only. The sheet is a window of its own, so it exposes its test tags itself. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun RowActionSheet(row: SessionRow, resuming: Boolean, onEvent: (SessionListEvent) -> Unit) {
+internal fun RowActionSheet(row: SessionRow, resuming: Boolean, canMove: Boolean, onEvent: (SessionListEvent) -> Unit) {
     ModalBottomSheet(onDismissRequest = {
         onEvent(SessionListEvent.DismissActions)
     }, modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("RowSheet")) {
@@ -46,7 +46,9 @@ internal fun RowActionSheet(row: SessionRow, resuming: Boolean, onEvent: (Sessio
             if (row.canRename) {
                 SheetAction(stringResource(R.string.row_action_rename), "RowSheet.rename") { onEvent(SessionListEvent.OpenRename(row.ref)) }
             }
-            SheetAction(stringResource(R.string.row_action_move), "RowSheet.move") { onEvent(SessionListEvent.OpenMoveToGroup(row.ref)) }
+            if (canMove) {
+                SheetAction(stringResource(R.string.row_action_move), "RowSheet.move") { onEvent(SessionListEvent.OpenMoveToGroup(row.ref)) }
+            }
             if (row.hasLink) {
                 SheetAction(stringResource(R.string.row_action_open_link), "RowSheet.openLink") { onEvent(SessionListEvent.OpenLink(row.ref)) }
             }

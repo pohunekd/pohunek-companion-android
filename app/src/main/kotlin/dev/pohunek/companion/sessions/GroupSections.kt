@@ -9,9 +9,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.IconButton
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,9 +58,12 @@ private fun LayoutView.labelRes(): Int = when (this) {
     LayoutView.BY_WORK_ITEM -> R.string.view_by_work_item
 }
 
-/** The header of a section: its name, how many sessions it holds and a tap target that collapses or expands it. */
+/**
+ * The header of a section: its name, how many sessions it holds and a tap target that collapses or expands it. An owner group other
+ * than Inbox has a menu; the sections of a derived view are [editable] only in My groups, so they have none.
+ */
 @Composable
-internal fun GroupHeader(section: GroupSection<SessionRow>, onEvent: (SessionListEvent) -> Unit) {
+internal fun GroupHeader(section: GroupSection<SessionRow>, editable: Boolean, onEvent: (SessionListEvent) -> Unit) {
     val spacing = PohunekTheme.spacing
     val state = stringResource(if (section.collapsed) R.string.group_collapsed else R.string.group_expanded)
     Row(
@@ -83,7 +86,7 @@ internal fun GroupHeader(section: GroupSection<SessionRow>, onEvent: (SessionLis
             modifier = Modifier.weight(1f).padding(start = spacing.md),
         )
         Text(section.rows.size.toString(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (section.id != INBOX_ID) {
+        if (editable && section.id != INBOX_ID) {
             IconButton(onClick = { onEvent(SessionListEvent.OpenGroupMenu(section.id)) }, modifier = Modifier.testTag("GroupHeader.more")) {
                 MoreIcon(stringResource(R.string.group_more))
             }
