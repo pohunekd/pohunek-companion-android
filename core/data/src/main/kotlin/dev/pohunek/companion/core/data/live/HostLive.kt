@@ -111,17 +111,19 @@ class HostLive(
         suspend fun seed(initial: Boolean) {
             val sessions = transport.fetchSeed()
             val change = store.applySeed(sessions)
-            drain()
+            val buffered = drain()
             val counts = listOf(
                 hostKey,
                 LogField.number("sessions", sessions.size.toLong()),
                 LogField.number("added", change.added.toLong()),
                 LogField.number("removed", change.removed.toLong()),
                 LogField.number("changed", change.changed.toLong()),
+                LogField.number("buffered", buffered.toLong()),
             )
+            // Events that arrived while the seed was fetched explain a difference; only an unexplained one is a missed event.
             when {
                 initial -> log.info("live.seeded", counts)
-                change.isEmpty -> log.info("live.reseeded", counts)
+                change.isEmpty || buffered > 0 -> log.info("live.reseeded", counts)
                 else -> log.warn("live.reseed_corrected", counts)
             }
             val now = timeSource.markNow()
@@ -129,8 +131,13 @@ class HostLive(
             probeDue = now + config.livenessInterval
         }
 
-        fun drain() {
-            while (true) apply(inbox.tryReceive().getOrNull() ?: return)
+        /** Applies the buffered messages and returns how many there were. */
+        fun drain(): Int {
+            var count = 0
+            while (true) {
+                apply(inbox.tryReceive().getOrNull() ?: return count)
+                count++
+            }
         }
 
         /** Returns whether the store changed. */
