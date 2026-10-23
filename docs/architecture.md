@@ -46,8 +46,8 @@ as the desktop companion: `v0.35.2` today.
 - Liveness (departs from the desktop on purpose): the desktop keeps its store
   when a periodic re-seed fails and has no heartbeat, which on a phone leaves a
   frozen list that looks live. Here a failed re-seed, or a `daemon.health` probe
-  (own connection, every `attach_liveness_interval_ms`, bounded by
-  `attach_liveness_timeout_ms`) that fails, ends the connection and the loop reconnects
+  (own connection, every `liveness_interval_ms`, bounded by
+  `liveness_timeout_ms`) that fails, ends the connection and the loop reconnects
   with backoff. The probe detects a dead network path; it does not look at the
   subscription socket itself.
 - Lifecycle (until M4's foreground service): the live loops run only while the
