@@ -7,6 +7,12 @@ object Fixtures {
     fun text(name: String): String =
         (Fixtures::class.java.getResourceAsStream("/fixtures/$name.json") ?: error("missing fixture $name")).use { it.readBytes().toString(Charsets.UTF_8) }
 
+    /** Fixtures captured from the isolated daemon; see `captured/README.md`. */
+    fun captured(name: String): String =
+        (Fixtures::class.java.getResourceAsStream("/captured/$name.json") ?: error("missing captured fixture $name")).use {
+            it.readBytes().toString(Charsets.UTF_8)
+        }
+
     fun json(name: String): JsonElement = Wire.json.parseToJsonElement(text(name))
 }
 

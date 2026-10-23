@@ -1,0 +1,32 @@
+{
+  "event": "session_created",
+  "session": {
+    "agent": "shell",
+    "agent_base": "shell",
+    "capabilities": {
+      "fork": false,
+      "resume": false
+    },
+    "cols": 80,
+    "created_at": "2026-10-23T10:57:32.005255233Z",
+    "cwd": "/tmp",
+    "cwd_source": "launch",
+    "external": false,
+    "id": "s-01M5M6HA9W9RB9PHX1XPH9PG93",
+    "name": "capture-a",
+    "pid": 879,
+    "rows": 24,
+    "runtime": {
+      "last_connected_at": "2026-10-23T10:57:32.108628258Z",
+      "runtime_generation": "1",
+      "started_at": "2026-10-23T10:57:32.108628258Z",
+      "state": "live",
+      "worker_id": "worker-ea57c4772abcb7f272367bf3b4dc74ed",
+      "worker_instance_id": "runtime-99f6c1700c0f3a1a558689c8ce02a4e1"
+    },
+    "state": "running",
+    "state_source": "process",
+    "updated_at": "2026-10-23T10:57:32.108641748Z"
+  },
+  "v": 4
+}

@@ -157,7 +157,10 @@ packages. Re-take it when `ghostty_commit` changes.
 - License: MIT, Copyright (c) 2026 pohunekd
   (https://github.com/pohunekd/pohunek-companion/blob/0b9d150170bb4829ad59ddcead9d4a4cd02b00b8/LICENSE)
 - Files ported to Kotlin: `attach.rs` (only the attach refusal rules, in
-  `app/.../sessions/AttachRefusal.kt`). Planned: `live.rs`, `needs_you.rs`, `filter.rs`,
+  `app/.../sessions/AttachRefusal.kt`) and `model.rs` (session seed and event
+  reconcile, without attention, owner state, and the `agent_state`,
+  `subagent_state`, `background_state` handling) as
+  `core/domain/.../sessions/SessionStore.kt`. Planned: `live.rs`, `needs_you.rs`, `filter.rs`,
   `layout.rs`, `discovery.rs`, `view.rs`, `sort_key.rs`. Pinned commit for the license text:
   `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 
@@ -172,4 +175,7 @@ packages. Re-take it when `ghostty_commit` changes.
   `protocol-error-with-recover.json`, `protocol-error-without-recover.json`,
   `session-info-full.json`, `session-info-minimal.json`,
   `session-list-filter-state.json`. The remaining fixtures are planned for the
-  issues that cover their methods and events.
+  issues that cover their methods and events. Where the SDK has none, fixtures
+  are captured from the isolated daemon of the same tag
+  (`protocol/src/test/resources/captured/`, see its README); those are this
+  project's own files.
