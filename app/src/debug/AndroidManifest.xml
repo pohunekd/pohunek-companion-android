@@ -13,13 +13,6 @@
             android:name=".debug.GestureDemoActivity"
             android:exported="true"
             android:label="@string/gesture_demo_title" />
-        <!-- Handles rotation in place, so it resizes the attached PTY instead of attaching again. Exported for `ui-agent start`'s launch. -->
-        <activity
-            android:name=".debug.AttachDebugActivity"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale|locale|layoutDirection"
-            android:exported="true"
-            android:label="@string/attach_debug_title"
-            android:windowSoftInputMode="adjustResize" />
         <!-- Only the adb shell holds android.permission.DUMP, so only the host can trigger a clipboard dump. -->
         <receiver
             android:name=".debug.ClipboardDumpReceiver"

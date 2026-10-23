@@ -190,23 +190,17 @@ scripts/ui-agent pohunek ARGS...
   `attach_closed`; press it twice while the soft keyboard is open, the first press hides
   it, and never past the list, which leaves the app). A stopped, done, failed, external, or
   starting session opens nothing and shows `SessionList.refusal` (`SessionList.refusalDismiss`
-  clears it). `screen` and `session-screen ID` work on it as on the debug screen, and
+  clears it). `screen` and `session-screen ID` work on it (see "Screen dumps"), and
   rotation resizes the PTY in place.
-- **Attach debug screen.** Open it in a debug build with `podman exec
-  pohunek-ui-agent-slot-N adb -s SERIAL shell am start -n
-  dev.pohunek.companion/.debug.AttachDebugActivity` (SERIAL from `status`). Tap
-  `AttachDebug.route`, `type 127.0.0.1:PORT` (PORT from `status`), `click
-  AttachDebug.list`, then `click AttachDebug.session N` to attach the Nth
-  session; `AttachDebug.status` and `AttachDebug.error` carry the attach state
-  and any error, `AttachDebug.detach` leaves, and `AttachDebug.terminal` is the
-  terminal (tap it before `type` or `key`). `screen` writes the visible grid as
-  text through a debug-only broadcast receiver (absent from release builds) and
-  `session-screen ID` prints the isolated daemon's rendering of the same
-  session; both are trimmed of trailing whitespace and blank lines, so `diff`
-  compares them, and `session-screen ID --size` prints the PTY size as
-  `COLSxROWS`. `screen` can print session content: on `--owner-daemon` or
-  `--device phone` runs it is not publishable. Rotation is handled in place and
-  sends `session.resize`.
+- **Screen dumps.** `screen` writes the visible grid of the open `Terminal` as text through
+  a debug-only broadcast receiver (absent from release builds) and `session-screen ID` prints
+  the isolated daemon's rendering of the same session; both are trimmed of trailing whitespace
+  and blank lines, so `diff` compares them, and `session-screen ID --size` prints the PTY size
+  as `COLSxROWS`. `screen` fails with a message when no terminal is open. It can print session
+  content: on `--owner-daemon` or `--device phone` runs it is not publishable. Rotation is
+  handled in place and sends `session.resize`. The debug build's `TerminalDemoActivity`
+  (`am start -n dev.pohunek.companion/.debug.TerminalDemoActivity`) shows a terminal on a local
+  demo session without a daemon.
 - **Phone.** `--device phone` uses the adb Wi-Fi address in
   `UI_AGENT_PHONE_ADB=HOST:PORT` instead of an emulator and never changes the
   phone's settings. Pair it once with `scripts/dev --android-home adb pair

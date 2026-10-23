@@ -678,7 +678,7 @@ screen() {
   case "$out" in
     *"result=1"*) ;;
     *"result=2"*) die "no screen: $(sed -n 's/.*data="\(.*\)".*/\1/p' <<<"$out")" ;;
-    *) die "the screen-dump receiver did not answer (is the attach debug screen open in a debug build?): $out" ;;
+    *) die "the screen-dump receiver did not answer (is a terminal open in a debug build?): $out" ;;
   esac
   adbd exec-out "run-as $package cat files/debug/screen.txt" | trim_screen
 }
