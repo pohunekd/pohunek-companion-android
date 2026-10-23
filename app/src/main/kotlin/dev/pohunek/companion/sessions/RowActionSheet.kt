@@ -18,13 +18,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextOverflow
 import dev.pohunek.companion.R
+import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
 /** The actions of one row; an action the row cannot offer is absent. The sheet is a window of its own, so it exposes its test tags itself. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun RowActionSheet(row: SessionRow, onEvent: (SessionListEvent) -> Unit) {
+internal fun RowActionSheet(row: SessionRow, resuming: Boolean, onEvent: (SessionListEvent) -> Unit) {
     ModalBottomSheet(onDismissRequest = {
         onEvent(SessionListEvent.DismissActions)
     }, modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("RowSheet")) {
@@ -40,6 +41,7 @@ internal fun RowActionSheet(row: SessionRow, onEvent: (SessionListEvent) -> Unit
             if (row.attachRefusal == null) {
                 SheetAction(stringResource(R.string.row_action_open_terminal), "RowSheet.openTerminal") { onEvent(SessionListEvent.OpenSession(row.ref)) }
             }
+            ResumeAction(row.resume, resuming, onEvent, row.ref)
             SheetAction(stringResource(R.string.row_action_details), "RowSheet.details") { onEvent(SessionListEvent.OpenDetails(row.ref)) }
             if (row.canRename) {
                 SheetAction(stringResource(R.string.row_action_rename), "RowSheet.rename") { onEvent(SessionListEvent.OpenRename(row.ref)) }
@@ -56,6 +58,23 @@ internal fun RowActionSheet(row: SessionRow, onEvent: (SessionListEvent) -> Unit
                 }
             }
         }
+    }
+}
+
+/** Resume when the daemon offers it; for an ended session it cannot resume, the reason instead. */
+@Composable
+private fun ResumeAction(offer: ResumeOffer, resuming: Boolean, onEvent: (SessionListEvent) -> Unit, ref: RowRef) {
+    when {
+        offer == ResumeOffer.Available && resuming -> ListItem(
+            headlineContent = { Text(stringResource(R.string.row_action_resuming)) },
+            modifier = Modifier.testTag("RowSheet.resuming"),
+        )
+        offer == ResumeOffer.Available -> SheetAction(stringResource(R.string.row_action_resume), "RowSheet.resume") { onEvent(SessionListEvent.Resume(ref)) }
+        offer is ResumeOffer.Refused -> ListItem(
+            headlineContent = { Text(offer.sentence, color = MaterialTheme.colorScheme.error) },
+            overlineContent = { Text(stringResource(R.string.row_action_resume_refused)) },
+            modifier = Modifier.testTag("RowSheet.resumeRefusal"),
+        )
     }
 }
 

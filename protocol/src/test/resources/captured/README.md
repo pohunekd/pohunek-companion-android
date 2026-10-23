@@ -23,6 +23,7 @@ Captured as received (keys sorted, pretty-printed):
   `session-rename-control-char-error.json`: the `daemon/bad_request` refusal of a name with a control
   character (request ids rewritten to `req-1` to `req-3`, working directories to `/work/...`).
 - `session-rename-request.jsonl`, `session-rename-clear-request.jsonl`: the request lines of the client's encoder that the isolated daemon answered `ok` (session id rewritten to `s-1`), sent with `socat` as in the capture command below.
+- `session-resume-request.jsonl`: the bare-id request line of the client's encoder (session id rewritten to `s-1`); the isolated daemon parsed it and answered with `session-resume-not-resumable-error.json`, the `runtime/agent_not_resumable` refusal of a stopped `claude` session. No session of the isolated daemon is resumable (none has a native session), so a successful `session.resume` result is not captured; its `{session}` body is the shape of `session.rename`.
 - `session-list-response.json`: the `session.list` response with the four fixed
   synthetic sessions and one created later; `alpha-agent` carries
   `runtime.state` `lost` with `loss_reason`, as left by a daemon restart.

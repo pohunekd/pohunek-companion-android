@@ -44,7 +44,8 @@ private fun hasRunningWork(info: SessionInfo): Boolean {
     return subagent || background
 }
 
-private fun isEnded(info: SessionInfo): Boolean =
+/** A terminal session state or a lost runtime. */
+internal fun isEnded(info: SessionInfo): Boolean =
     info.state == SessionState.Stopped || info.state == SessionState.Done || info.state == SessionState.Failed || info.runtime?.state == RuntimeState.Lost
 
 /**

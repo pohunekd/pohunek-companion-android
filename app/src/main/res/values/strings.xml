@@ -26,6 +26,12 @@
     <string name="row_action_open_link">Open link</string>
     <string name="row_action_details">Details</string>
     <string name="row_action_rename">Rename...</string>
+    <string name="row_action_resume">Resume</string>
+    <string name="row_action_resuming">Resuming...</string>
+    <string name="row_action_resume_refused">Cannot resume</string>
+    <string name="resume_started">Resumed %1$s; attach once it is running.</string>
+    <string name="resume_failed">Cannot resume %1$s: %2$s</string>
+    <string name="resume_failed_on_host">Cannot resume %1$s on %2$s: %3$s</string>
     <string name="rename_title">Rename session</string>
     <string name="rename_placeholder">Session name (empty clears)</string>
     <string name="rename_save">Save</string>

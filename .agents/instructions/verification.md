@@ -144,7 +144,7 @@ scripts/ui-agent pohunek ARGS...
   reason` for a daemon refusal such as `version_mismatch`). Recovery can take up to the current backoff, so
   wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh and
   `SessionList.refresh` ask every host for a re-seed, `SessionList.empty` and `SessionList.loading` carry the
-  other states, each row has `SessionList.rowWork` (project, Work badge and role) and, on a connected host, `SessionRow.more`, which, like a long press on the row, opens the action sheet `RowSheet` (`RowSheet.title`, `RowSheet.openTerminal`, `RowSheet.details`, `RowSheet.rename` on a connected host's non-external session, `RowSheet.openLink` when the session has an openable link, `RowSheet.stop` and `RowSheet.remove` per the desktop's offer rules; the sheet is a separate window, so `tree` lists it only while it is open), `RowSheet.details` opens `SessionDetails.list` full screen (`SessionDetails.title`, `SessionDetails.back`,
+  other states, each row has `SessionList.rowWork` (project, Work badge and role) and, on a connected host, `SessionRow.more`, which, like a long press on the row, opens the action sheet `RowSheet` (`RowSheet.title`, `RowSheet.openTerminal`, `RowSheet.details`, `RowSheet.rename` on a connected host's non-external session, `RowSheet.resume` on an ended session the daemon can resume (`RowSheet.resuming` while the request runs), `RowSheet.resumeRefusal` with the daemon's reason on an ended session it cannot, `RowSheet.openLink` when the session has an openable link, `RowSheet.stop` and `RowSheet.remove` per the desktop's offer rules; the sheet is a separate window, so `tree` lists it only while it is open), `RowSheet.details` opens `SessionDetails.list` full screen (`SessionDetails.title`, `SessionDetails.back`,
   `SessionDetails.copyAll`, and per field `SessionDetails.value.KEY` and `SessionDetails.copy.KEY`, KEY being `session_id`, `host`,
   `cwd`, `work_link`, ...; scroll with `swipe SessionDetails.list up`); it follows the daemon live and shows
   `SessionDetails.removed` once the session is gone, and `ui-agent clipboard` reads what Copy put on the clipboard, `RowSheet.rename` opens the dialog `RenameDialog` (`RenameDialog.name` prefilled with the name, empty when the row shows its id; `RenameDialog.save`, `RenameDialog.cancel`, `RenameDialog.error` with `Cannot rename <id>[ on <host>]: <msg> (<recover>)`; it is a separate window like the sheet; the row changes when the daemon's session event arrives; a control character cannot be typed through `input text`, so use a name over 128 bytes for a daemon refusal), `RowSheet.stop` and `RowSheet.remove` open `ActionDialog` (a window of its own, listed
@@ -154,7 +154,7 @@ scripts/ui-agent pohunek ARGS...
   `session.action_failed` with host key, session id, method and error code; the isolated daemon's own log records no requests, so a dismissal is
   shown by the absence of `session.action` and by `pohunek session list`; the debug build's `ActionDialogDemoActivity` (`am start -n
   dev.pohunek.companion/.debug.ActionDialogDemoActivity`; `ActionDemo.remove`, `ActionDemo.busy`) walks the "Remove anyway" steps the isolated
-  daemon cannot produce), and `ConfigError.message` replaces the app when a value in
+  daemon cannot produce), and a tap on an ended session that can be resumed (a stopped, done or failed one, or one with a lost runtime) sends `session.resume` instead of opening a terminal, like `RowSheet.resume`, and then opens the terminal when the reply says it runs, else `SessionList.resumeNote` reads `Resumed <name>; attach once it is running.`; a failure reads `Cannot resume <id>[ on <host>]: <msg> (<recover>)` in the same `SessionList.resumeNote` (dismiss with `SessionList.resumeNoteDismiss`), a tap on one the daemon cannot resume shows its reason there, `SessionDetails.value.resume` carries the same reason, and a changed agent profile (`agent_profile_changed`) names `pohunek session resume --accept-profile-change SESSION` to run on the host, `ConfigError.message` replaces the app when a value in
   `app/src/main/res/values/config.xml` is invalid. The app log
   (`scripts/ui-agent app-file cat logs/app.log`) records `host.added`, `host.edited` and `host.removed` with
   the host key, and `live.owner_state` with the session id and the previous and new owner state each time a
@@ -209,8 +209,8 @@ scripts/ui-agent pohunek ARGS...
   terminal ends with a final message there; `kill -STOP`/`-CONT` of `pohunekd` in the slot
   container freezes the daemon without losing the sessions. System back detaches and returns to the list (the daemon records
   `attach_closed`; press it twice while the soft keyboard is open, the first press hides
-  it, and never past the list, which leaves the app). A stopped, done, failed, external, or
-  starting session opens nothing and shows `SessionList.refusal` (`SessionList.refusalDismiss`
+  it, and never past the list, which leaves the app). An external or
+  starting session, and an ended one that is not resumable, opens nothing and shows `SessionList.refusal` or `SessionList.resumeNote` (`SessionList.refusalDismiss`
   clears it). `screen` and `session-screen ID` work on it (see "Screen dumps"), and
   rotation resizes the PTY in place.
 - **Screen dumps.** `screen` writes the visible grid of the open `Terminal` as text through

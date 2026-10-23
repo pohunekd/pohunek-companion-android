@@ -1,0 +1,9 @@
+{
+  "err": {
+    "class": "runtime",
+    "code": "agent_not_resumable",
+    "msg": "claude sessions cannot be resumed"
+  },
+  "id": "req-1",
+  "v": 4
+}

@@ -62,6 +62,9 @@ object Requests {
         return Request(Wire.CLIENT_RANGE, id, "session.rename", params)
     }
 
+    /** The bare session id shape: it never accepts an agent profile change, which only the local socket may approve. */
+    fun sessionResume(id: String, sessionId: String): Request = Request(Wire.CLIENT_RANGE, id, "session.resume", JsonPrimitive(sessionId))
+
     /** Turns the connection into the daemon's event stream; the `ok` result is `{"subscribed":true}`. */
     fun subscribe(id: String): Request = Request(Wire.CLIENT_RANGE, id, "subscribe", JsonNull)
 

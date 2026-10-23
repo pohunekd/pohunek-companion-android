@@ -96,6 +96,10 @@ class PohunekConnection private constructor(
     suspend fun rename(sessionId: String, name: String?): SessionInfo =
         call { Requests.sessionRename(it, sessionId, name) }.decodeResult(SessionRenameResult.serializer()).session
 
+    /** Starts a new generation of the ended [sessionId]; the returned summary says whether it already runs. */
+    suspend fun resume(sessionId: String): SessionInfo =
+        call { Requests.sessionResume(it, sessionId) }.decodeResult(SessionResumeResult.serializer()).session
+
     suspend fun detach(streamId: String): SessionDetachResult =
         call { Requests.sessionDetach(it, streamId) }.decodeResult(SessionDetachResult.serializer())
 

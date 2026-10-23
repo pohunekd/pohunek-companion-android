@@ -61,8 +61,15 @@ private fun agentFields(session: OwnerSession) = fields {
     add("agent", "Agent", sanitizeText(info.agent))
     add("state", "State", if (detail == null) state else "$state ($detail)")
     add("waiting_since", "Waiting since", session.waitingSince?.let(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format))
+    add("resume", "Resume", resumeText(resumeOffer(info)))
     add("native_session_id", "Native session id", info.nativeSessionId?.let(::sanitizeText))
     add("native_session_path", "Native session path", info.nativeSessionPath?.let(::plainText))
+}
+
+private fun resumeText(offer: ResumeOffer): String? = when (offer) {
+    ResumeOffer.NotApplicable -> null
+    ResumeOffer.Available -> "Available"
+    is ResumeOffer.Refused -> offer.sentence
 }
 
 private fun locationFields(info: SessionInfo) = fields {

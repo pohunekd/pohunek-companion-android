@@ -5,6 +5,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
 import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.commands.CommandResult
+import dev.pohunek.companion.core.data.commands.ResumeResult
 import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.hosts.HostsRepository
 import dev.pohunek.companion.core.data.hosts.HostsState
@@ -26,6 +27,7 @@ import dev.pohunek.companion.core.domain.sessions.SessionActionOutcome
 import dev.pohunek.companion.core.domain.sessions.UNCONFIRMED_PROCESSES_CODE
 import dev.pohunek.companion.core.domain.sessions.actionFailureText
 import dev.pohunek.companion.core.domain.sessions.actionSubject
+import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.clipDisplay
 import dev.pohunek.companion.core.domain.sessions.hasConflictingRuntime
 import dev.pohunek.companion.core.domain.sessions.offersRemove
@@ -33,6 +35,7 @@ import dev.pohunek.companion.core.domain.sessions.offersStop
 import dev.pohunek.companion.core.domain.sessions.openableWorkLink
 import dev.pohunek.companion.core.domain.sessions.partitionNeedsYou
 import dev.pohunek.companion.core.domain.sessions.removalNotice
+import dev.pohunek.companion.core.domain.sessions.resumeOffer
 import dev.pohunek.companion.core.domain.sessions.runtimeDetail
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.core.domain.sessions.sessionDetails
@@ -90,6 +93,8 @@ class SessionListViewModel(
             // At most one of the sheet and the details is open, so both events close whichever is.
             SessionListEvent.DismissActions, SessionListEvent.CloseDetails -> updateState { it.copy(actionSheet = null, details = null) }
             is SessionListEvent.RenameEvent -> onRenameEvent(event)
+            is SessionListEvent.Resume -> currentRow(event.ref)?.let(::resume)
+            SessionListEvent.DismissResumeNote -> updateState { it.copy(resumeNote = null) }
             is SessionListEvent.OpenLink -> openLink(event.ref)
             is SessionListEvent.RequestAction -> requestAction(event.ref, event.action)
             SessionListEvent.ConfirmAction -> confirmAction()
@@ -99,13 +104,41 @@ class SessionListViewModel(
         }
     }
 
+    private fun currentRow(ref: RowRef): SessionRow? = (currentState.needsYou + currentState.rows.orEmpty()).firstOrNull { it.ref == ref }
+
     private fun openSession(ref: RowRef) {
-        val state = currentState
-        val row = (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } ?: return
+        val row = currentRow(ref) ?: return
+        // An ended session is resumed rather than attached; one the daemon cannot resume says why.
+        if (row.reachable) {
+            when (val offer = row.resume) {
+                ResumeOffer.Available -> return resume(row)
+                is ResumeOffer.Refused -> return updateState { it.copy(resumeNote = ResumeNote.Refused(offer.sentence), refusal = null, actionSheet = null) }
+                ResumeOffer.NotApplicable -> Unit
+            }
+        }
         // A row of a host that is not connected opens nothing; only a host that is down says why.
         val refusal = if (row.reachable) row.attachRefusal else row.attachRefusal.takeIf { row.link == HostLink.Down }
         updateState { it.copy(refusal = refusal, refusalHost = row.route, actionSheet = null) }
         if (row.reachable && refusal == null) sendEffect(SessionListEffect.OpenTerminal(row.route, row.sessionId))
+    }
+
+    /**
+     * No optimistic update: the row changes when the daemon's session event arrives. The terminal opens when the reply says the new
+     * generation runs; otherwise the owner is told to attach once it does.
+     */
+    private fun resume(row: SessionRow) {
+        if (!row.reachable || row.resume != ResumeOffer.Available || row.ref in currentState.resuming) return
+        updateState { it.copy(resuming = it.resuming + row.ref, resumeNote = null, refusal = null, actionSheet = null) }
+        val hostLabel = if (currentState.multipleHosts) row.hostLabel else null
+        viewModelScope.launch {
+            val result = commands.resume(row.route, row.sessionId)
+            val note = when (result) {
+                is ResumeResult.Failed -> ResumeNote.Failed(row.sessionId, hostLabel, result.detail)
+                is ResumeResult.Resumed -> ResumeNote.Started(row.title).takeUnless { result.running }
+            }
+            updateState { it.copy(resuming = it.resuming - row.ref, resumeNote = note) }
+            if (result is ResumeResult.Resumed && result.running) sendEffect(SessionListEffect.OpenTerminal(row.route, row.sessionId))
+        }
     }
 
     private fun openDetails(ref: RowRef) {
@@ -307,5 +340,6 @@ private fun HostedSession.toRow(badgeMaxChars: Int): SessionRow {
         canRename = reachable && info.external != true,
         canStop = reachable && offersStop(info),
         canRemove = reachable && offersRemove(info),
+        resume = resumeOffer(info),
     )
 }
