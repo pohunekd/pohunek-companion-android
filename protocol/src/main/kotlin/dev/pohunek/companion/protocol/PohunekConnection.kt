@@ -217,16 +217,17 @@ class PohunekConnection private constructor(
 
         /** Resolves and connects; the socket timeout bounds the handshake, the caller's timeout also bounds name resolution. */
         private fun connect(route: HostRoute, config: ClientConfig): SocketChannel {
-            val opened = SocketChannel.open()
+            var opened: SocketChannel? = null
             try {
+                opened = SocketChannel.open()
                 opened.socket().connect(InetSocketAddress(route.host, route.port), config.connectTimeout.inWholeMilliseconds.toInt())
                 return opened
             } catch (e: IOException) {
-                opened.close()
+                opened?.close()
                 throw connectFailure(route, config, e)
             } catch (e: UnresolvedAddressException) {
-                // The channel layer reports a name that does not resolve this way when it is not translated to UnknownHostException.
-                opened.close()
+                // The channel API's own signal for a name that does not resolve; the socket adaptor normally translates it to UnknownHostException.
+                opened?.close()
                 throw connectFailure(route, config, e)
             }
         }
