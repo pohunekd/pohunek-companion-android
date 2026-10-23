@@ -97,9 +97,11 @@ scripts/ui-agent pohunek ARGS...
   environment, home directory, or Pohunek runtime directory enters it.
 - **Start.** `start` boots the emulator from a quick-boot snapshot (created once
   per AVD in the `pohunek-companion-android-avd` volume, keyed by system image,
-  emulator build, cores, RAM, and screen), starts the daemon and sessions while
-  `assembleDebug` runs, installs the APK, and launches `launch_activity` (`MainActivity`, the
-  session list). `--sessions N` adds N generated sessions to the four
+  emulator build, cores, RAM, and screen) in the slot's own copy of that AVD
+  (`slots/N` in the volume, about 3.4 GiB, removed by `stop`), so slots never
+  share a running AVD, its snapshot lock, or its pid-based lock check. It
+  starts the daemon and sessions while `assembleDebug` runs, installs the APK,
+  and launches `launch_activity` (`MainActivity`, the session list). `--sessions N` adds N generated sessions to the four
   fixed ones; `--showcase` replaces them with a realistic dataset of synthetic
   `claude` and `codex` profiles that run a harmless shell program. `type` cannot
   enter a literal `%s` (`input text` turns it into a space).
@@ -231,7 +233,9 @@ scripts/ui-agent pohunek ARGS...
   Both are exercised only by the owner (#16).
 - **Cleanup.** After `stop`, `podman ps -a` shows no `pohunek-ui-agent-slot-*`
   container and `pgrep -af 'qemu|pohunekd|socat'` shows nothing of the run.
-  The AVD volume is shared and kept; remove it with `podman volume rm
+  The slot's AVD copy is gone from the volume (`slots/` is empty). A slot that
+  died without `stop` leaves its copy until that slot number starts again. The
+  AVD volume is shared and kept; remove it with `podman volume rm
   pohunek-companion-android-avd` when no slot is running.
 
 ### Protocol client check
@@ -265,8 +269,10 @@ x86_64 emulator, 720x1600, 2 cores and 2 GiB RAM, container limit 4 CPUs and
 |---|---|
 | AVD creation, once: cold boot, settle, snapshot save | 40 s |
 | Cold boot without snapshot | 16 s |
-| Boot from the quick-boot snapshot (`boot_secs`) | 4 to 6 s |
-| `start` end to end, two worktrees at once, warm Gradle cache | 20 s |
+| Per-slot AVD copy (`slot_avd_secs`; full copy, the emulator's NOCOW files cannot be reflinked) | 0.5 to 9 s |
+| Boot from the quick-boot snapshot (`boot_secs`) | 3 to 4 s alone, 10 s while two slots start and copy at once |
+| `start` end to end, two worktrees at once, warm Gradle cache | 35 s |
+| `start` end to end, second worktree after the first is up | 22 s |
 | `assembleDebug` incremental, one debug source file changed | 9 s (6 to 7 s when nothing changed) |
 | Slot idle (terminal demo screen) | 0.06 cores, 4.3 GiB container memory |
 | Slot busy (alt-screen animation, repeated taps) | 0.9 cores |
