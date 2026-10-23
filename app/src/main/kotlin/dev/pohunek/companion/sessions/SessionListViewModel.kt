@@ -3,6 +3,7 @@ package dev.pohunek.companion.sessions
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
+import dev.pohunek.companion.config.DisplayLimits
 import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.commands.CommandResult
 import dev.pohunek.companion.core.data.commands.ResumeResult
@@ -76,8 +77,7 @@ class SessionListViewModel(
     private val placements: PendingPlacementBook,
     private val processLifecycle: Lifecycle,
     private val log: AppLog,
-    badgeMaxChars: Flow<Int>,
-    sectionTitleMaxChars: Flow<Int>,
+    limits: Flow<DisplayLimits>,
 ) : BaseViewModel<SessionListState, SessionListEvent, SessionListEffect>(SessionListState()) {
     private var firstHostRequested = false
 
@@ -93,8 +93,7 @@ class SessionListViewModel(
         val configured: HostsState,
         val feeds: Map<HostRoute, HostFeed>,
         val layout: LayoutState,
-        val badgeMaxChars: Int,
-        val sectionTitleMaxChars: Int,
+        val limits: DisplayLimits,
     )
 
     init {
@@ -104,17 +103,15 @@ class SessionListViewModel(
             for (seed in seeds) layouts.reconcile(seed.route, seed.sessionIds)
         }
         viewModelScope.launch {
-            combine(hosts.state, registry.state, layouts.state, badgeMaxChars, sectionTitleMaxChars) { configured, feeds, layout, badge, title ->
-                ListInputs(configured, feeds, layout, badge, title)
-            }.collect { input ->
+            combine(hosts.state, registry.state, layouts.state, limits, ::ListInputs).collect { input ->
                 val (configured, feeds, layout) = input
                 if (configured is HostsState.Loaded && configured.hosts.isEmpty() && !firstHostRequested) {
                     firstHostRequested = true
                     sendEffect(SessionListEffect.OpenHosts)
                 }
                 queueSeeds(feeds)
-                updateState { listed(it, configured, feeds, layout, input.badgeMaxChars, input.sectionTitleMaxChars) }
-                pruneCollapsed(configured, feeds, input.sectionTitleMaxChars)
+                updateState { listed(it, configured, feeds, layout, input.limits.rowBadgeMaxChars, input.limits.sectionTitleMaxChars) }
+                pruneCollapsed(configured, feeds, input.limits.sectionTitleMaxChars)
             }
         }
         viewModelScope.launch { combine(placements.state, layouts.state) { _, layout -> layout }.collect { settlePlacements(it) } }
@@ -312,10 +309,10 @@ class SessionListViewModel(
         updateState { it.copy(details = DetailsView(ref, row.title, sessionDetails(session, row.hostLabel, ref.route))) }
     }
 
-    /** The form opens on the row's host and project; the new session lands in the row's group. */
+    /** The form opens on the row's host and project; the new session lands in the owner group the layout holds the row in, whatever view is shown. */
     private fun newSessionHere(ref: RowRef) {
         updateState { it.copy(actionSheet = null) }
-        val group = currentState.groups.firstOrNull { section -> section.rows.any { it.ref == ref } }?.id
+        val group = (layouts.state.value as? LayoutState.Available)?.layout?.items?.firstOrNull { it.key == ref.layoutKey }?.group
         val project = registry.state.value[ref.route]?.sessions?.firstOrNull { it.info.id == ref.sessionId }?.info?.projectId
         sendEffect(SessionListEffect.OpenNewSession(ref.route.toString(), project, group))
     }

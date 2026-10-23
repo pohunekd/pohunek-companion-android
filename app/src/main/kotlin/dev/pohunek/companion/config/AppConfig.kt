@@ -12,6 +12,9 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+/** The longest texts the screens show before they cut them. */
+data class DisplayLimits(val rowBadgeMaxChars: Int, val sectionTitleMaxChars: Int, val detailValueMaxChars: Int)
+
 /** What starting a session needs. */
 class NewSessionSettings(
     /** [AppConfig.client] with the timeout of a `session.new`, which waits for the agent to start. */
@@ -34,9 +37,7 @@ class AppConfig private constructor(
     val live: LiveConfig,
     val discovery: DiscoveryConfig,
     val logMaxBytes: Long,
-    val rowBadgeMaxChars: Int,
-    val sectionTitleMaxChars: Int,
-    val detailValueMaxChars: Int,
+    val display: DisplayLimits,
 ) {
     companion object {
         /** [values] holds a value for every [Tunable] and obeys their rules. */
@@ -86,9 +87,11 @@ class AppConfig private constructor(
                     timeout = value(Tunable.DISCOVER_TIMEOUT_SECS).seconds,
                 ),
                 value(Tunable.LOG_MAX_BYTES),
-                value(Tunable.ROW_BADGE_MAX_CHARS).toInt(),
-                value(Tunable.SECTION_TITLE_MAX_CHARS).toInt(),
-                value(Tunable.DETAIL_VALUE_MAX_CHARS).toInt(),
+                DisplayLimits(
+                    value(Tunable.ROW_BADGE_MAX_CHARS).toInt(),
+                    value(Tunable.SECTION_TITLE_MAX_CHARS).toInt(),
+                    value(Tunable.DETAIL_VALUE_MAX_CHARS).toInt(),
+                ),
             )
         }
     }

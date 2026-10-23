@@ -43,14 +43,13 @@ fun AppNavHost(
                     initializer {
                         SessionListViewModel(
                             koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(),
-                            runtime.configs.map { it.rowBadgeMaxChars }.distinctUntilChanged(),
-                            runtime.configs.map { it.sectionTitleMaxChars }.distinctUntilChanged(),
+                            runtime.configs.map { it.display }.distinctUntilChanged(),
                         )
                     }
                 },
             )
-            val detailValueMaxChars by remember { runtime.configs.map { it.detailValueMaxChars }.distinctUntilChanged() }
-                .collectAsStateWithLifecycle(runtime.current().detailValueMaxChars)
+            val detailValueMaxChars by remember { runtime.configs.map { it.display.detailValueMaxChars }.distinctUntilChanged() }
+                .collectAsStateWithLifecycle(runtime.current().display.detailValueMaxChars)
             SessionListScreen(
                 viewModel,
                 detailValueMaxChars,
