@@ -3,6 +3,7 @@ package dev.pohunek.companion.sessions
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.OwnerState
+import dev.pohunek.companion.core.domain.sessions.SessionDetails
 import dev.pohunek.companion.protocol.HostRoute
 
 /** One session as the list shows it; every text is untrusted metadata and is rendered as plain text only. */
@@ -42,6 +43,9 @@ data class SessionRow(
 /** A session on its host; two hosts can hold the same session id. */
 data class RowRef(val route: HostRoute, val sessionId: String)
 
+/** The details screen of one session; [details] is null once the session has left its host's list, [name] is then its last known name. */
+data class DetailsView(val ref: RowRef, val name: String, val details: SessionDetails?)
+
 /** A host whose connection is down, for the status lines above the list. */
 data class HostStatus(val hostLabel: String, val connection: HostConnection.Reconnecting)
 
@@ -66,6 +70,8 @@ data class SessionListState(
     val refusalHost: HostRoute? = null,
     /** The session whose action sheet is open; the sheet closes when the session leaves the list. */
     val actionSheet: RowRef? = null,
+    /** The open details screen, which follows the session live; null while the list is shown. */
+    val details: DetailsView? = null,
 )
 
 sealed interface SessionListEvent {
@@ -76,6 +82,10 @@ sealed interface SessionListEvent {
     data class OpenActions(val ref: RowRef) : SessionListEvent
 
     data object DismissActions : SessionListEvent
+
+    data class OpenDetails(val ref: RowRef) : SessionListEvent
+
+    data object CloseDetails : SessionListEvent
 
     data class OpenLink(val ref: RowRef) : SessionListEvent
 

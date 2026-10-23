@@ -172,7 +172,8 @@ packages. Re-take it when `ghostty_commit` changes.
   `config.rs` (the host rules: non-empty, unique, label not blank, display label) as
   `core/domain/.../hosts/ConfiguredHost.kt`.
   `badge.rs` (`WorkFacts`, `WorkBadge`, `clip_display`, `clip_middle`), `open.rs` (`is_openable_url`,
-  link selection) and `session.rs` (project label) as `core/domain/.../sessions/WorkLink.kt`.
+  link selection) and `session.rs` (project label) as `core/domain/.../sessions/WorkLink.kt`; `detail.rs` (`SessionDetails::build`,
+  `copy_all`) as `core/domain/.../sessions/SessionDetails.kt`.
   Planned: `filter.rs`, `discovery.rs`, `view.rs`. Pinned commit for the license text:
   `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 

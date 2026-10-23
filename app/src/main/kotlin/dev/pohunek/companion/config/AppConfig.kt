@@ -19,6 +19,7 @@ class AppConfig private constructor(
     val live: LiveConfig,
     val logMaxBytes: Long,
     val rowBadgeMaxChars: Int,
+    val detailValueMaxChars: Int,
 ) {
     companion object {
         fun load(resources: Resources): AppConfigResult = try {
@@ -33,6 +34,7 @@ class AppConfig private constructor(
                     liveConfig(resources),
                     atLeast(resources, "log_max_bytes", R.integer.log_max_bytes, MIN_LOG_MAX_BYTES),
                     positive(resources, "row_badge_max_chars", R.integer.row_badge_max_chars).toInt(),
+                    positive(resources, "detail_value_max_chars", R.integer.detail_value_max_chars).toInt(),
                 ),
             )
         } catch (e: InvalidKey) {

@@ -144,7 +144,10 @@ scripts/ui-agent pohunek ARGS...
   reason` for a daemon refusal such as `version_mismatch`). Recovery can take up to the current backoff, so
   wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh and
   `SessionList.refresh` ask every host for a re-seed, `SessionList.empty` and `SessionList.loading` carry the
-  other states, each row has `SessionList.rowWork` (project, Work badge and role) and, on a connected host, `SessionRow.more`, which, like a long press on the row, opens the action sheet `RowSheet` (`RowSheet.title`, `RowSheet.openTerminal`, `RowSheet.openLink` when the session has an openable link; the sheet is a separate window, so `tree` lists it only while it is open), and `ConfigError.message` replaces the app when a value in
+  other states, each row has `SessionList.rowWork` (project, Work badge and role) and, on a connected host, `SessionRow.more`, which, like a long press on the row, opens the action sheet `RowSheet` (`RowSheet.title`, `RowSheet.openTerminal`, `RowSheet.details`, `RowSheet.openLink` when the session has an openable link; the sheet is a separate window, so `tree` lists it only while it is open), `RowSheet.details` opens `SessionDetails.list` full screen (`SessionDetails.title`, `SessionDetails.back`,
+  `SessionDetails.copyAll`, and per field `SessionDetails.value.KEY` and `SessionDetails.copy.KEY`, KEY being `session_id`, `host`,
+  `cwd`, `work_link`, ...; scroll with `swipe SessionDetails.list up`); it follows the daemon live and shows
+  `SessionDetails.removed` once the session is gone, and `ui-agent clipboard` reads what Copy put on the clipboard, and `ConfigError.message` replaces the app when a value in
   `app/src/main/res/values/config.xml` is invalid. The app log
   (`scripts/ui-agent app-file cat logs/app.log`) records `host.added`, `host.edited` and `host.removed` with
   the host key, and `live.owner_state` with the session id and the previous and new owner state each time a

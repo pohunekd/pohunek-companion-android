@@ -36,6 +36,7 @@ fun AppNavHost(
             )
             SessionListScreen(
                 viewModel,
+                config.detailValueMaxChars,
                 onOpenTerminal = { route, sessionId ->
                     // Single-top: a double tap on a row must not stack two terminals.
                     navController.navigate(TerminalDestination(route.toString(), sessionId)) { launchSingleTop = true }

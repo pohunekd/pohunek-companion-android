@@ -90,4 +90,4 @@ fun sanitizeText(value: String): String {
 /** Rust's `char::is_whitespace`, which the desktop sanitizer uses, counts it; Kotlin's does not. */
 private const val NEXT_LINE = '\u0085'
 
-private fun isFormatChar(c: Char): Boolean = c == '؜' || c in '​'..'‏' || c in '‪'..'‮' || c in '⁠'..'⁩' || c == '﻿'
+internal fun isFormatChar(c: Char): Boolean = c == '؜' || c in '​'..'‏' || c in '‪'..'‮' || c in '⁠'..'⁩' || c == '﻿'

@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +44,7 @@ import dev.pohunek.companion.protocol.HostRoute
 @Composable
 fun SessionListScreen(
     viewModel: SessionListViewModel,
+    detailValueMaxChars: Int,
     onOpenTerminal: (HostRoute, String) -> Unit,
     onOpenHosts: () -> Unit,
     modifier: Modifier = Modifier,
@@ -64,7 +67,14 @@ fun SessionListScreen(
             SessionListEffect.LinkUnavailable -> snackbar.showSnackbar(linkUnavailable)
         }
     }
-    SessionListContent(state, viewModel::onEvent, onOpenHosts, snackbar, modifier)
+    // Hoisted so the list keeps its scroll position while the details cover it.
+    val listState = rememberLazyListState()
+    val details = state.details
+    if (details != null) {
+        DetailsScreen(details, detailValueMaxChars, viewModel::onEvent, modifier)
+    } else {
+        SessionListContent(state, viewModel::onEvent, onOpenHosts, snackbar, listState, modifier)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,6 +84,7 @@ private fun SessionListContent(
     onEvent: (SessionListEvent) -> Unit,
     onOpenHosts: () -> Unit,
     snackbar: SnackbarHostState,
+    listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
     val listShown = state.hostsRead && state.hasHosts && state.storageError == null
@@ -115,7 +126,7 @@ private fun SessionListContent(
             else -> Column(body) {
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
                 state.statuses.forEach { HostStatusLine(it) }
-                SessionRows(state, onEvent, Modifier.weight(1f).fillMaxWidth())
+                SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())
                 val sheetRow = state.actionSheet?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
                 if (sheetRow != null) RowActionSheet(sheetRow, onEvent)
             }
@@ -125,10 +136,10 @@ private fun SessionListContent(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> Unit, modifier: Modifier) {
+private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> Unit, listState: LazyListState, modifier: Modifier) {
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier) {
         val rows = state.rows
-        LazyColumn(Modifier.fillMaxSize().testTag("SessionList.list")) {
+        LazyColumn(Modifier.fillMaxSize().testTag("SessionList.list"), listState) {
             when {
                 rows == null && state.statuses.isNotEmpty() -> item { Spacer(Modifier.fillParentMaxSize()) }
                 rows == null -> item {
