@@ -2,9 +2,11 @@ package dev.pohunek.companion.sessions
 
 import dev.pohunek.companion.core.data.layout.LayoutIssue
 import dev.pohunek.companion.core.data.live.HostConnection
+import dev.pohunek.companion.core.domain.layout.FilterFacts
 import dev.pohunek.companion.core.domain.layout.GroupSection
 import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.domain.layout.RowFacts
+import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.WorkItem
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.OwnerState
@@ -50,6 +52,10 @@ data class SessionRow(
 
     /** What the derived views group by. */
     val facts: RowFacts get() = RowFacts(ownerState, project, workItem)
+
+    /** What the search matches: name, project, agent and the full Work badge as text, session id and Work id as identifiers. */
+    val filterFacts: FilterFacts
+        get() = FilterFacts(ownerState, listOfNotNull(title, project, agent, workItem?.title), listOfNotNull(sessionId, workItem?.id))
 
     val ref: RowRef get() = RowRef(route, sessionId)
 
@@ -108,6 +114,16 @@ data class SessionListState(
     val view: LayoutView = LayoutView.MY_GROUPS,
     /** [rows] sectioned by [view]: the owner's groups in My groups, else the derived sections; the rows of a collapsed section are listed but not shown. */
     val groups: List<GroupSection<SessionRow>> = emptyList(),
+    /** The open search field's text, or null while the field is closed. The text is never stored. */
+    val search: String? = null,
+    /** The state chips shown, and the states of the shown view that pass. */
+    val stateChips: List<OwnerState> = emptyList(),
+    val states: StateSelection = StateSelection.DEFAULT,
+    /** [needsYou] and [groups] after the state selection and the search; the unfiltered lists stay the source of every row action. */
+    val shownNeedsYou: List<SessionRow> = emptyList(),
+    val shownGroups: List<GroupSection<SessionRow>> = emptyList(),
+    /** True when the filter hides every session of a list that has some. */
+    val noMatch: Boolean = false,
     /** Why the layout file is not, or not fully, saved; the list is shown regardless. */
     val layoutIssue: LayoutIssue? = null,
     /** One entry per host that is not connected, in host order. */
@@ -240,11 +256,24 @@ sealed interface SessionListEvent {
 
     data object DismissRefusal : SessionListEvent
 
+    /** The events of the search field. */
+    sealed interface SearchEvent : SessionListEvent
+
+    data object OpenSearch : SearchEvent
+
+    data class EditSearch(val text: String) : SearchEvent
+
+    /** Clears the query and closes the search field. */
+    data object CloseSearch : SearchEvent
+
     /** The events that change the owner's layout. */
     sealed interface LayoutEvent : SessionListEvent
 
     /** Collapses or expands a section of the shown view; the state is saved with the layout. */
     data class SetSectionCollapsed(val id: String, val collapsed: Boolean) : LayoutEvent
+
+    /** Toggles [state] in the selection of the shown view; the choice is saved with the layout. */
+    data class ToggleState(val state: OwnerState) : LayoutEvent
 
     /** Shows [view]; the choice is saved with the layout. */
     data class SelectView(val view: LayoutView) : LayoutEvent

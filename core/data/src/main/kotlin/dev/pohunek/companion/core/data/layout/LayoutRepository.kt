@@ -13,6 +13,7 @@ import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
 import dev.pohunek.companion.core.domain.log.info
+import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.domain.sessions.SessionKey
 import dev.pohunek.companion.protocol.HostRoute
 import kotlinx.coroutines.NonCancellable
@@ -105,6 +106,16 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
                 log.info("layout.view_selected", listOf(LogField.state(view.id)))
                 layout.withView(view)
             }
+        }
+    }
+
+    /** Toggles [state] in the selection of the selected view; the choice is saved with the layout. */
+    suspend fun toggleState(state: OwnerState) {
+        change { layout ->
+            val view = layout.view
+            val next = layout.states(view).toggled(state)
+            log.info("layout.states_changed", listOf(LogField.state(view.id), LogField.number("selected", next.states.size.toLong())))
+            layout.withStates(view, next)
         }
     }
 

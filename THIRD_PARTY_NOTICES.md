@@ -180,7 +180,9 @@ packages. Re-take it when `ghostty_commit` changes.
   `refusal_sentence`) as `core/domain/.../sessions/ResumeOffer.kt`; `discovery.rs` (`plan`, `host_key`,
   `label`, `configured_entry`; without the New session dialog's host list) as
   `core/domain/.../hosts/Discovery.kt`.
-  Planned: `filter.rs`, `view.rs`. Pinned commit for the license text:
+  `filter.rs` (state selection, state chips, query matching, `filter_sections`; the project and host parts are planned) as
+  `core/domain/.../layout/SessionFilter.kt`.
+  Planned: `view.rs`. Pinned commit for the license text:
   `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 
 ## Pohunek wire fixtures

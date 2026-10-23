@@ -33,6 +33,12 @@ data class Layout private constructor(
     fun withFilter(view: LayoutView, filter: StoredFilter): Layout =
         copy(filters = if (filter == StoredFilter()) filters - view.id else filters + (view.id to filter))
 
+    /** The owner states [view] shows. */
+    fun states(view: LayoutView): StateSelection = StateSelection.fromStored(filter(view).states)
+
+    /** Stores the state selection of [view] and keeps the rest of its filter. */
+    fun withStates(view: LayoutView, selection: StateSelection): Layout = withFilter(view, filter(view).copy(states = selection.storedKeys()))
+
     /** Groups in display order. */
     fun orderedGroups(): List<Group> = groups.sortedWith(compareBy<Group>({ it.order }, { it.id }))
 
@@ -263,8 +269,8 @@ data class Layout private constructor(
 
         /**
          * Builds a layout from stored data. Rejects a wrong version, an empty or repeated group id, an invalid sort key, an item in an
-         * unknown group and a session listed twice; re-adds a missing Inbox before the first group. An unknown view id is kept and
-         * selects My groups.
+         * unknown group and a session listed twice; re-adds a missing Inbox before the first group and the Problem state to a stored
+         * state selection. An unknown view id is kept and selects My groups.
          */
         fun load(
             version: Int,
@@ -279,7 +285,7 @@ data class Layout private constructor(
             val repaired = groups.none { it.id == INBOX_ID }
             val all = if (repaired) listOf(inboxGroup(SortKey.between(null, groups.minOfOrNull { it.order }))) + groups else groups
             return LayoutLoad.Loaded(
-                Layout(view, filters.toMap(), collapsedSections.mapValues { it.value.toSet() }, all.toList(), items.toList()),
+                Layout(view, filters.mapValues { it.value.withProblemState() }, collapsedSections.mapValues { it.value.toSet() }, all.toList(), items.toList()),
                 repaired,
             )
         }
@@ -306,6 +312,9 @@ data class Layout private constructor(
                 else -> null
             }
         }
+
+        private fun StoredFilter.withProblemState() =
+            copy(states = states?.let { StateSelection.fromStored(it).withRuntimeProblem().storedKeys() })
 
         private fun inboxGroup(order: String) = Group(INBOX_ID, INBOX_NAME, order)
     }

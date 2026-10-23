@@ -17,6 +17,16 @@
     <string name="host_status_reconnecting">%1$s: Reconnecting (attempt %2$d): %3$s</string>
     <string name="host_status_refused">%1$s: Connection refused (%2$s): %3$s</string>
     <string name="session_list_needs_you">Needs you</string>
+    <string name="session_list_no_match">No sessions match</string>
+    <string name="session_list_search">Search</string>
+    <string name="search_placeholder">Search sessions</string>
+    <string name="search_close">Close</string>
+    <string name="state_chip_needs_you">Needs you</string>
+    <string name="state_chip_working">Working</string>
+    <string name="state_chip_idle">Idle</string>
+    <string name="state_chip_problem">Problem</string>
+    <string name="state_chip_ended">Ended</string>
+    <string name="state_chip_no_agent">No agent</string>
     <string name="view_my_groups">My groups</string>
     <string name="view_by_state">By state</string>
     <string name="view_by_project">By project</string>

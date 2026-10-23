@@ -174,7 +174,10 @@ scripts/ui-agent pohunek ARGS...
   `GroupName.error` in place: `a group name cannot be empty`, `a group named "x" already exists`, compared without case); every group but Inbox has `GroupHeader.more`, which opens `GroupMenu`
   (`GroupMenu.title`, `GroupMenu.rename` into the same dialog, `GroupMenu.delete` at once, the sessions going to the end of Inbox); the app log has `layout.group_created`, `layout.group_renamed`,
   `layout.group_deleted` and `layout.session_moved` with group and session ids only, and `layout.json` shows the result, `ConfigError.message` replaces the app when a value in
-  `app/src/main/res/values/config.xml` is invalid. The app log
+  `app/src/main/res/values/config.xml` is invalid. `SessionList.state.KEY` chips (KEY is `needs-you`, `working`, `idle`, `ended`, and `runtime-problem` and `no-agent-state` while a session has
+  that state; a tap toggles the state of the shown view, Ended is off by default, and `layout.json` keeps the selection under `filters`, nothing when it is the default),
+  `SessionList.openSearch` replacing the title by the field `SessionList.search` with `SessionList.searchClose` (type to narrow the list; the query is not stored;
+  `SessionList.noMatch` when nothing matches; delete characters with `adb shell input keyevent KEYCODE_DEL` as for Settings), the app log has `layout.states_changed`. The app log
   (`scripts/ui-agent app-file cat logs/app.log`) records `host.added`, `host.edited` and `host.removed` with
   the host key, and `live.owner_state` with the session id and the previous and new owner state each time a
   session changes state, which is how a `pohunek notification create|delete` is observed without waiting for

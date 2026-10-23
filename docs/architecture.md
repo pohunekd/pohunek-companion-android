@@ -131,6 +131,12 @@ as the desktop companion: `v0.35.2` today.
   deletes groups (a deletion has no confirmation and moves the sessions to the end of Inbox in their order; Inbox has
   neither) and moves a session to the end of a group from its action sheet, also into a new group; each edit is one
   `LayoutRepository` call that is applied, saved and logged by group and session id, or refused with nothing changed.
+  A chip row of owner states and a search field in the top app bar narrow the list in every view (ported from desktop
+  `filter.rs`): the states are stored per view in the layout file's `filters` (the default, every state but Ended, is stored
+  as no entry, and Problem is re-added to a stored selection on load), the query is kept only in memory. A query splits on
+  whitespace and every token must match a name, project label, agent or Work badge as a subsequence, or a session id or Work
+  id as a substring. With a query, sections without a match are dropped and the rest shown expanded; with only states,
+  sections the selection emptied are dropped. The project and host filters are separate (#63).
 - **Hosts** are a list of `(route, optional label)` in `hosts.json`; a route is
   listed once, so the same daemon under two spellings of its address (such as
   `127.0.0.1:PORT` and `localhost:PORT`) counts as two hosts. One live loop
