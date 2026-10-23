@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +49,7 @@ fun SessionListScreen(
     onOpenTerminal: (HostRoute, String) -> Unit,
     onOpenHosts: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenNewSession: (host: String?, project: String?, group: String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -60,6 +62,7 @@ fun SessionListScreen(
         when (effect) {
             is SessionListEffect.OpenTerminal -> onOpenTerminal(effect.route, effect.sessionId)
             SessionListEffect.OpenHosts -> onOpenHosts()
+            is SessionListEffect.OpenNewSession -> onOpenNewSession(effect.host, effect.project, effect.group)
             is SessionListEffect.OpenLink -> try {
                 context.startActivity(Intent(Intent.ACTION_VIEW, effect.url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
             } catch (_: ActivityNotFoundException) {
@@ -76,7 +79,7 @@ fun SessionListScreen(
     if (details != null) {
         DetailsScreen(details, detailValueMaxChars, viewModel::onEvent, modifier)
     } else {
-        SessionListContent(state, viewModel::onEvent, onOpenHosts, onOpenSettings, snackbar, listState, modifier)
+        SessionListContent(state, viewModel::onEvent, onOpenHosts, onOpenSettings, { onOpenNewSession(null, null, null) }, snackbar, listState, modifier)
     }
     state.actionDialog?.let { ActionDialog(it, viewModel::onEvent) }
 }
@@ -88,6 +91,7 @@ private fun SessionListContent(
     onEvent: (SessionListEvent) -> Unit,
     onOpenHosts: () -> Unit,
     onOpenSettings: () -> Unit,
+    onNewSession: () -> Unit,
     snackbar: SnackbarHostState,
     listState: LazyListState,
     modifier: Modifier = Modifier,
@@ -96,6 +100,7 @@ private fun SessionListContent(
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbar) },
+        floatingActionButton = { NewSessionButton(listShown, onNewSession) },
         topBar = { SessionListTopBar(state, listShown, onEvent, onOpenHosts, onOpenSettings) },
     ) { padding ->
         val body = Modifier.padding(padding).fillMaxSize()
@@ -143,7 +148,7 @@ private fun RowWindows(state: SessionListState, onEvent: (SessionListEvent) -> U
 private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> Unit, listState: LazyListState, modifier: Modifier) {
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier) {
         val rows = state.rows
-        LazyColumn(Modifier.fillMaxSize().testTag("SessionList.list"), listState) {
+        LazyColumn(Modifier.fillMaxSize().testTag("SessionList.list"), listState, contentPadding = PaddingValues(bottom = PohunekTheme.fabClearance)) {
             when {
                 rows == null && state.statuses.isNotEmpty() -> item { Spacer(Modifier.fillParentMaxSize()) }
                 rows == null -> item {

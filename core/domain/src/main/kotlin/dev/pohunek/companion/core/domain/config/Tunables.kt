@@ -5,12 +5,14 @@ enum class TunableUnit { Milliseconds, Seconds, Bytes, Characters, Count }
 
 /**
  * Every tunable of `res/values/config.xml`, in the file's order. The entry's lowercase name is the key in that file and in the saved
- * overrides; the default value is the file's. A value is a whole number from [minimum] to [MAX_TUNABLE_VALUE].
+ * overrides; the default value is the file's. A value is a whole number from [minimum] to [maximum], which is [MAX_TUNABLE_VALUE] unless
+ * the key is narrower.
  */
-enum class Tunable(val minimum: Long, val unit: TunableUnit) {
+enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long = MAX_TUNABLE_VALUE) {
     CONNECT_TIMEOUT_MS(1, TunableUnit.Milliseconds),
     REQUEST_TIMEOUT_MS(1, TunableUnit.Milliseconds),
     SESSION_ACTION_TIMEOUT_MS(1, TunableUnit.Milliseconds),
+    CREATE_TIMEOUT_MS(1, TunableUnit.Milliseconds),
     ATTACH_ATTEMPTS(1, TunableUnit.Count),
     ATTACH_RETRY_DELAY_MS(1, TunableUnit.Milliseconds),
     RESEED_INTERVAL_SECS(1, TunableUnit.Seconds),
@@ -30,6 +32,9 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit) {
     SECTION_TITLE_MAX_CHARS(1, TunableUnit.Characters),
     DETAIL_VALUE_MAX_CHARS(1, TunableUnit.Characters),
     NOTIFICATION_PAGE_SIZE(1, TunableUnit.Count),
+    NEW_SESSION_COLS(1, TunableUnit.Count, MAX_TERMINAL_SIDE),
+    NEW_SESSION_ROWS(1, TunableUnit.Count, MAX_TERMINAL_SIDE),
+    PENDING_PLACEMENT_MAX_AGE_SECS(1, TunableUnit.Seconds),
     LOG_MAX_BYTES(MIN_LOG_MAX_BYTES, TunableUnit.Bytes),
     ;
 
@@ -56,6 +61,9 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit) {
 /** The configured values are integers in `config.xml`, so an override cannot exceed an Int either. */
 const val MAX_TUNABLE_VALUE: Long = Int.MAX_VALUE.toLong()
 
+/** The wire carries a terminal's columns and rows as 16-bit numbers. */
+private const val MAX_TERMINAL_SIDE = 65_535L
+
 private const val MIN_LOG_MAX_BYTES = 4096L
 
 /** Why the value of [tunable] is refused. */
@@ -75,7 +83,7 @@ fun tunableProblems(values: Map<Tunable, Long>): List<TunableProblem> = Tunable.
     val bound = tunable.lowerBound
     val own = when {
         value < tunable.minimum -> rangeProblem(tunable, value)
-        value > MAX_TUNABLE_VALUE -> TunableProblem(tunable, "must be at most $MAX_TUNABLE_VALUE, got $value")
+        value > tunable.maximum -> TunableProblem(tunable, "must be at most ${tunable.maximum}, got $value")
         else -> null
     }
     val ordering = bound?.let { floor ->
@@ -101,7 +109,7 @@ private fun rangeProblem(tunable: Tunable, value: Long): TunableProblem =
  */
 fun checkOverrides(defaults: Map<Tunable, Long>, entered: Map<Tunable, String>): OverrideCheck {
     val parsed = entered.mapValues { (_, text) -> text.trim().toLongOrNull() }
-    val notNumbers = parsed.filterValues { it == null }.keys.map { TunableProblem(it, "must be a whole number up to $MAX_TUNABLE_VALUE") }
+    val notNumbers = parsed.filterValues { it == null }.keys.map { TunableProblem(it, "must be a whole number up to ${it.maximum}") }
     val values = defaults + parsed.mapNotNull { (tunable, value) -> value?.let { tunable to it } }
     val problems = (notNumbers + tunableProblems(values)).distinctBy { it.tunable to it.message }
     return if (problems.isEmpty()) OverrideCheck.Valid(

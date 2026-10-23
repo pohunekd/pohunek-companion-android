@@ -238,7 +238,13 @@ sealed interface SessionListEvent {
 
     data object DismissResumeNote : ResumeEvent
 
-    data class OpenLink(val ref: RowRef) : SessionListEvent
+    /** The events that take the owner from a row to something else: its link, or a new session beside it. */
+    sealed interface LeaveEvent : SessionListEvent
+
+    data class OpenLink(val ref: RowRef) : LeaveEvent
+
+    /** Opens the new session form on the host, project and group of the row. */
+    data class NewSessionHere(val ref: RowRef) : LeaveEvent
 
     /** The events of the stop and remove confirmation. */
     sealed interface ActionEvent : SessionListEvent
@@ -318,6 +324,9 @@ sealed interface SessionListEffect {
 
     /** The session has no link that may be opened any more. */
     data object LinkUnavailable : SessionListEffect
+
+    /** The new session form opens; each argument is null when nothing is preselected. [host] is the route as `HostRoute.toString` writes it. */
+    data class OpenNewSession(val host: String, val project: String?, val group: String?) : SessionListEffect
 
     /** No host is configured: the owner adds the first one. */
     data object OpenHosts : SessionListEffect

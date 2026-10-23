@@ -1,0 +1,66 @@
+{
+  "id": "req-1",
+  "ok": [
+    {
+      "added_at": "2026-10-23T18:42:30.881841104Z",
+      "git_common_dir": "/work/neovim/.git",
+      "id": "p-9c803686",
+      "is_bare": false,
+      "label": "neovim",
+      "last_used_at": "2026-10-23T18:42:31.157533885Z",
+      "repo_root": "/work/neovim",
+      "source": "manual"
+    },
+    {
+      "added_at": "2026-10-23T18:42:30.4950243Z",
+      "git_common_dir": "/work/pohunek/.git",
+      "id": "p-617cf33c",
+      "is_bare": false,
+      "label": "pohunek",
+      "last_used_at": "2026-10-23T18:43:26.469334889Z",
+      "repo_root": "/work/pohunek",
+      "source": "manual"
+    },
+    {
+      "added_at": "2026-10-23T18:42:30.623861971Z",
+      "git_common_dir": "/work/pohunek-companion/.git",
+      "id": "p-3fc31a25",
+      "is_bare": false,
+      "label": "pohunek-companion",
+      "last_used_at": "2026-10-23T18:42:36.288097946Z",
+      "repo_root": "/work/pohunek-companion",
+      "source": "manual"
+    },
+    {
+      "added_at": "2026-10-23T18:42:30.751761878Z",
+      "git_common_dir": "/work/ripgrep/.git",
+      "id": "p-729f4a0c",
+      "is_bare": false,
+      "label": "ripgrep",
+      "last_used_at": "2026-10-23T18:42:36.266237891Z",
+      "repo_root": "/work/ripgrep",
+      "source": "manual"
+    },
+    {
+      "added_at": "2026-10-23T18:42:31.015292852Z",
+      "git_common_dir": "/work/tokio/.git",
+      "id": "p-606ae1a0",
+      "is_bare": false,
+      "label": "tokio",
+      "last_used_at": "2026-10-23T18:42:36.273091798Z",
+      "repo_root": "/work/tokio",
+      "source": "manual"
+    },
+    {
+      "added_at": "2026-10-23T18:42:31.144386464Z",
+      "git_common_dir": "/work/zed/.git",
+      "id": "p-580819b0",
+      "is_bare": false,
+      "label": "zed",
+      "last_used_at": "2026-10-23T18:42:36.267837758Z",
+      "repo_root": "/work/zed",
+      "source": "manual"
+    }
+  ],
+  "v": 4
+}

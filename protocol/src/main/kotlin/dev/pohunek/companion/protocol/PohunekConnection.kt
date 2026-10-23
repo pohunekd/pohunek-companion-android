@@ -82,6 +82,13 @@ class PohunekConnection private constructor(
     suspend fun listSessions(filters: List<SessionFilter> = emptyList()): List<SessionInfo> =
         call { Requests.sessionList(it, filters) }.decodeResult(ListSerializer(SessionInfo.serializer()))
 
+    suspend fun listProjects(): List<ProjectInfo> = call { Requests.projectList(it) }.decodeResult(ListSerializer(ProjectInfo.serializer()))
+
+    suspend fun inspectHost(): HostCapabilities = call { Requests.hostInspect(it) }.decodeResult(HostCapabilities.serializer())
+
+    /** Starts a session. The request has no idempotency key, so a caller must never send it twice for one launch. */
+    suspend fun newSession(params: SessionNewParams): SessionNewResult = call { Requests.sessionNew(it, params) }.decodeSessionNewResult()
+
     /**
      * Asks the daemon for its overlay peers. The daemon probes peers before it answers, so [timeout] replaces the request timeout of the
      * connection. Peers speaking another protocol come back as [HostClass.VersionMismatch], because the request advertises this client's range.

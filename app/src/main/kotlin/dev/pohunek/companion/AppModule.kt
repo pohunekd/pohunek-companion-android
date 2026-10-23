@@ -21,6 +21,8 @@ import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.log.JsonLineLog
 import dev.pohunek.companion.core.data.log.LogMirror
 import dev.pohunek.companion.core.data.log.RotatingLogFile
+import dev.pohunek.companion.core.data.newsession.NewSessions
+import dev.pohunek.companion.core.data.newsession.PendingPlacementBook
 import dev.pohunek.companion.core.data.settings.SettingsStore
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogLevel
@@ -85,6 +87,14 @@ val appModule = module {
     single {
         val runtime = get<RuntimeConfig>()
         SessionCommands({ runtime.current().client }, get(ioDispatcher), get())
+    }
+    single {
+        val runtime = get<RuntimeConfig>()
+        NewSessions({ runtime.current().client }, { runtime.current().newSession.client }, get(ioDispatcher), get())
+    }
+    single {
+        val runtime = get<RuntimeConfig>()
+        PendingPlacementBook(get()) { runtime.current().newSession.pendingPlacementMaxAge }
     }
     single {
         val runtime = get<RuntimeConfig>()

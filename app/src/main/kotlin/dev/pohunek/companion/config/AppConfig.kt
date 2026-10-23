@@ -8,25 +8,40 @@ import dev.pohunek.companion.core.domain.config.Tunable
 import dev.pohunek.companion.protocol.AttachPolicy
 import dev.pohunek.companion.protocol.ClientConfig
 import dev.pohunek.companion.protocol.LivenessPolicy
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+
+/** The longest texts the screens show before they cut them. */
+data class DisplayLimits(val rowBadgeMaxChars: Int, val sectionTitleMaxChars: Int, val detailValueMaxChars: Int)
+
+/** What starting a session needs. */
+class NewSessionSettings(
+    /** [AppConfig.client] with the timeout of a `session.new`, which waits for the agent to start. */
+    val client: ClientConfig,
+    val cols: Int,
+    val rows: Int,
+    /** How long a placement recorded for a new session waits for the session to appear. */
+    val pendingPlacementMaxAge: Duration,
+    /** Initial state of the form's "Open after creating" switch. */
+    val attachAfterCreate: Boolean,
+)
 
 /** The tunables as typed settings, built from a complete set of values that passed `tunableProblems`. */
 class AppConfig private constructor(
     val client: ClientConfig,
     /** [client] with the longer request timeout of a session stop or remove. */
     val actionClient: ClientConfig,
+    val newSession: NewSessionSettings,
     val attachSettings: AttachSettings,
     val live: LiveConfig,
     val discovery: DiscoveryConfig,
     val logMaxBytes: Long,
-    val rowBadgeMaxChars: Int,
-    val sectionTitleMaxChars: Int,
-    val detailValueMaxChars: Int,
+    val display: DisplayLimits,
 ) {
     companion object {
         /** [values] holds a value for every [Tunable] and obeys their rules. */
-        fun build(values: Map<Tunable, Long>): AppConfig {
+        fun build(values: Map<Tunable, Long>, attachAfterCreate: Boolean): AppConfig {
             fun value(tunable: Tunable): Long = values.getValue(tunable)
             val client = ClientConfig(
                 connectTimeout = value(Tunable.CONNECT_TIMEOUT_MS).milliseconds,
@@ -35,6 +50,13 @@ class AppConfig private constructor(
             return AppConfig(
                 client,
                 ClientConfig(connectTimeout = client.connectTimeout, requestTimeout = value(Tunable.SESSION_ACTION_TIMEOUT_MS).milliseconds),
+                NewSessionSettings(
+                    ClientConfig(connectTimeout = client.connectTimeout, requestTimeout = value(Tunable.CREATE_TIMEOUT_MS).milliseconds),
+                    value(Tunable.NEW_SESSION_COLS).toInt(),
+                    value(Tunable.NEW_SESSION_ROWS).toInt(),
+                    value(Tunable.PENDING_PLACEMENT_MAX_AGE_SECS).seconds,
+                    attachAfterCreate,
+                ),
                 AttachSettings(
                     client,
                     AttachPolicy(
@@ -65,9 +87,11 @@ class AppConfig private constructor(
                     timeout = value(Tunable.DISCOVER_TIMEOUT_SECS).seconds,
                 ),
                 value(Tunable.LOG_MAX_BYTES),
-                value(Tunable.ROW_BADGE_MAX_CHARS).toInt(),
-                value(Tunable.SECTION_TITLE_MAX_CHARS).toInt(),
-                value(Tunable.DETAIL_VALUE_MAX_CHARS).toInt(),
+                DisplayLimits(
+                    value(Tunable.ROW_BADGE_MAX_CHARS).toInt(),
+                    value(Tunable.SECTION_TITLE_MAX_CHARS).toInt(),
+                    value(Tunable.DETAIL_VALUE_MAX_CHARS).toInt(),
+                ),
             )
         }
     }

@@ -15,6 +15,9 @@
     <integer name="session_action_timeout_ms">60000</integer>
     <string name="session_action_timeout_ms_help">How long to wait for the response to a session stop or remove. A removal ends the session\'s processes and deletes its worktree checkout, which takes longer than a list request; the dialog reports a timeout as an unknown outcome.</string>
 
+    <integer name="create_timeout_ms">120000</integer>
+    <string name="create_timeout_ms_help">How long to wait for the response to a new session. The daemon starts the agent before it answers, which takes far longer than a list request. A timeout is reported as an unknown outcome and the request is never repeated.</string>
+
     <integer name="attach_attempts">2</integer>
     <string name="attach_attempts_help">How many times a failed attach is tried, the first try included. Applies to the next terminal you open.</string>
 
@@ -72,8 +75,20 @@
     <integer name="notification_page_size">200</integer>
     <string name="notification_page_size_help">How many records are requested per page when the attention notifications are read. The page is halved while the daemon reports it as too large, and a page of one that is still too large fails the read.</string>
 
+    <integer name="new_session_cols">80</integer>
+    <string name="new_session_cols_help">The terminal width in columns that a new session starts with; the terminal view resizes it when you open the session.</string>
+
+    <integer name="new_session_rows">24</integer>
+    <string name="new_session_rows_help">The terminal height in rows that a new session starts with; the terminal view resizes it when you open the session.</string>
+
+    <integer name="pending_placement_max_age_secs">600</integer>
+    <string name="pending_placement_max_age_secs_help">How long a new session started from a group waits for the daemon to list it before it stays in Inbox instead.</string>
+
     <integer name="log_max_bytes">1048576</integer>
     <string name="log_max_bytes_help">The size limit of one log file. The log keeps the active file and one rotated file, so it never takes more than twice this.</string>
+
+    <!-- Initial state of the "Open after creating" switch of the new session form. Not a Settings entry: it takes true or false. -->
+    <bool name="attach_after_create">true</bool>
 
     <!-- The Pohunek release whose protocol the app is written for (docs/architecture.md); shown on the About screen. -->
     <string name="pohunek_protocol_tag" translatable="false">v0.35.2</string>
