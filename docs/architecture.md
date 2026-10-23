@@ -59,7 +59,12 @@ as the desktop companion: `v0.35.2` today.
   TCP connection sends `{"attach":"<id>"}\n` and from then on carries raw PTY
   bytes: the snapshot repaint arrives first, and the bytes are never assumed to
   be UTF-8. `session.resize` and `session.detach` go over the control
-  connection, not the attach connection.
+  connection, not the attach connection. The attach is idle most of the time, so
+  a connection that died without FIN or RST would show a frozen screen: while
+  attached, a `daemon.health` probe on the control connection runs every
+  `attach_liveness_interval_ms` and must answer within `attach_liveness_timeout_ms`, else the
+  attach fails with a typed liveness error (at most the sum of both after the
+  connection died).
 - Wire fixtures come from two sources: Pohunek `sdk/ts/protocol/fixtures` at the
   pinned tag (`protocol/src/test/resources/fixtures/`), and, where that
   directory has no fixture for a method or event the app uses, captures from

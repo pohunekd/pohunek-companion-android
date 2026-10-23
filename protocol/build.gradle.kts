@@ -14,6 +14,7 @@ dependencies {
     api(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 // Prints the classpath of the manual checks so they can run with a plain `java -cp` in another container.

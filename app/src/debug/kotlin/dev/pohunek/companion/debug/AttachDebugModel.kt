@@ -65,6 +65,7 @@ internal class AttachDebugModel(
             controller,
             config.client,
             config.policy,
+            config.liveness,
             ioDispatcher,
             mainDispatcher,
             log,

@@ -29,6 +29,14 @@
     -->
     <integer name="liveness_timeout_ms">5000</integer>
     <!--
+      Milliseconds between two liveness checks of an attached terminal (a daemon.health round trip on the attach control connection): an
+      integer greater than 0. A connection that died without a FIN or RST is reported at most attach_liveness_interval_ms + attach_liveness_timeout_ms
+      after it died.
+    -->
+    <integer name="attach_liveness_interval_ms">5000</integer>
+    <!-- Milliseconds a liveness check may take before the attach fails with a liveness error: an integer greater than 0. -->
+    <integer name="attach_liveness_timeout_ms">3000</integer>
+    <!--
       Size limit in bytes of one log file (files/logs/app.log and the one rotated file app.log.1, so the log never takes more than twice
       this): an integer of at least 4096.
     -->

@@ -6,11 +6,18 @@ import dev.pohunek.companion.R
 import dev.pohunek.companion.core.data.live.LiveConfig
 import dev.pohunek.companion.protocol.AttachPolicy
 import dev.pohunek.companion.protocol.ClientConfig
+import dev.pohunek.companion.protocol.LivenessPolicy
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /** Validated tunables from `res/values/config.xml`. */
-class AppConfig private constructor(val client: ClientConfig, val attachPolicy: AttachPolicy, val live: LiveConfig, val logMaxBytes: Long) {
+class AppConfig private constructor(
+    val client: ClientConfig,
+    val attachPolicy: AttachPolicy,
+    val attachLiveness: LivenessPolicy,
+    val live: LiveConfig,
+    val logMaxBytes: Long,
+) {
     companion object {
         fun load(resources: Resources): AppConfigResult = try {
             AppConfigResult.Valid(
@@ -22,6 +29,10 @@ class AppConfig private constructor(val client: ClientConfig, val attachPolicy: 
                     AttachPolicy(
                         maxAttempts = positive(resources, "attach_attempts", R.integer.attach_attempts).toInt(),
                         retryDelay = positive(resources, "attach_retry_delay_ms", R.integer.attach_retry_delay_ms).milliseconds,
+                    ),
+                    LivenessPolicy(
+                        interval = positive(resources, "attach_liveness_interval_ms", R.integer.attach_liveness_interval_ms).milliseconds,
+                        timeout = positive(resources, "attach_liveness_timeout_ms", R.integer.attach_liveness_timeout_ms).milliseconds,
                     ),
                     liveConfig(resources),
                     atLeast(resources, "log_max_bytes", R.integer.log_max_bytes, MIN_LOG_MAX_BYTES),

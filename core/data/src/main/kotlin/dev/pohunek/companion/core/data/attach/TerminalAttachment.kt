@@ -11,8 +11,10 @@ import dev.pohunek.companion.protocol.AttachPolicy
 import dev.pohunek.companion.protocol.AttachedSession
 import dev.pohunek.companion.protocol.ClientConfig
 import dev.pohunek.companion.protocol.HostRoute
+import dev.pohunek.companion.protocol.LivenessPolicy
 import dev.pohunek.companion.protocol.ProtocolClientException
 import dev.pohunek.companion.protocol.TerminalDimensions
+import dev.pohunek.companion.protocol.watchLiveness
 import dev.pohunek.companion.terminal.TerminalController
 import dev.pohunek.companion.terminal.TerminalSize
 import kotlinx.coroutines.CoroutineDispatcher
@@ -58,6 +60,7 @@ class TerminalAttachment(
     private val controller: TerminalController,
     private val config: ClientConfig,
     private val policy: AttachPolicy,
+    private val liveness: LivenessPolicy,
     private val ioDispatcher: CoroutineDispatcher,
     private val mainDispatcher: CoroutineDispatcher,
     private val log: AppLog,
@@ -106,6 +109,7 @@ class TerminalAttachment(
                 launch { pumpOutput(attached) }
                 launch { controller.input.collect { attached.write(it) } }
                 launch { pumpResizes(attached, TerminalDimensions(initial.cols, initial.rows)) }
+                launch { watchLiveness(liveness) { attached.checkAlive(it) } }
             }
         } catch (e: ProtocolClientException) {
             fail(e)

@@ -24,6 +24,7 @@ fun ProtocolClientException.logCode(): String = when (this) {
     is ProtocolClientException.ConnectionFailed -> "connection_failed"
     is ProtocolClientException.ConnectTimeout -> "connect_timeout"
     is ProtocolClientException.RequestTimeout -> "request_timeout"
+    is ProtocolClientException.LivenessTimeout -> "liveness_timeout"
     is ProtocolClientException.ConnectionLost -> "connection_lost"
     is ProtocolClientException.Framing -> "framing"
     is ProtocolClientException.MalformedResponse -> "malformed_response"

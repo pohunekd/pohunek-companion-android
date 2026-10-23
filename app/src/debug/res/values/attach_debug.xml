@@ -22,4 +22,7 @@
     <integer name="attach_debug_request_timeout_ms">3000</integer>
     <integer name="attach_debug_attempts">2</integer>
     <integer name="attach_debug_retry_delay_ms">500</integer>
+    <!-- Liveness checks of an attached terminal: a daemon.health round trip every interval, each given timeout to answer. -->
+    <integer name="attach_debug_liveness_interval_ms">2000</integer>
+    <integer name="attach_debug_liveness_timeout_ms">2000</integer>
 </resources>
