@@ -121,6 +121,7 @@ private fun SessionListContent(
                 state.layoutIssue?.let { LayoutIssueBanner(it) }
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
                 state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
+                state.groupNote?.let { GroupNoteBanner(it) { onEvent(SessionListEvent.DismissGroupNote) } }
                 state.statuses.forEach { HostStatusLine(it) }
                 ViewChips(state.view, onEvent)
                 StateChips(state.stateChips, state.states, onEvent)

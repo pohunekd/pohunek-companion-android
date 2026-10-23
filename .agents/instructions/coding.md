@@ -9,7 +9,10 @@
 - The daemon owns session, herd, and notification state. The app only reads it
   and calls public methods; it never infers or caches authority.
 - Layout (groups, order, filters) is client-side state in the app's own storage.
-  Never write it into session metadata.
+  The one exception is group membership: the session metadata key
+  `companion.group` holds the group's display name and is written only through
+  `SessionCommands.setGroup` (see `docs/architecture.md`). Group order, session
+  order, collapse, views and filters never go into metadata.
 - Herd membership and Pohunek Work links (`work.link.*`, `work.role`, legacy
   `link.*`) are read-only structure for the app. A layout change never adds or
   removes a herd member or relinks a work item.

@@ -32,6 +32,10 @@ data class SessionResizeResult(val session: SessionInfo)
 @Serializable
 data class SessionRenameResult(val session: SessionInfo)
 
+/** Result of `session.set_metadata`: the session summary after the merge. */
+@Serializable
+data class SessionSetMetadataResult(val session: SessionInfo)
+
 /** Result of `session.resume`: the session summary after the new generation was started. */
 @Serializable
 data class SessionResumeResult(val session: SessionInfo)

@@ -24,6 +24,15 @@ sealed interface GroupError {
         override val kind = "empty name"
     }
 
+    /** The name is longer than `group_name_max_bytes`, so no other client would accept it as a value. */
+    data object NameTooLong : GroupError {
+        override val kind = "name too long"
+    }
+
+    data object NameHasControlCharacter : GroupError {
+        override val kind = "name has control character"
+    }
+
     data class DuplicateName(val name: String) : GroupError {
         override val kind = "duplicate name"
     }
@@ -38,20 +47,6 @@ sealed interface GroupError {
 
     data object AmbiguousOrder : GroupError {
         override val kind = "ambiguous order"
-    }
-}
-
-/** Why creating a group and moving a session into it was refused; the layout is left unchanged. */
-sealed interface CreateAndMoveError {
-    /** A label for logs that names the refusal without the group name. */
-    val kind: String
-
-    data class Group(val error: GroupError) : CreateAndMoveError {
-        override val kind get() = error.kind
-    }
-
-    data class Move(val error: MoveError) : CreateAndMoveError {
-        override val kind = "move refused"
     }
 }
 

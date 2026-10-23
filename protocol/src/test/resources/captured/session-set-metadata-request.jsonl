@@ -1,0 +1,1 @@
+{"v":{"minimum":4,"maximum":4},"id":"req-1","method":"session.set_metadata","params":{"session_id":"s-1","metadata":{"companion.group":"Reviews"}}}

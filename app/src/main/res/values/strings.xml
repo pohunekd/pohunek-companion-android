@@ -52,6 +52,8 @@
     <string name="group_name_cancel">Cancel</string>
     <string name="group_error_empty">a group name cannot be empty</string>
     <string name="group_error_duplicate">a group named \"%1$s\" already exists</string>
+    <string name="group_error_too_long">that group name is too long</string>
+    <string name="group_error_control_character">a group name cannot contain control characters</string>
     <string name="group_error_gone">The group or the session is gone</string>
     <string name="group_edit_refused">The group or the session is gone; nothing was changed</string>
     <string name="row_action_move">Move to group...</string>
@@ -99,6 +101,8 @@
     <string name="link_unavailable">The session has no link that can be opened</string>
     <string name="link_no_app">No app can open this link</string>
 
+    <string name="group_write_failed">%1$d of %2$d sessions were not updated. First failure on %3$s: %4$s</string>
+    <string name="group_write_not_connected">the host is not connected</string>
     <string name="session_list_refusal_dismiss">Dismiss</string>
     <string name="attach_refusal_external">External sessions are read-only in Pohunek and have no terminal to attach to</string>
     <string name="attach_refusal_starting">The session is still starting; attach once it is running</string>

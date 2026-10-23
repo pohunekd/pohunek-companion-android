@@ -117,6 +117,10 @@ class PohunekConnection private constructor(
     suspend fun rename(sessionId: String, name: String?): SessionInfo =
         call { Requests.sessionRename(it, sessionId, name) }.decodeResult(SessionRenameResult.serializer()).session
 
+    /** Merges [patch] into the metadata of [sessionId]: a string sets its key and a null value removes it. */
+    suspend fun setMetadata(sessionId: String, patch: Map<String, String?>): SessionInfo =
+        call { Requests.sessionSetMetadata(it, sessionId, patch) }.decodeResult(SessionSetMetadataResult.serializer()).session
+
     /** Starts a new generation of the ended [sessionId]; the returned summary says whether it already runs. */
     suspend fun resume(sessionId: String): SessionInfo =
         call { Requests.sessionResume(it, sessionId) }.decodeResult(SessionResumeResult.serializer()).session

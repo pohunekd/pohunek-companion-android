@@ -7,7 +7,8 @@ import dev.pohunek.companion.core.domain.sessions.sanitizeText
 
 /**
  * The owner's client-side layout: groups of sessions in a manual order. Immutable; every edit returns the new layout, so a refused
- * edit leaves the receiver as it was. Never stored in session metadata and never sent to the daemon; persistence is the caller's.
+ * edit leaves the receiver as it was. Only group membership is shared, through the `companion.group` session metadata key; writing it
+ * and persistence are the caller's.
  */
 @ConsistentCopyVisibility
 @Suppress("TooManyFunctions") // One cohesive set of edits; splitting it would scatter the invariants they share.
@@ -20,6 +21,8 @@ data class Layout private constructor(
     val collapsedSections: Map<String, Set<String>>,
     val groups: List<Group>,
     val items: List<Item>,
+    /** Host keys (routes) whose manual placements have been written into session metadata, once each; see [migrationPlan]. */
+    val migratedHosts: List<String>,
 ) {
     /** The selected view; My groups when none is stored or the stored id is unknown. */
     val view: LayoutView get() = storedView?.let(LayoutView::parse) ?: LayoutView.MY_GROUPS
@@ -92,23 +95,23 @@ data class Layout private constructor(
     }
 
     /**
-     * Moves [key] into [group] at [placement] and marks it manually placed. Only that session's item changes: its group and one new
-     * sort key. The value is whether anything changed. A drop where the session already is, or on itself, keeps its position but
-     * still marks it manually placed, so only the flag changes.
+     * Moves [key] into [group] at [placement]. Only that session's item changes: its group, one new sort key and its manual flag, which
+     * is set to [manual]: true while the owner's local move is what places the session, false once its `companion.group` key is. The
+     * value is whether anything changed. A drop where the session already is, or on itself, keeps its position and changes the flag only.
      */
-    fun moveSession(key: SessionKey, group: String, placement: Placement): Edit<Boolean, MoveError> {
+    fun moveSession(key: SessionKey, group: String, placement: Placement, manual: Boolean): Edit<Boolean, MoveError> {
         val index = items.indexOfFirst { it.key == key }
         return when {
             groups.none { it.id == group } -> Edit.Refused(MoveError.UnknownGroup(group))
             index < 0 -> Edit.Refused(MoveError.UnknownSession(key.sessionId))
-            else -> placeItem(index, group, placement)
+            else -> placeItem(index, group, placement, manual)
         }
     }
 
-    private fun placeItem(index: Int, group: String, placement: Placement): Edit<Boolean, MoveError> {
+    private fun placeItem(index: Int, group: String, placement: Placement, manual: Boolean): Edit<Boolean, MoveError> {
         val item = items[index]
         val anchor = placement.anchorOrNull()
-        if (anchor == item.key) return pin(index)
+        if (anchor == item.key) return flag(index, manual)
         val neighbours = groupItems(group).filter { it.key != item.key }
         val slot = if (anchor == null) {
             neighbours.size
@@ -120,54 +123,66 @@ data class Layout private constructor(
         val upper = neighbours.getOrNull(slot)?.order
         val stays = item.group == group && (lower == null || lower < item.order) && (upper == null || item.order < upper)
         return when {
-            stays -> pin(index)
+            stays -> flag(index, manual)
             lower != null && upper != null && lower >= upper -> Edit.Refused(MoveError.AmbiguousOrder(group))
             else -> Edit.Done(
-                copy(items = items.replaced(index, item.copy(group = group, order = SortKey.between(lower, upper), manual = true))),
+                copy(items = items.replaced(index, item.copy(group = group, order = SortKey.between(lower, upper), manual = manual))),
                 true,
             )
         }
     }
 
-    /** Marks the item manually placed; the value is whether the flag changed. */
-    private fun pin(index: Int): Edit<Boolean, MoveError> {
+    /** Sets the item's manual flag; the value is whether it changed. */
+    private fun flag(index: Int, manual: Boolean): Edit<Boolean, MoveError> {
         val item = items[index]
-        return if (item.manual) Edit.Done(this, false) else Edit.Done(copy(items = items.replaced(index, item.copy(manual = true))), true)
+        return if (item.manual == manual) Edit.Done(this, false) else Edit.Done(copy(items = items.replaced(index, item.copy(manual = manual))), true)
     }
 
-    /** Appends a group after the last one; the value is its id (`g<n>`). */
-    fun createGroup(name: String): Edit<String, GroupError> {
-        val clean = cleanName(name) ?: return Edit.Refused(GroupError.EmptyName)
+    /** Appends a group after the last one; the value is its id (`g<n>`). The name must be fit to be written as a `companion.group` value. */
+    fun createGroup(name: String, maxBytes: Int): Edit<String, GroupError> {
+        val clean = when (val check = checkGroupName(name, maxBytes)) {
+            is GroupNameCheck.Invalid -> return Edit.Refused(check.problem.toError())
+            is GroupNameCheck.Valid -> check.name
+        }
         if (nameTaken(clean, except = null)) return Edit.Refused(GroupError.DuplicateName(clean))
         val group = groups.appended(clean, GroupOrigin.Created)
         return Edit.Done(copy(groups = groups + group), group.id)
     }
 
-    /** Appends a group and moves [key] to its end as one change; on any refusal the layout is as it was. The value is the group's id. */
-    fun createGroupAndMove(name: String, key: SessionKey): Edit<String, CreateAndMoveError> {
-        if (items.none { it.key == key }) return Edit.Refused(CreateAndMoveError.Move(MoveError.UnknownSession(key.sessionId)))
-        val created = when (val created = createGroup(name)) {
-            is Edit.Refused -> return Edit.Refused(CreateAndMoveError.Group(created.error))
-            is Edit.Done -> created
-        }
-        return when (val moved = created.layout.moveSession(key, created.value, Placement.End)) {
-            is Edit.Refused -> Edit.Refused(CreateAndMoveError.Move(moved.error))
-            is Edit.Done -> Edit.Done(moved.layout, created.value)
-        }
-    }
-
-    /** Renames a group; Inbox keeps its name. The value is whether the name changed. */
-    fun renameGroup(id: String, name: String): Edit<Boolean, GroupError> {
+    /**
+     * Renames a group; Inbox keeps its name. A created group of that name refuses the rename; a learned one, which only mirrors what
+     * other clients wrote, is merged: its sessions join the end of the renamed group and it goes. The value is whether anything changed.
+     */
+    fun renameGroup(id: String, name: String, maxBytes: Int): Edit<Boolean, GroupError> {
         val index = groups.indexOfFirst { it.id == id }
-        val clean = cleanName(name)
+        val check = checkGroupName(name, maxBytes)
+        val clean = (check as? GroupNameCheck.Valid)?.name
         return when {
             index < 0 -> Edit.Refused(GroupError.UnknownGroup(id))
             id == INBOX_ID -> Edit.Refused(GroupError.InboxFixed)
+            check is GroupNameCheck.Invalid -> Edit.Refused(check.problem.toError())
             clean == null -> Edit.Refused(GroupError.EmptyName)
-            nameTaken(clean, except = id) -> Edit.Refused(GroupError.DuplicateName(clean))
-            groups[index].name == clean -> Edit.Done(this, false)
-            else -> Edit.Done(copy(groups = groups.replaced(index, groups[index].copy(name = clean))), true)
+            nameTaken(clean, except = id, ignoreLearned = true) -> Edit.Refused(GroupError.DuplicateName(clean))
+            else -> renamed(index, clean).let { next -> Edit.Done(next, next != this) }
         }
+    }
+
+    private fun renamed(index: Int, name: String): Layout {
+        val group = groups[index]
+        val learned = groups.firstOrNull { it.id != group.id && it.origin == GroupOrigin.Learned && it.name.matchKey() == name.matchKey() }
+        val renamed = copy(groups = groups.replaced(index, group.copy(name = name)))
+        return if (learned == null) renamed else renamed.absorbed(learned.id, group.id)
+    }
+
+    /** Moves the sessions of group [from] to the end of group [into], in their order, and drops [from]. */
+    private fun absorbed(from: String, into: String): Layout {
+        var last = items.filter { it.group == into }.maxOfOrNull { it.order }
+        val relocated = groupItems(from).associate { item ->
+            val order = SortKey.between(last, null)
+            last = order
+            item.key to item.copy(group = into, order = order)
+        }
+        return copy(groups = groups.filter { it.id != from }, items = items.map { relocated[it.key] ?: it })
     }
 
     /**
@@ -295,17 +310,58 @@ data class Layout private constructor(
         return GroupSync(next, sync.moved, sync.added, dropped)
     }
 
-    private fun nameTaken(name: String, except: String?): Boolean {
+    private fun nameTaken(name: String, except: String?, ignoreLearned: Boolean = false): Boolean {
         val folded = name.lowercase()
-        return groups.any { it.id != except && it.name.lowercase() == folded }
+        return groups.any { it.id != except && (!ignoreLearned || it.origin != GroupOrigin.Learned) && it.name.lowercase() == folded }
+    }
+
+    /**
+     * The `companion.group` writes that move the manual placements of [host] into session metadata, none once the host is migrated. A
+     * candidate is a manual item outside Inbox whose session [facts] list, is not external and has no key at all (a value other clients
+     * would ignore still counts as a key, and is never overwritten). A group name that cannot be written as a value leaves its sessions
+     * local, listed in [GroupMigration.unshared].
+     */
+    fun migrationPlan(host: String, facts: List<GroupFact>, maxBytes: Int): GroupMigration {
+        if (host in migratedHosts) return GroupMigration(emptyList(), emptyList())
+        val writable = facts.filter { !it.external && it.value == GroupValue.Absent }.mapTo(HashSet()) { it.key }
+        val names = groups.associate { it.id to it.name }
+        val checked = items.filter { it.key.host == host && it.manual && it.group != INBOX_ID && it.key in writable }.mapNotNull { item ->
+            names[item.group]?.let { item.key to checkGroupName(it, maxBytes) }
+        }
+        return GroupMigration(
+            writes = checked.mapNotNull { (key, check) -> (check as? GroupNameCheck.Valid)?.let { GroupWrite(key, it.name) } },
+            unshared = checked.filter { it.second is GroupNameCheck.Invalid }.map { it.first },
+        )
+    }
+
+    /** Records [host] as migrated, so [migrationPlan] gives nothing for it from now on. */
+    fun withMigrated(host: String): Layout = if (host in migratedHosts) this else copy(migratedHosts = migratedHosts + host)
+
+    /**
+     * The sessions a rename or delete of group [groupId] has to write: those whose key names the group (compared as the list does) and
+     * the ones the group holds locally without a usable key, in the group's display order and then the order of [facts]. Inbox and unknown groups have none.
+     */
+    fun groupMembers(groupId: String, facts: List<GroupFact>): List<GroupMember> {
+        val group = groups.firstOrNull { it.id == groupId }?.takeIf { it.id != INBOX_ID } ?: return emptyList()
+        val folded = group.name.matchKey()
+        val position = groupItems(groupId).withIndex().associate { it.value.key to it.index }
+        return facts.filter { fact ->
+            when (val value = fact.value) {
+                is GroupValue.Present -> value.name.matchKey() == folded
+                else -> fact.key in position
+            }
+        }.sortedBy { position[it.key] ?: Int.MAX_VALUE }.map { GroupMember(it.key, it.external) }
     }
 
     companion object {
         /** The stored format version this build reads. */
-        const val FORMAT_VERSION = 1
+        const val FORMAT_VERSION = 2
+
+        /** The oldest stored version this build still reads; it has no [migratedHosts], so every host reads as unmigrated. */
+        private const val OLDEST_VERSION = 1
 
         /** Inbox only. */
-        fun default(): Layout = Layout(null, emptyMap(), emptyMap(), listOf(inboxGroup(SortKey.between(null, null))), emptyList())
+        fun default(): Layout = Layout(null, emptyMap(), emptyMap(), listOf(inboxGroup(SortKey.between(null, null))), emptyList(), emptyList())
 
         /**
          * Builds a layout from stored data. Rejects a wrong version, an empty or repeated group id, an invalid sort key, an item in an
@@ -319,19 +375,27 @@ data class Layout private constructor(
             collapsedSections: Map<String, Set<String>>,
             groups: List<Group>,
             items: List<Item>,
+            migratedHosts: List<String>,
         ): LayoutLoad {
             val problem = validate(version, groups, items)
             if (problem != null) return LayoutLoad.Invalid(problem)
             val repaired = groups.none { it.id == INBOX_ID }
             val all = if (repaired) listOf(inboxGroup(SortKey.between(null, groups.minOfOrNull { it.order }))) + groups else groups
-            return LayoutLoad.Loaded(
-                Layout(view, filters.mapValues { it.value.withProblemState() }, collapsedSections.mapValues { it.value.toSet() }, all.toList(), items.toList()),
-                repaired,
+            val layout = Layout(
+                storedView = view,
+                filters = filters.mapValues { it.value.withProblemState() },
+                collapsedSections = collapsedSections.mapValues { it.value.toSet() },
+                groups = all.toList(),
+                items = items.toList(),
+                migratedHosts = migratedHosts.distinct(),
             )
+            return LayoutLoad.Loaded(layout, repaired)
         }
 
         private fun validate(version: Int, groups: List<Group>, items: List<Item>): String? {
-            if (version != FORMAT_VERSION) return "unsupported format version $version (this build reads version $FORMAT_VERSION)"
+            if (version !in OLDEST_VERSION..FORMAT_VERSION) {
+                return "unsupported format version $version (this build reads versions $OLDEST_VERSION to $FORMAT_VERSION)"
+            }
             val ids = HashSet<String>()
             val sessions = HashSet<SessionKey>()
             return groups.firstNotNullOfOrNull { groupProblem(it, ids) } ?: items.firstNotNullOfOrNull { itemProblem(it, ids, sessions) }
@@ -366,8 +430,11 @@ private fun Placement.anchorOrNull(): SessionKey? = when (this) {
     Placement.End -> null
 }
 
-/** The name as stored: trimmed, or null when empty. */
-private fun cleanName(name: String): String? = name.trim().ifEmpty { null }
+private fun GroupNameProblem.toError(): GroupError = when (this) {
+    GroupNameProblem.Empty -> GroupError.EmptyName
+    GroupNameProblem.TooLong -> GroupError.NameTooLong
+    GroupNameProblem.ControlCharacter -> GroupError.NameHasControlCharacter
+}
 
 /** The working copy [Layout.applyGroupValues] edits; [moved] and [added] count what changed. */
 private class GroupValueSync(var groups: List<Group>, var items: List<Item>) {
