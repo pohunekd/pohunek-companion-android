@@ -70,6 +70,9 @@ sealed class ProtocolClientException(message: String, cause: Throwable? = null) 
     /** The line is not a valid response envelope, or the result does not match the documented shape. */
     class MalformedResponse(detail: String, cause: Throwable? = null) : ProtocolClientException("malformed response: $detail", cause)
 
+    /** A subscription line is not a valid event envelope (not JSON, no `v` or `event`, an invalid event name). */
+    class MalformedEvent(detail: String, cause: Throwable? = null) : ProtocolClientException("malformed event: $detail", cause)
+
     class ResponseIdMismatch(val expected: String, val actual: String) : ProtocolClientException("response id '$actual' does not answer request '$expected'")
 
     /** An earlier failure left the connection in an undefined state; open a new one. */

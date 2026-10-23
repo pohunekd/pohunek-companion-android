@@ -48,7 +48,15 @@ as the desktop companion: `v0.35.2` today.
   bytes: the snapshot repaint arrives first, and the bytes are never assumed to
   be UTF-8. `session.resize` and `session.detach` go over the control
   connection, not the attach connection.
-- Wire fixtures come from Pohunek `sdk/ts/protocol/fixtures` at the pinned tag.
+- Wire fixtures come from two sources: Pohunek `sdk/ts/protocol/fixtures` at the
+  pinned tag (`protocol/src/test/resources/fixtures/`), and, where that
+  directory has no fixture for a method or event the app uses, captures from
+  the isolated `pohunekd` of the same tag that `scripts/ui-agent` runs
+  (`protocol/src/test/resources/captured/`, with the capture command and the
+  list of payloads built from captured ones in its README).
+- Events: a `subscribe` line is decoded into a sealed `DaemonEvent`; an event
+  name the app does not model decodes to `Unknown` and is ignored, so a daemon
+  that adds events never breaks the stream.
 
 ## App data and configuration
 

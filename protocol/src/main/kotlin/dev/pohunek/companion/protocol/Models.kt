@@ -63,6 +63,42 @@ enum class CwdSource {
     Osc7,
 }
 
+@Serializable
+enum class RuntimeState {
+    @SerialName("starting")
+    Starting,
+
+    @SerialName("live")
+    Live,
+
+    @SerialName("reconnecting")
+    Reconnecting,
+
+    @SerialName("terminal")
+    Terminal,
+
+    @SerialName("lost")
+    Lost,
+
+    @SerialName("conflict")
+    Conflict,
+
+    @SerialName("incompatible")
+    Incompatible,
+}
+
+/** Durable runtime of a worker-backed session; `runtime_generation` is a decimal string on the wire. */
+@Serializable
+data class SessionRuntime(
+    val state: RuntimeState,
+    @SerialName("runtime_generation") val runtimeGeneration: String,
+    @SerialName("worker_id") val workerId: String? = null,
+    @SerialName("worker_instance_id") val workerInstanceId: String? = null,
+    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("last_connected_at") val lastConnectedAt: String? = null,
+    @SerialName("loss_reason") val lossReason: String? = null,
+)
+
 /** Result of `daemon.health`. */
 @Serializable
 data class DaemonHealth(
@@ -79,7 +115,7 @@ data class SessionCapabilities(val resume: Boolean, val fork: Boolean)
 data class CapabilityRefusals(val resume: String? = null, val fork: String? = null)
 
 /**
- * One entry of `session.list`. Timestamps are RFC 3339 strings as sent. `runtime`, `subagents`, `background` and `warnings` are ignored on
+ * One entry of `session.list`. Timestamps are RFC 3339 strings as sent. `subagents`, `background` and `warnings` are ignored on
  * decode until a consumer needs them. Strings other than ids and codes come from owner-controlled but untrusted metadata.
  */
 @Serializable
@@ -94,6 +130,7 @@ data class SessionInfo(
     val cwd: String,
     @SerialName("cwd_source") val cwdSource: CwdSource? = null,
     val pid: Long,
+    val runtime: SessionRuntime? = null,
     val cols: Int,
     val rows: Int,
     val state: SessionState,

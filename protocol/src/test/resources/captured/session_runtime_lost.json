@@ -1,0 +1,43 @@
+{
+  "event": "session_runtime_lost",
+  "session": {
+    "agent": "shell",
+    "agent_base": "shell",
+    "capabilities": {
+      "fork": false,
+      "resume": false
+    },
+    "cols": 80,
+    "created_at": "2026-10-23T10:56:51.86104754Z",
+    "cwd": "/work/proj-alpha",
+    "cwd_source": "launch",
+    "external": false,
+    "id": "s-01M5M6G34MV40GQ5EWNZK85KKN",
+    "is_linked_worktree": false,
+    "metadata": {
+      "work.link.id": "12",
+      "work.link.kind": "pr",
+      "work.link.provider": "github",
+      "work.link.url": "https://example.invalid/proj-alpha/pull/12",
+      "work.role": "implementer"
+    },
+    "name": "alpha-agent",
+    "pid": 504,
+    "project_id": "p-79d0ea2e",
+    "project_label": "proj-alpha",
+    "rows": 24,
+    "runtime": {
+      "last_connected_at": "2026-10-23T10:56:51.965396109Z",
+      "loss_reason": "runtime_lost",
+      "runtime_generation": "1",
+      "started_at": "2026-10-23T10:56:51.965396109Z",
+      "state": "lost",
+      "worker_id": "worker-eb7f7741ce3fe3702e3a7c3fc64b7ad2",
+      "worker_instance_id": "runtime-7ca4289cafbacdfe0f9af13b2b56ae60"
+    },
+    "state": "running",
+    "state_source": "process",
+    "updated_at": "2026-10-23T10:57:50.733578406Z"
+  },
+  "v": 4
+}
