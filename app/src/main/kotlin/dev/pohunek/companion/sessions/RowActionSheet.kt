@@ -22,7 +22,10 @@ import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** The actions of one row; an action the row cannot offer is absent. [canMove] is false in a derived view, which is read-only. The sheet is a window of its own, so it exposes its test tags itself. */
+/**
+ * The actions of one row; an action the row cannot offer is absent, and [canMove] is false in a derived view, which is read-only.
+ * The sheet is a window of its own, so it exposes its test tags itself.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun RowActionSheet(row: SessionRow, resuming: Boolean, canMove: Boolean, onEvent: (SessionListEvent) -> Unit) {
