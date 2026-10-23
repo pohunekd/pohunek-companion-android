@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,10 +33,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import dev.pohunek.companion.R
@@ -104,7 +109,7 @@ private fun AttachDebugScreen(model: AttachDebugModel, openDemo: () -> Unit, mod
             .safeDrawingPadding(),
     ) {
         if (active == null) {
-            SessionPicker(model, openDemo)
+            SessionPicker(model, openDemo, Modifier.weight(1f))
         } else {
             BackHandler(onBack = model::detach)
             // Keyed on the attach, so a new entry into a session never reuses the previous emulator.
@@ -114,26 +119,36 @@ private fun AttachDebugScreen(model: AttachDebugModel, openDemo: () -> Unit, mod
 }
 
 @Composable
-private fun SessionPicker(model: AttachDebugModel, openDemo: () -> Unit) {
-    Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun SessionPicker(model: AttachDebugModel, openDemo: () -> Unit, modifier: Modifier = Modifier) {
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    // Listing releases the route field so the soft keyboard no longer covers the list.
+    val list = {
+        focus.clearFocus()
+        keyboard?.hide()
+        model.list()
+    }
+    Column(modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = model.route,
             onValueChange = { model.route = it },
             label = { Text(stringResource(R.string.attach_debug_route_label)) },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+            keyboardActions = KeyboardActions(onGo = { list() }),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("AttachDebug.route"),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(model::list, Modifier.testTag("AttachDebug.list")) { Text(stringResource(R.string.attach_debug_list)) }
+            Button(list, Modifier.testTag("AttachDebug.list")) { Text(stringResource(R.string.attach_debug_list)) }
             OutlinedButton(openDemo, Modifier.testTag("AttachDebug.demo")) { Text(stringResource(R.string.attach_debug_demo)) }
         }
         if (model.listing) Text(stringResource(R.string.attach_debug_listing), Modifier.testTag("AttachDebug.listing"))
         model.listError?.let { Text(it, Modifier.testTag("AttachDebug.error"), color = MaterialTheme.colorScheme.error) }
         val sessions = model.sessions
         if (sessions != null && sessions.isEmpty()) Text(stringResource(R.string.attach_debug_no_sessions))
-        LazyColumn { items(sessions.orEmpty(), key = { it.id }) { SessionRow(it) { model.attach(it) } } }
+        LazyColumn(Modifier.weight(1f)) { items(sessions.orEmpty(), key = { it.id }) { SessionRow(it) { model.attach(it) } } }
     }
 }
 

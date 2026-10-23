@@ -21,7 +21,10 @@ entry. The decisions behind this list are in
   follow; each file's first line says where it came from):
   - `GhosttyTerminalView.kt`, `GhosttyVt.kt`, `SnapshotFormat.kt`,
     `StickyModifier.kt`, `TerminalAccessoryBar.kt` (from
-    `src/main/java/expo/modules/libghostty/`)
+    `src/main/java/expo/modules/libghostty/`); `GhosttyTerminalView.kt`
+    takes input through `ComposingText` and `DeadKeyComposer` (own files,
+    `terminal/src/main/kotlin/dev/pohunek/companion/terminal/`): IME composition
+    and dead keys reach the PTY once, and the input type is a plain text field
   - `cpp/ghostty_jni.cpp` (from `src/main/cpp/`); `nativeViewportText` is added
     to read the visible grid without touching the selection, and the selection
     formatting is factored into a helper shared with `nativeSelectionText`
