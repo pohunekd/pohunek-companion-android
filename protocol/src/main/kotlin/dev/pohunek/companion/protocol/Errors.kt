@@ -2,6 +2,8 @@ package dev.pohunek.companion.protocol
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.net.UnknownHostException
+import java.nio.channels.UnresolvedAddressException
 
 @Serializable
 enum class ErrorClass {
@@ -54,7 +56,14 @@ sealed class ProtocolClientException(message: String, cause: Throwable? = null) 
     class InvalidRoute(val route: String, detail: String) : ProtocolClientException("invalid host route '$route': $detail")
 
     /** The TCP connection could not be opened. */
-    class ConnectionFailed(val route: HostRoute, cause: Throwable) : ProtocolClientException("cannot connect to $route: ${cause.message}", cause)
+    class ConnectionFailed(val route: HostRoute, cause: Throwable) : ProtocolClientException("cannot connect to $route: ${describe(cause)}", cause) {
+        private companion object {
+            fun describe(cause: Throwable): String = when {
+                cause is UnknownHostException || cause is UnresolvedAddressException -> "the host name cannot be resolved"
+                else -> cause.message?.takeUnless { it.isBlank() } ?: cause.javaClass.simpleName
+            }
+        }
+    }
 
     class ConnectTimeout(val route: HostRoute, val timeoutMillis: Long) : ProtocolClientException("connecting to $route timed out after $timeoutMillis ms")
 

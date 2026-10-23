@@ -13,6 +13,7 @@ import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
 import java.nio.channels.ClosedByInterruptException
 import java.nio.channels.SocketChannel
+import java.nio.channels.UnresolvedAddressException
 import kotlin.time.Duration
 
 /** Timeouts of a connection; both are required and positive. */
@@ -216,17 +217,22 @@ class PohunekConnection private constructor(
 
         /** Resolves and connects; the socket timeout bounds the handshake, the caller's timeout also bounds name resolution. */
         private fun connect(route: HostRoute, config: ClientConfig): SocketChannel {
-            val opened = SocketChannel.open()
+            var opened: SocketChannel? = null
             try {
+                opened = SocketChannel.open()
                 opened.socket().connect(InetSocketAddress(route.host, route.port), config.connectTimeout.inWholeMilliseconds.toInt())
                 return opened
             } catch (e: IOException) {
-                opened.close()
+                opened?.close()
+                throw connectFailure(route, config, e)
+            } catch (e: UnresolvedAddressException) {
+                // The channel API's own signal for a name that does not resolve; the socket adaptor normally translates it to UnknownHostException.
+                opened?.close()
                 throw connectFailure(route, config, e)
             }
         }
 
-        private fun connectFailure(route: HostRoute, config: ClientConfig, e: IOException): Exception = when (e) {
+        private fun connectFailure(route: HostRoute, config: ClientConfig, e: Exception): Exception = when (e) {
             is SocketTimeoutException -> ProtocolClientException.ConnectTimeout(route, config.connectTimeout.inWholeMilliseconds).also { it.addSuppressed(e) }
             is ClosedByInterruptException -> CancellationException("interrupted while connecting to $route", e)
             else -> ProtocolClientException.ConnectionFailed(route, e)
