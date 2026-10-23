@@ -14,6 +14,8 @@ Native Android companion for [Pohunek](https://github.com/zajca/pohunek):
 remote session list with live state and an embedded terminal over the NetBird
 overlay (Kotlin, Jetpack Compose).
 
+Installing a release APK and publishing one: [docs/release.md](docs/release.md).
+
 Status: planned. The [Android page on pohunek.dev](https://pohunek.dev/surfaces/android/)
 describes what it will do, and [docs/architecture.md](docs/architecture.md) how.
 
