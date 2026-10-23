@@ -12,4 +12,9 @@
     <integer name="attach_attempts">2</integer>
     <!-- Milliseconds between two attach tries: an integer greater than 0. -->
     <integer name="attach_retry_delay_ms">500</integer>
+    <!--
+      Size limit in bytes of one log file (files/logs/app.log and the one rotated file app.log.1, so the log never takes more than twice
+      this): an integer of at least 4096.
+    -->
+    <integer name="log_max_bytes">1048576</integer>
 </resources>

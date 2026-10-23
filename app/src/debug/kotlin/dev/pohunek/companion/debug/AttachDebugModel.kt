@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.pohunek.companion.core.data.attach.TerminalAttachment
+import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.PohunekConnection
 import dev.pohunek.companion.protocol.ProtocolClientException
@@ -22,6 +23,7 @@ internal class AttachDebugModel(
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
     private val mainDispatcher: CoroutineDispatcher,
+    private val log: AppLog,
 ) {
     var route by mutableStateOf("")
     private var listedRoute: HostRoute? = null
@@ -65,6 +67,7 @@ internal class AttachDebugModel(
             config.policy,
             ioDispatcher,
             mainDispatcher,
+            log,
         )
         attachment.start()
         active = ActiveAttach(session.id, controller, attachment)
