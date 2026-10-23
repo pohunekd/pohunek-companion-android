@@ -31,6 +31,7 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> Unit) {
+    val hasActions = row.attachRefusal == null || row.hasLink
     val color = ownerStateColor(row.ownerState)
     val label = ownerStateLabel(row.ownerState)
     ListItem(
@@ -50,13 +51,17 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
                 row.runtimeDetail?.let { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.runtimeDetail")) }
             }
         },
-        trailingContent = {
-            IconButton(onClick = onMore, modifier = Modifier.testTag("SessionRow.more")) {
-                MoreIcon(stringResource(R.string.row_more_actions))
+        trailingContent = if (hasActions) {
+            {
+                IconButton(onClick = onMore, modifier = Modifier.testTag("SessionRow.more")) {
+                    MoreIcon(stringResource(R.string.row_more_actions))
+                }
             }
+        } else {
+            null
         },
         modifier = Modifier
-            .combinedClickable(onClick = onClick, onLongClick = onMore, onLongClickLabel = stringResource(R.string.row_more_actions))
+            .combinedClickable(onClick = onClick, onLongClick = if (hasActions) onMore else null, onLongClickLabel = stringResource(R.string.row_more_actions))
             .semantics(mergeDescendants = true) {}
             .testTag("SessionList.row"),
     )

@@ -59,11 +59,10 @@ private fun abbreviateKind(kind: String): String? = when (kind.asciiLowercase())
 /** Lowercases `A-Z` only, as the desktop does; a locale or Unicode rule must not fold other characters into a provider name. */
 private fun String.asciiLowercase(): String = map { if (it in 'A'..'Z') it + ('a' - 'A') else it }.joinToString("")
 
-/** The project label of [info], sanitized: the daemon's label, else the project id; null without a `project_id`. */
+/** The project label of [info], sanitized: the daemon's label, else the project id; null without a `project_id` or when both are empty after sanitizing. */
 fun sessionProjectLabel(info: SessionInfo): String? {
     val id = info.projectId ?: return null
-    val shownId = sanitizeText(id)
-    return info.projectLabel?.let(::sanitizeText)?.ifEmpty { null } ?: shownId
+    return info.projectLabel?.let(::sanitizeText)?.ifEmpty { null } ?: sanitizeText(id).ifEmpty { null }
 }
 
 /**

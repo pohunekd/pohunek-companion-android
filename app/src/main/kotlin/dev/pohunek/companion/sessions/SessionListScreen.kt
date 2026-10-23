@@ -54,6 +54,7 @@ fun SessionListScreen(viewModel: SessionListViewModel, onOpenTerminal: (HostRout
             is SessionListEffect.OpenLink -> try {
                 context.startActivity(Intent(Intent.ACTION_VIEW, effect.url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
             } catch (_: ActivityNotFoundException) {
+                viewModel.onEvent(SessionListEvent.LinkNotHandled)
                 snackbar.showSnackbar(noLinkApp)
             }
             SessionListEffect.LinkUnavailable -> snackbar.showSnackbar(linkUnavailable)

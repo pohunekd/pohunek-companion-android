@@ -72,6 +72,9 @@ sealed interface SessionListEvent {
 
     data class OpenLink(val id: String) : SessionListEvent
 
+    /** No app handled the link intent. */
+    data object LinkNotHandled : SessionListEvent
+
     data object DismissRefusal : SessionListEvent
 
     data object EditHost : SessionListEvent

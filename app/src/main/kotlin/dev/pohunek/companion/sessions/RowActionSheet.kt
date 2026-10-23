@@ -36,7 +36,9 @@ internal fun RowActionSheet(row: SessionRow, onEvent: (SessionListEvent) -> Unit
                 modifier = Modifier.padding(horizontal = PohunekTheme.spacing.gutter, vertical = PohunekTheme.spacing.sm).testTag("RowSheet.title"),
             )
             HorizontalDivider()
-            SheetAction(stringResource(R.string.row_action_open_terminal), "RowSheet.openTerminal") { onEvent(SessionListEvent.OpenSession(row.id)) }
+            if (row.attachRefusal == null) {
+                SheetAction(stringResource(R.string.row_action_open_terminal), "RowSheet.openTerminal") { onEvent(SessionListEvent.OpenSession(row.id)) }
+            }
             if (row.hasLink) {
                 SheetAction(stringResource(R.string.row_action_open_link), "RowSheet.openLink") { onEvent(SessionListEvent.OpenLink(row.id)) }
             }

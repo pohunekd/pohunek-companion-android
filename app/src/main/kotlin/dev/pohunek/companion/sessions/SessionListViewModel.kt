@@ -12,6 +12,7 @@ import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.live.LiveUpdate
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
+import dev.pohunek.companion.core.domain.log.error
 import dev.pohunek.companion.core.domain.log.info
 import dev.pohunek.companion.core.domain.sessions.OwnerSession
 import dev.pohunek.companion.core.domain.sessions.clipDisplay
@@ -55,6 +56,7 @@ class SessionListViewModel(
             is SessionListEvent.OpenActions -> updateState { it.copy(actionSheet = event.id) }
             SessionListEvent.DismissActions -> updateState { it.copy(actionSheet = null) }
             is SessionListEvent.OpenLink -> openLink(event.id)
+            SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
             SessionListEvent.EditHost -> openForm()
             SessionListEvent.CancelEdit -> updateState { it.copy(form = null) }
