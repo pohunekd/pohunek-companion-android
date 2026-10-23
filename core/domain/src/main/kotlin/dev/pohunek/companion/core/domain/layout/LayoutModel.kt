@@ -10,6 +10,9 @@ const val INBOX_ID = "inbox"
 /** Display name of the Inbox group. */
 const val INBOX_NAME = "Inbox"
 
+/** Who made a group: the owner on this phone, or a session's `companion.group` value that named a group the phone did not have. */
+enum class GroupOrigin { Created, Learned }
+
 /** A group of sessions. */
 data class Group(
     /** Stable identity; the name can change without touching items. */
@@ -19,6 +22,8 @@ data class Group(
     val order: String,
     /** The header shows with the session count and the rows are hidden. */
     val collapsed: Boolean = false,
+    /** A learned group goes away once no session is in it; a created group stays until the owner deletes it. */
+    val origin: GroupOrigin = GroupOrigin.Created,
 )
 
 /** A session's place: its group and its sort key within that group. */
@@ -26,7 +31,7 @@ data class Item(
     val key: SessionKey,
     val group: String,
     val order: String,
-    /** Set once the owner has moved the session, so placement rules leave it where the owner put it. */
+    /** Set while the owner's local move, not the session's `companion.group` key, is what places the session. */
     val manual: Boolean = false,
 )
 
@@ -79,6 +84,12 @@ sealed interface GroupPlacement {
 
     data class After(override val anchorId: String) : GroupPlacement
 }
+
+/** What one session says about its group, as read from its metadata. [external] sessions cannot carry the key. */
+data class GroupFact(val key: SessionKey, val value: GroupValue, val external: Boolean)
+
+/** What applying group values changed: sessions moved to another group, and learned groups added and dropped. */
+data class GroupSync(val layout: Layout, val moved: Int, val learnedAdded: Int, val learnedDropped: Int)
 
 /** What a reconcile changed. */
 data class Reconciliation(val layout: Layout, val added: List<SessionKey>, val pruned: List<SessionKey>)

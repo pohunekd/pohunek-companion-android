@@ -96,7 +96,8 @@ as the desktop companion: `v0.35.2` today.
   which disables Create on that form. A reply whose
   `applied_input` is not true after a prompt was sent leaves the session and disables Create too. A session started from a row's
   "New session here" is recorded in memory (`PendingPlacementBook`, expiring after `pending_placement_max_age_secs`) and the session
-  list moves it to that row's group as a manual placement once the layout holds it.
+  list moves it to that row's group as a manual placement once the layout holds it. #118 changes this: a session started from a
+  group other than Inbox will carry `companion.group` in its `session.new` metadata instead.
 - Wire fixtures come from two sources: Pohunek `sdk/ts/protocol/fixtures` at the
   pinned tag (`protocol/src/test/resources/fixtures/`), and, where that
   directory has no fixture for a method or event the app uses, captures from
@@ -128,7 +129,18 @@ as the desktop companion: `v0.35.2` today.
   kotlinx-serialization through `AtomicFile` in the app's files directory. An
   unreadable file is shown as an error and never overwritten.
 - **Layout** (`layout.json`, schema version 1 of the desktop's layout with its field names) holds the owner's groups, the
-  placement of each session by `(route, session id)` and the collapsed state; it never goes into session metadata. The
+  placement of each session by `(route, session id)` and the collapsed state. Group membership is shared with the desktop
+  companion through the session metadata key `companion.group`, whose value is the group's display name; group order, session
+  order, collapse, views and filters stay on the phone and never go into metadata. A value is trimmed and is unusable (treated as
+  absent, one warn line with route, session id and reason, never the value) when it is empty, longer than `group_name_max_bytes`
+  UTF-8 bytes or holds a control or bidirectional-format character (`GroupKey.kt`). Names merge ignoring case across all sessions of all hosts
+  and `Inbox` means Inbox. A session is placed by, in order: a usable key; else its local manual placement in `layout.json` (a
+  session that cannot carry the key); else Inbox. A usable key clears the item's `manual` flag, so a key that another client removes
+  sends the session to Inbox rather than back to a stale local group. A key naming a group the phone lacks appends a learned group
+  (`"origin": "learned"` in the file, absent for created groups); a learned group with no member is dropped once every host has sent a
+  list, a created group stays until the owner deletes it. A session arriving in a group goes to its end. `Layout.applyGroupValues`
+  does this on plain values after each reconcile, and the next `session_updated` or re-seed corrects the placement, since the
+  list queues a host's list again whenever its ids, group values or external flags change. The app does not write the key yet (#117, #118). The
   layout lives in a process-wide `LayoutRepository`: every list a connected host sends is reconciled into it for that host
   only (new sessions join the end of Inbox, that host's missing ones leave), and it is saved only when its content
   changed. A host that is connecting or down never prunes. A file that cannot be read or is invalid is shown as an error

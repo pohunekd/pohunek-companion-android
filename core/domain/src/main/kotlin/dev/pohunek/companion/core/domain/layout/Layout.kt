@@ -3,6 +3,7 @@
 package dev.pohunek.companion.core.domain.layout
 
 import dev.pohunek.companion.core.domain.sessions.SessionKey
+import dev.pohunek.companion.core.domain.sessions.sanitizeText
 
 /**
  * The owner's client-side layout: groups of sessions in a manual order. Immutable; every edit returns the new layout, so a refused
@@ -138,9 +139,8 @@ data class Layout private constructor(
     fun createGroup(name: String): Edit<String, GroupError> {
         val clean = cleanName(name) ?: return Edit.Refused(GroupError.EmptyName)
         if (nameTaken(clean, except = null)) return Edit.Refused(GroupError.DuplicateName(clean))
-        val id = generateSequence(groups.size) { it + 1 }.map { "g$it" }.first { candidate -> groups.none { it.id == candidate } }
-        val order = SortKey.between(orderedGroups().lastOrNull()?.order, null)
-        return Edit.Done(copy(groups = groups + Group(id, clean, order)), id)
+        val group = groups.appended(clean, GroupOrigin.Created)
+        return Edit.Done(copy(groups = groups + group), group.id)
     }
 
     /** Appends a group and moves [key] to its end as one change; on any refusal the layout is as it was. The value is the group's id. */
@@ -279,6 +279,22 @@ data class Layout private constructor(
         return if (pruned == collapsedSections) this else copy(collapsedSections = pruned)
     }
 
+    /**
+     * Places the sessions of [facts] by their `companion.group` value. A present value puts the session in the group of that name,
+     * compared without case (Inbox for `Inbox`), appends a learned group when the phone has none, and clears the item's manual flag, since
+     * the key is now the record. A session without a usable value that sits in a group because of an earlier key goes back to the end of
+     * Inbox; one the owner moved locally stays. A session arriving in a group goes to that group's end. Learned groups left without a
+     * member are dropped only when [allHostsListed], so a host that has not sent its list cannot make its groups look empty. Facts of
+     * sessions the layout does not hold are ignored.
+     */
+    fun applyGroupValues(facts: List<GroupFact>, allHostsListed: Boolean): GroupSync {
+        val sync = GroupValueSync(groups, items)
+        facts.forEach(sync::place)
+        val dropped = if (allHostsListed) sync.dropEmptyLearnedGroups() else 0
+        val next = if (sync.groups == groups && sync.items == items) this else copy(groups = sync.groups, items = sync.items)
+        return GroupSync(next, sync.moved, sync.added, dropped)
+    }
+
     private fun nameTaken(name: String, except: String?): Boolean {
         val folded = name.lowercase()
         return groups.any { it.id != except && it.name.lowercase() == folded }
@@ -352,5 +368,56 @@ private fun Placement.anchorOrNull(): SessionKey? = when (this) {
 
 /** The name as stored: trimmed, or null when empty. */
 private fun cleanName(name: String): String? = name.trim().ifEmpty { null }
+
+/** The working copy [Layout.applyGroupValues] edits; [moved] and [added] count what changed. */
+private class GroupValueSync(var groups: List<Group>, var items: List<Item>) {
+    var moved = 0
+    var added = 0
+
+    fun place(fact: GroupFact) {
+        val index = items.indexOfFirst { it.key == fact.key }
+        if (index < 0) return
+        val value = fact.value
+        if (value is GroupValue.Present) {
+            val name = sanitizeText(value.name)
+            val target = groups.firstOrNull { it.name.matchKey() == name.matchKey() } ?: groups.appended(name, GroupOrigin.Learned).also {
+                groups = groups + it
+                added++
+            }
+            relocate(index, target.id)
+        } else if (items[index].group != INBOX_ID && !items[index].manual) {
+            relocate(index, INBOX_ID)
+        }
+    }
+
+    /** Moves the item to the end of [target] unless it is there; either way the key is now the record, so the manual flag goes. */
+    private fun relocate(index: Int, target: String) {
+        val item = items[index]
+        if (item.group == target) {
+            if (item.manual) items = items.replaced(index, item.copy(manual = false))
+            return
+        }
+        val last = items.filter { it.group == target }.maxOfOrNull { it.order }
+        items = items.replaced(index, item.copy(group = target, order = SortKey.between(last, null), manual = false))
+        moved++
+    }
+
+    /** Drops the learned groups no item is in and returns how many went. */
+    fun dropEmptyLearnedGroups(): Int {
+        val inUse = items.mapTo(HashSet()) { it.group }
+        val kept = groups.filter { it.origin != GroupOrigin.Learned || it.id in inUse }
+        return (groups.size - kept.size).also { groups = kept }
+    }
+}
+
+/** What group names are compared by: as shown (whitespace collapsed), ignoring case. */
+private fun String.matchKey(): String = sanitizeText(this).lowercase()
+
+/** A group named [name] after the last of the receiver, with the first free id `g<n>`. */
+private fun List<Group>.appended(name: String, origin: GroupOrigin): Group {
+    val id = generateSequence(size) { it + 1 }.map { "g$it" }.first { candidate -> none { it.id == candidate } }
+    val last = maxWithOrNull(compareBy<Group>({ it.order }, { it.id }))
+    return Group(id, name, SortKey.between(last?.order, null), origin = origin)
+}
 
 private fun <T> List<T>.replaced(index: Int, value: T): List<T> = toMutableList().also { it[index] = value }

@@ -84,6 +84,9 @@
     <integer name="pending_placement_max_age_secs">600</integer>
     <string name="pending_placement_max_age_secs_help">How long a new session started from a group waits for the daemon to list it before it stays in Inbox instead.</string>
 
+    <integer name="group_name_max_bytes">64</integer>
+    <string name="group_name_max_bytes_help">The longest group name in UTF-8 bytes. A name from another client that is longer, or that holds a control character, is ignored and the session shows in Inbox. The daemon accepts at most 4096.</string>
+
     <integer name="log_max_bytes">1048576</integer>
     <string name="log_max_bytes_help">The size limit of one log file. The log keeps the active file and one rotated file, so it never takes more than twice this.</string>
 

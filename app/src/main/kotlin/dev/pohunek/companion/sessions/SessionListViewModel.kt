@@ -22,6 +22,8 @@ import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
 import dev.pohunek.companion.core.domain.layout.GroupError
+import dev.pohunek.companion.core.domain.layout.GroupFact
+import dev.pohunek.companion.core.domain.layout.GroupValue
 import dev.pohunek.companion.core.domain.layout.HostEntry
 import dev.pohunek.companion.core.domain.layout.HostReach
 import dev.pohunek.companion.core.domain.layout.LayoutView
@@ -29,6 +31,7 @@ import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.SessionFilter
 import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.WorkItem
+import dev.pohunek.companion.core.domain.layout.groupFact
 import dev.pohunek.companion.core.domain.layout.hostOptions
 import dev.pohunek.companion.core.domain.layout.projectChips
 import dev.pohunek.companion.core.domain.layout.stateChips
@@ -43,6 +46,7 @@ import dev.pohunek.companion.core.domain.sessions.HostedSession
 import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.domain.sessions.SessionActionOutcome
+import dev.pohunek.companion.core.domain.sessions.SessionKey
 import dev.pohunek.companion.core.domain.sessions.UNCONFIRMED_PROCESSES_CODE
 import dev.pohunek.companion.core.domain.sessions.actionFailureText
 import dev.pohunek.companion.core.domain.sessions.actionSubject
@@ -86,13 +90,21 @@ class SessionListViewModel(
 ) : BaseViewModel<SessionListState, SessionListEvent, SessionListEffect>(SessionListState()) {
     private var firstHostRequested = false
 
-    /** The ids of the last list reconciled into the layout per host, so that only a list that changed is sent again. */
-    private val reconciled = HashMap<HostRoute, List<String>>()
+    /** What each session of a host said, as of the last list queued for it, so that only a list that changed is sent again. */
+    private val reconciled = HashMap<HostRoute, List<GroupFact>>()
+
+    /** True once every configured host has sent a list; learned groups are dropped only then. */
+    private var allHostsListed = false
 
     /** Lists to reconcile in the order the hosts sent them; one consumer applies them, so an older list never lands after a newer one. */
     private val seeds = Channel<Seed>(Channel.UNLIMITED)
 
-    private class Seed(val route: HostRoute, val sessionIds: List<String>)
+    private sealed interface Seed {
+        class HostList(val route: HostRoute, val facts: List<GroupFact>) : Seed
+
+        /** Every host has now listed, which may leave learned groups without a member. */
+        data object Sweep : Seed
+    }
 
     private data class ListInputs(
         val configured: HostsState,
@@ -105,7 +117,7 @@ class SessionListViewModel(
         viewModelScope.launch { hosts.load() }
         viewModelScope.launch {
             layouts.load()
-            for (seed in seeds) layouts.reconcile(seed.route, seed.sessionIds)
+            for (seed in seeds) applySeed(seed)
         }
         viewModelScope.launch {
             combine(hosts.state, registry.state, layouts.state, limits, ::ListInputs).collect { input ->
@@ -114,7 +126,7 @@ class SessionListViewModel(
                     firstHostRequested = true
                     sendEffect(SessionListEffect.OpenHosts)
                 }
-                queueSeeds(feeds)
+                queueSeeds(configured, feeds, input.limits.groupNameMaxBytes)
                 updateState { listed(it, configured, feeds, layout, input.limits.rowBadgeMaxChars, input.limits.sectionTitleMaxChars) }
                 pruneCollapsed(configured, feeds, input.limits.sectionTitleMaxChars)
             }
@@ -136,6 +148,16 @@ class SessionListViewModel(
             if (layouts.moveSession(placement.key, placement.group) !is LayoutEdit.Applied) {
                 log.warn("new_session.placement_dropped", listOf(LogField.groupId(placement.group), LogField.sessionId(placement.key.sessionId)))
             }
+        }
+    }
+
+    private suspend fun applySeed(seed: Seed) {
+        when (seed) {
+            is Seed.HostList -> {
+                layouts.reconcile(seed.route, seed.facts.map { it.key.sessionId })
+                layouts.applyGroupValues(seed.route, seed.facts, allHostsListed)
+            }
+            Seed.Sweep -> layouts.applyGroupValues(null, emptyList(), allHostsListed)
         }
     }
 
@@ -259,14 +281,38 @@ class SessionListViewModel(
     }
 
     /**
-     * Queues the list of each connected host that differs from the one last queued for it. A host that is connecting or down keeps
-     * its last list, which must not prune anything, so it is skipped; a list that arrives while the host is connected is the seed.
+     * Queues the list of each connected host that differs from the one last queued for it, in ids, group values or the external flag.
+     * A host that is connecting or down keeps its last list, which must not prune anything, so it is skipped; a list that arrives
+     * while the host is connected is the seed.
      */
-    private fun queueSeeds(feeds: Map<HostRoute, HostFeed>) {
+    private fun queueSeeds(configured: HostsState, feeds: Map<HostRoute, HostFeed>, groupNameMaxBytes: Int) {
         reconciled.keys.retainAll(feeds.keys)
+        val hostList = (configured as? HostsState.Loaded)?.hosts
+        val listed = hostList != null && hostList.none { feeds[it.route]?.sessions == null }
+        val sweep = listed && !allHostsListed
+        allHostsListed = listed
+        var queued = false
         for ((route, feed) in feeds) {
-            val ids = feed.takeIf { it.connection == HostConnection.Connected }?.sessions?.map { it.info.id } ?: continue
-            if (reconciled.put(route, ids) != ids) seeds.trySend(Seed(route, ids))
+            val sessions = feed.takeIf { it.connection == HostConnection.Connected }?.sessions ?: continue
+            val facts = sessions.map { it.info.groupFact(route.toString(), groupNameMaxBytes) }
+            val previous = reconciled.put(route, facts)
+            if (previous != facts) {
+                logRejectedGroupValues(route, facts, previous.orEmpty().associateBy { it.key })
+                seeds.trySend(Seed.HostList(route, facts))
+                queued = true
+            }
+        }
+        if (sweep && !queued) seeds.trySend(Seed.Sweep)
+    }
+
+    /** One warn line per session whose unusable group value is new; the value itself is never logged. */
+    private fun logRejectedGroupValues(route: HostRoute, facts: List<GroupFact>, previous: Map<SessionKey, GroupFact>) {
+        facts.filter { it.value is GroupValue.Rejected && previous[it.key]?.value != it.value }.forEach { fact ->
+            val problem = (fact.value as GroupValue.Rejected).problem
+            log.warn(
+                "layout.group_value_ignored",
+                listOf(hostKeyField(route), LogField.sessionId(fact.key.sessionId), LogField.errorCode(problem.code)),
+            )
         }
     }
 

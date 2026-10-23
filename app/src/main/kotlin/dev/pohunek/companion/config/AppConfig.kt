@@ -12,8 +12,13 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-/** The longest texts the screens show before they cut them. */
-data class DisplayLimits(val rowBadgeMaxChars: Int, val sectionTitleMaxChars: Int, val detailValueMaxChars: Int)
+/** The longest texts the screens show before they cut them, and the longest group name read from session metadata, in UTF-8 bytes. */
+data class DisplayLimits(
+    val rowBadgeMaxChars: Int,
+    val sectionTitleMaxChars: Int,
+    val detailValueMaxChars: Int,
+    val groupNameMaxBytes: Int,
+)
 
 /** What starting a session needs. */
 class NewSessionSettings(
@@ -91,6 +96,7 @@ class AppConfig private constructor(
                     value(Tunable.ROW_BADGE_MAX_CHARS).toInt(),
                     value(Tunable.SECTION_TITLE_MAX_CHARS).toInt(),
                     value(Tunable.DETAIL_VALUE_MAX_CHARS).toInt(),
+                    value(Tunable.GROUP_NAME_MAX_BYTES).toInt(),
                 ),
             )
         }

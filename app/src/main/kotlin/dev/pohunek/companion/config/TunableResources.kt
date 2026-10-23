@@ -35,6 +35,7 @@ private val RESOURCES: Map<Tunable, TunableResources> = mapOf(
     Tunable.NEW_SESSION_COLS to TunableResources(R.integer.new_session_cols, R.string.new_session_cols_help),
     Tunable.NEW_SESSION_ROWS to TunableResources(R.integer.new_session_rows, R.string.new_session_rows_help),
     Tunable.PENDING_PLACEMENT_MAX_AGE_SECS to TunableResources(R.integer.pending_placement_max_age_secs, R.string.pending_placement_max_age_secs_help),
+    Tunable.GROUP_NAME_MAX_BYTES to TunableResources(R.integer.group_name_max_bytes, R.string.group_name_max_bytes_help),
     Tunable.LOG_MAX_BYTES to TunableResources(R.integer.log_max_bytes, R.string.log_max_bytes_help),
 )
 
