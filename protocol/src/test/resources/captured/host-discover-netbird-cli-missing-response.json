@@ -1,0 +1,1 @@
+{"v":4,"id":"req-1","err":{"class":"discovery","code":"netbird_cli_missing","msg":"the netbird CLI was not found on PATH","recover":"install the netbird CLI and ensure it is on PATH; run `pohunek doctor` to verify"}}

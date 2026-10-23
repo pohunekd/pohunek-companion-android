@@ -89,4 +89,8 @@
     <string name="host_state_connecting">Connecting</string>
     <string name="host_state_reconnecting">Reconnecting (attempt %1$d): %2$s</string>
     <string name="host_state_refused">Connection refused (%1$s): %2$s</string>
+    <string name="host_state_not_reported">Not reported by discovery</string>
+    <string name="hosts_discovered_header">Discovered hosts</string>
+    <string name="hosts_discovered_incompatible">Incompatible daemon (protocol %1$d)</string>
+    <string name="hosts_discovery_failed">Discovery through %1$s failed: %2$s</string>
 </resources>

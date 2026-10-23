@@ -113,6 +113,19 @@ as the desktop companion: `v0.35.2` today.
   touches another host's loop or rows. The list is the union of the hosts'
   latest sessions keyed by host and session id, and the rows of a host that is
   not connected stay, dimmed, with their last known facts.
+- **Discovered hosts** join the configured ones without being stored. While the app is
+  visible, every connected configured host is asked for `host.discover {force:false}`
+  (the request keeps `v:{4,4}`, so a protocol-3 peer comes back as `version_mismatch`)
+  when it connects and every `discover_interval_secs`, each question with its own
+  connection and `discover_timeout_secs`. Every `reachable_daemon` peer with an IP
+  `address` is followed at `address:port` without confirmation (the owner's choice for
+  the desktop, pohunek-companion #139); `version_mismatch` peers are listed as incompatible,
+  `unreachable` and `candidate` ones are ignored. A configured host naming the peer (its
+  host part equals the peer's key, address, peer id, fqdn or name) keeps its entry and the
+  peer is not followed twice; the address is compared too because the owner types the
+  address of a host on the phone. A peer that leaves a successful answer stops its loop and
+  keeps its rows, dimmed. A failed question keeps what the host's last answer listed and is
+  shown on the Hosts screen, logged once per distinct cause.
 
 ## Security boundary
 
@@ -130,7 +143,7 @@ of its own. Consequently the app:
 | `:app` | Application shell. |
 | `:core:ui` | Shared UI. |
 | `:core:mvi` | MVI base types. |
-| `:core:domain` | Pure Kotlin: reconcile, needs-you, filters, layout, discovery. |
+| `:core:domain` | Pure Kotlin: reconcile, needs-you, filters, layout, discovery plan. |
 | `:core:data` | Data layer. |
 | `:protocol` | Pure Kotlin/JVM, no Android. |
 | `:terminal` | Terminal view and the JNI bridge to libghostty-vt. |

@@ -19,6 +19,16 @@
     <integer name="attach_retry_delay_ms">500</integer>
     <!-- Seconds between two periodic re-seeds (session.list) that correct what the event stream missed: an integer greater than 0. -->
     <integer name="reseed_interval_secs">60</integer>
+    <!--
+      Seconds between two rounds of host discovery: every connected configured host is asked for the daemons on its overlay (host.discover)
+      when it connects and then this often: an integer greater than 0.
+    -->
+    <integer name="discover_interval_secs">60</integer>
+    <!--
+      Seconds the exchange of one host.discover may take once connected (connecting is bounded by connect_timeout_ms); the daemon probes its peers before it answers, which takes longer than a list
+      request: an integer greater than 0.
+    -->
+    <integer name="discover_timeout_secs">20</integer>
     <!-- Milliseconds before the first reconnect to a daemon; the wait doubles per consecutive failure: an integer greater than 0. -->
     <integer name="reconnect_initial_ms">500</integer>
     <!--

@@ -32,6 +32,9 @@ object Requests {
         return Request(Wire.CLIENT_RANGE, id, "session.list", params)
     }
 
+    /** The daemon's own discovery cache answers; `force` stays false so a poll never makes it re-probe every peer. */
+    fun hostDiscover(id: String): Request = Request(Wire.CLIENT_RANGE, id, "host.discover", buildJsonObject { put("force", false) })
+
     fun notificationList(id: String, params: NotificationListParams): Request =
         Request(Wire.CLIENT_RANGE, id, "notification.list", Wire.json.encodeToJsonElement(NotificationListParams.serializer(), params))
 

@@ -5,6 +5,7 @@ import androidx.annotation.IntegerRes
 import dev.pohunek.companion.R
 import dev.pohunek.companion.core.data.attach.AttachSettings
 import dev.pohunek.companion.core.data.attach.ReattachPolicy
+import dev.pohunek.companion.core.data.discovery.DiscoveryConfig
 import dev.pohunek.companion.core.data.live.LiveConfig
 import dev.pohunek.companion.protocol.AttachPolicy
 import dev.pohunek.companion.protocol.ClientConfig
@@ -19,6 +20,7 @@ class AppConfig private constructor(
     val actionClient: ClientConfig,
     val attachSettings: AttachSettings,
     val live: LiveConfig,
+    val discovery: DiscoveryConfig,
     val logMaxBytes: Long,
     val rowBadgeMaxChars: Int,
     val detailValueMaxChars: Int,
@@ -39,6 +41,10 @@ class AppConfig private constructor(
                     actionClient,
                     attachSettings(resources, client),
                     liveConfig(resources),
+                    DiscoveryConfig(
+                        interval = positive(resources, "discover_interval_secs", R.integer.discover_interval_secs).seconds,
+                        timeout = positive(resources, "discover_timeout_secs", R.integer.discover_timeout_secs).seconds,
+                    ),
                     atLeast(resources, "log_max_bytes", R.integer.log_max_bytes, MIN_LOG_MAX_BYTES),
                     positive(resources, "row_badge_max_chars", R.integer.row_badge_max_chars).toInt(),
                     positive(resources, "detail_value_max_chars", R.integer.detail_value_max_chars).toInt(),

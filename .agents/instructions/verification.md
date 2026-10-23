@@ -131,7 +131,14 @@ scripts/ui-agent pohunek ARGS...
   `HostForm.label` and type a name, then `click HostForm.save`; saving the first host returns to the list.
   `SessionList.hosts` (and `SessionList.addHost` on an empty list) opens the Hosts screen: `Hosts.row` per
   host (tap to edit), `Hosts.status` with its connection (Connected, Connecting, `Reconnecting (attempt N):
-  reason`, `Connection refused (code): reason`), `Hosts.add`, `Hosts.back`. The form shows `HostForm.error`
+  reason`, `Connection refused (code): reason`), `Hosts.add`, `Hosts.back`. Below the configured hosts the screen shows `Hosts.discoveryError` (one line per configured host whose
+  `host.discover` failed: the isolated daemon has no NetBird CLI, so it answers `netbird_cli_missing` and the app log has one
+  `discovery.failed` warn per host and cause, however many rounds follow), then `Hosts.discoveredHeader` with a `Hosts.discoveredRow`
+  per followed peer (not editable; `Hosts.status` reads `Not reported by discovery` once the peer left the answer, and its rows stay
+  dimmed in the list) and a `Hosts.incompatibleRow` with `Hosts.incompatibleNote` per peer on another protocol. The isolated daemon
+  has no peers, so a run that needs them puts a throwaway `socat` in the slot container in front of the daemon: it answers
+  `host.discover` from a file and forwards every other request to the bridge, `adb reverse` exposes its port, and the app adds it as
+  `localhost:PORT`; the log's `discovery.peers` line carries the counts of followed, left and incompatible peers. The form shows `HostForm.error`
   for a refused route or a duplicate route; `HostForm.cancel` (when a host exists) and `HostForm.clear`
   (remove the host being edited; removing the last host reopens the empty form) appear. A route is listed
   once: for the same daemon twice use `localhost:PORT` next to `127.0.0.1:PORT`. The list shows

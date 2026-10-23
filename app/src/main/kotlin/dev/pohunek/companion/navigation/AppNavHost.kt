@@ -46,7 +46,7 @@ fun AppNavHost(
         }
         composable<HostsDestination> {
             val koin = remember { KoinPlatform.getKoin() }
-            val viewModel: HostsViewModel = viewModel(factory = viewModelFactory { initializer { HostsViewModel(koin.get(), koin.get()) } })
+            val viewModel: HostsViewModel = viewModel(factory = viewModelFactory { initializer { HostsViewModel(koin.get(), koin.get(), koin.get()) } })
             HostsScreen(viewModel, onBack = { navController.popBackStack() })
         }
         composable<TerminalDestination> { entry ->

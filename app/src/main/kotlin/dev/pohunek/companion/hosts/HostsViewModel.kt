@@ -1,6 +1,7 @@
 package dev.pohunek.companion.hosts
 
 import androidx.lifecycle.viewModelScope
+import dev.pohunek.companion.core.data.discovery.HostDiscovery
 import dev.pohunek.companion.core.data.hosts.HostEdit
 import dev.pohunek.companion.core.data.hosts.HostStoreException
 import dev.pohunek.companion.core.data.hosts.HostsRepository
@@ -8,28 +9,44 @@ import dev.pohunek.companion.core.data.hosts.HostsState
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
+import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProtocolClientException
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
-/** Lists, adds, edits and removes the configured hosts; the connection of each comes from the shared [registry]. */
+/**
+ * Lists, adds, edits and removes the configured hosts and lists what [discovery] found; the connection of each host comes from the
+ * shared [registry].
+ */
 class HostsViewModel(
     private val hosts: HostsRepository,
     registry: HostRegistry,
+    discovery: HostDiscovery,
 ) : BaseViewModel<HostsScreenState, HostsEvent, HostsEffect>(HostsScreenState()) {
     init {
         viewModelScope.launch { hosts.load() }
         viewModelScope.launch {
-            combine(hosts.state, registry.state) { configured, feeds -> configured to feeds }.collect { (configured, feeds) ->
-                val items = (configured as? HostsState.Loaded)?.hosts.orEmpty().map { HostItem(it, hostDisplayLabel(it), feeds[it.route]?.connection) }
+            combine(hosts.state, registry.state, discovery.state) { configured, feeds, found ->
+                Triple(configured, feeds, found)
+            }.collect { (configured, feeds, found) ->
+                val configuredHosts = (configured as? HostsState.Loaded)?.hosts.orEmpty()
+                val items = configuredHosts.map { HostItem(it, hostDisplayLabel(it), feeds[it.route]?.connection) }
                 updateState {
                     val needsForm = configured is HostsState.Loaded && items.isEmpty()
                     it.copy(
                         hostsRead = configured !is HostsState.Loading,
                         storageError = (configured as? HostsState.Unreadable)?.reason,
                         hosts = items,
+                        discovered = found.peers.map { peer ->
+                            DiscoveredItem(sanitizeText(peer.host.label), peer.host.route.toString(), peer.present, feeds[peer.host.route]?.connection)
+                        },
+                        incompatible = found.incompatible.map { IncompatibleItem(it.key, it.label, it.protocolVersion) },
+                        discoveryErrors = found.failures.map { failure ->
+                            val asked = configuredHosts.firstOrNull { it.route == failure.host }
+                            DiscoveryErrorItem(failure.host.toString(), asked?.let(::hostDisplayLabel) ?: sanitizeText(failure.host.toString()), failure.detail)
+                        },
                         form = it.form ?: if (needsForm) HostForm() else null,
                     )
                 }
