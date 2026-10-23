@@ -37,7 +37,11 @@ class NewSessionViewModel(
     private val config: () -> AppConfig,
     private val requested: NewSessionDestination,
 ) : BaseViewModel<NewSessionState, NewSessionEvent, NewSessionEffect>(
-    NewSessionState(form = NewSessionForm(project = requested.project), attachAfterCreate = config().newSession.attachAfterCreate),
+    NewSessionState(
+        form = NewSessionForm(project = requested.project),
+        requestedProject = requested.project,
+        attachAfterCreate = config().newSession.attachAfterCreate,
+    ),
 ) {
     private var loadJob: Job? = null
 

@@ -74,6 +74,9 @@ sealed interface CreateBlocker {
 
     data object Unconfirmed : CreateBlocker
 
+    /** The project the form was opened on is not on the selected host, and no other one was picked. */
+    data class RequestedProjectMissing(val project: String) : CreateBlocker
+
     data object NoProjectsOnDaemon : CreateBlocker
 
     data object NoProject : CreateBlocker
@@ -85,14 +88,27 @@ sealed interface CreateBlocker {
     data class AgentNotLaunchable(val agent: String) : CreateBlocker
 }
 
-/** The first reason [form] cannot be submitted, or null when Create is allowed. [choices] is null until the host's answer arrived. */
-fun createBlocker(form: NewSessionForm, choices: NewSessionChoices?, activity: NewSessionActivity): CreateBlocker? = when {
-    form.host == null -> CreateBlocker.NoHost
-    activity.loading -> CreateBlocker.Loading
-    activity.loadError != null -> CreateBlocker.LoadFailed(activity.loadError)
-    activity.inFlight -> CreateBlocker.InFlight
-    activity.unconfirmed -> CreateBlocker.Unconfirmed
-    choices == null -> CreateBlocker.Loading
+/**
+ * The first reason [form] cannot be submitted, or null when Create is allowed. [choices] is null until the host's answer arrived;
+ * [requestedProject] is the project id the form was opened on, which picking another project supersedes.
+ */
+fun createBlocker(form: NewSessionForm, choices: NewSessionChoices?, activity: NewSessionActivity, requestedProject: String? = null): CreateBlocker? {
+    val waiting = when {
+        form.host == null -> CreateBlocker.NoHost
+        activity.loading -> CreateBlocker.Loading
+        activity.loadError != null -> CreateBlocker.LoadFailed(activity.loadError)
+        activity.inFlight -> CreateBlocker.InFlight
+        activity.unconfirmed -> CreateBlocker.Unconfirmed
+        else -> null
+    }
+    if (waiting != null) return waiting
+    return if (choices == null) CreateBlocker.Loading else selectionBlocker(form, choices, requestedProject)
+}
+
+/** The first missing or unusable choice of a form whose host has answered. */
+private fun selectionBlocker(form: NewSessionForm, choices: NewSessionChoices, requestedProject: String?): CreateBlocker? = when {
+    requestedProject != null && form.project.isNullOrEmpty() && choices.projects.none { it.id == requestedProject } ->
+        CreateBlocker.RequestedProjectMissing(requestedProject)
     choices.projects.isEmpty() -> CreateBlocker.NoProjectsOnDaemon
     choices.projects.none { it.id == form.project } -> CreateBlocker.NoProject
     !choices.hasLaunchableAgent -> CreateBlocker.NoLaunchableAgent

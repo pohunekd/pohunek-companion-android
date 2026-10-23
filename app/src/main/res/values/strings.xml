@@ -181,6 +181,7 @@
     <string name="new_session_blocker_no_host">Choose a host.</string>
     <string name="new_session_blocker_loading">Reading projects and agents from the daemon...</string>
     <string name="new_session_blocker_in_flight">A create request is in progress.</string>
+    <string name="new_session_blocker_requested_missing">Project not found on this host: %1$s. Choose another one.</string>
     <string name="new_session_blocker_no_projects">The daemon has no projects.</string>
     <string name="new_session_blocker_no_project">Choose a project.</string>
     <string name="new_session_blocker_no_launchable">The daemon reports no launchable agent.</string>

@@ -307,6 +307,7 @@ private fun blockerText(blocker: CreateBlocker?): String? = when (blocker) {
     CreateBlocker.NoHost -> stringResource(R.string.new_session_blocker_no_host)
     CreateBlocker.Loading -> stringResource(R.string.new_session_blocker_loading)
     CreateBlocker.InFlight -> stringResource(R.string.new_session_blocker_in_flight)
+    is CreateBlocker.RequestedProjectMissing -> stringResource(R.string.new_session_blocker_requested_missing, sanitizeText(blocker.project))
     CreateBlocker.NoProjectsOnDaemon -> stringResource(R.string.new_session_blocker_no_projects)
     CreateBlocker.NoProject -> stringResource(R.string.new_session_blocker_no_project)
     CreateBlocker.NoLaunchableAgent -> stringResource(R.string.new_session_blocker_no_launchable)

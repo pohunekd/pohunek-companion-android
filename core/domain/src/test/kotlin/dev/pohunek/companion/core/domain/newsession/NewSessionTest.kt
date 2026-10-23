@@ -28,7 +28,8 @@ class NewSessionTest {
         form: NewSessionForm = this.form,
         choices: NewSessionChoices? = this.choices,
         activity: NewSessionActivity = NewSessionActivity(),
-    ) = createBlocker(form, choices, activity)
+        requested: String? = null,
+    ) = createBlocker(form, choices, activity, requested)
 
     @Test
     fun `launchable agents come first and every other one names its reason`() {
@@ -61,11 +62,19 @@ class NewSessionTest {
         assertEquals(CreateBlocker.LoadFailed("down"), blocker(activity = all.copy(loading = false)))
         assertEquals(CreateBlocker.InFlight, blocker(activity = all.copy(loading = false, loadError = null)))
         assertEquals(CreateBlocker.Unconfirmed, blocker(activity = NewSessionActivity(unconfirmed = true)))
+        assertEquals(CreateBlocker.RequestedProjectMissing("p-9"), blocker(form.copy(project = null), choices.copy(projects = emptyList()), requested = "p-9"))
         assertEquals(CreateBlocker.NoProjectsOnDaemon, blocker(form.copy(project = null), choices.copy(projects = emptyList())))
         assertEquals(CreateBlocker.NoProject, blocker(form.copy(project = null, agent = null), unlaunchable))
         assertEquals(CreateBlocker.NoLaunchableAgent, blocker(form, unlaunchable))
         assertEquals(CreateBlocker.NoAgent, blocker(form.copy(agent = null)))
         assertEquals(CreateBlocker.AgentNotLaunchable("codex"), blocker(form.copy(agent = "codex")))
+    }
+
+    @Test
+    fun `picking a project supersedes a requested one the host lacks`() {
+        assertNull(blocker(requested = "p-9"))
+        assertEquals(CreateBlocker.RequestedProjectMissing("p-9"), blocker(form.copy(project = null), requested = "p-9"))
+        assertEquals(CreateBlocker.NoProject, blocker(form.copy(project = null), requested = "p-1"))
     }
 
     @Test

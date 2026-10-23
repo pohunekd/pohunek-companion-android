@@ -43,9 +43,11 @@ data class NewSessionState(
     /** The "Open after creating" switch. */
     val attachAfterCreate: Boolean = false,
     val notice: CreateNotice? = null,
+    /** The project id the form was opened on, if any. */
+    val requestedProject: String? = null,
 ) {
     /** Why Create is disabled, or null when it is allowed. */
-    val blocker: CreateBlocker? get() = createBlocker(form, choices, activity)
+    val blocker: CreateBlocker? get() = createBlocker(form, choices, activity, requestedProject)
 
     /** The projects whose label contains the query, case-insensitively; all of them for a blank query. */
     val visibleProjects: List<ProjectChoice>
