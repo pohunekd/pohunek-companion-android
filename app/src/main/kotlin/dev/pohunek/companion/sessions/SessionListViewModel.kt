@@ -8,6 +8,7 @@ import dev.pohunek.companion.core.data.hosts.HostsState
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostFeed
 import dev.pohunek.companion.core.data.live.HostRegistry
+import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
@@ -21,6 +22,7 @@ import dev.pohunek.companion.core.domain.sessions.openableWorkLink
 import dev.pohunek.companion.core.domain.sessions.partitionNeedsYou
 import dev.pohunek.companion.core.domain.sessions.runtimeDetail
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
+import dev.pohunek.companion.core.domain.sessions.sessionDetails
 import dev.pohunek.companion.core.domain.sessions.sessionDisplayName
 import dev.pohunek.companion.core.domain.sessions.sessionProjectLabel
 import dev.pohunek.companion.core.domain.sessions.workBadge
@@ -69,7 +71,9 @@ class SessionListViewModel(
             SessionListEvent.Refresh -> refresh()
             is SessionListEvent.OpenSession -> openSession(event.ref)
             is SessionListEvent.OpenActions -> updateState { it.copy(actionSheet = event.ref) }
-            SessionListEvent.DismissActions -> updateState { it.copy(actionSheet = null) }
+            is SessionListEvent.OpenDetails -> openDetails(event.ref)
+            // At most one of the sheet and the details is open, so both events close whichever is.
+            SessionListEvent.DismissActions, SessionListEvent.CloseDetails -> updateState { it.copy(actionSheet = null, details = null) }
             is SessionListEvent.OpenLink -> openLink(event.ref)
             SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
@@ -83,6 +87,14 @@ class SessionListViewModel(
         val refusal = if (row.reachable) row.attachRefusal else row.attachRefusal.takeIf { row.link == HostLink.Down }
         updateState { it.copy(refusal = refusal, refusalHost = row.route, actionSheet = null) }
         if (row.reachable && refusal == null) sendEffect(SessionListEffect.OpenTerminal(row.route, row.sessionId))
+    }
+
+    private fun openDetails(ref: RowRef) {
+        updateState { it.copy(actionSheet = null) }
+        val session = registry.state.value[ref.route]?.sessions?.firstOrNull { it.info.id == ref.sessionId } ?: return
+        val row = (currentState.needsYou + currentState.rows.orEmpty()).firstOrNull { it.ref == ref } ?: return
+        log.info("session.open_details", listOf(LogField.sessionId(ref.sessionId)))
+        updateState { it.copy(details = DetailsView(ref, row.title, sessionDetails(session, row.hostLabel, ref.route))) }
     }
 
     /** The link is read from the session as it is now and checked again, so a value that changed since the row was drawn is not opened. */
@@ -129,11 +141,25 @@ private fun listed(state: SessionListState, configured: HostsState, feeds: Map<H
         rows = if (!received || (empty && expecting)) null else listing.others.map { it.toRow(badgeMaxChars) },
         statuses = statuses,
         refreshing = feeds.values.any { it.refreshing },
+        details = state.details?.let { refreshedDetails(it, listing.needsYou + listing.others, feeds, hostList) },
         // The unreachable-host reason ends with the outage of the host it explained.
         refusal = state.refusal.takeUnless {
             it == AttachRefusal.HostUnreachable && entries.none { e -> e.host.route == state.refusalHost && e.link == HostLink.Down }
         },
     )
+}
+
+/**
+ * The open details rebuilt from the latest lists. A session that is absent from a list its host sent, or whose host is no longer
+ * configured, keeps its last name and loses its fields; a host that has sent no list yet leaves the details as they are.
+ */
+private fun refreshedDetails(open: DetailsView, shown: List<HostedSession>, feeds: Map<HostRoute, HostFeed>, hosts: List<ConfiguredHost>): DetailsView {
+    val hosted = shown.firstOrNull { it.route == open.ref.route && it.session.info.id == open.ref.sessionId }
+    return when {
+        hosted != null -> DetailsView(open.ref, sessionDisplayName(hosted.session.info), sessionDetails(hosted.session, hosted.hostLabel, hosted.route))
+        hosts.none { it.route == open.ref.route } || feeds[open.ref.route]?.sessions != null -> open.copy(details = null)
+        else -> open
+    }
 }
 
 private fun HostFeed?.link(): HostLink = when (this?.connection) {

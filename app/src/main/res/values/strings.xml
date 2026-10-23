@@ -24,6 +24,7 @@
     <string name="row_more_actions">Session actions</string>
     <string name="row_action_open_terminal">Open terminal</string>
     <string name="row_action_open_link">Open link</string>
+    <string name="row_action_details">Details</string>
     <string name="link_unavailable">The session has no link that can be opened</string>
     <string name="link_no_app">No app can open this link</string>
 
@@ -32,6 +33,12 @@
     <string name="attach_refusal_starting">The session is still starting; attach once it is running</string>
     <string name="attach_refusal_ended">The session has ended and has no live terminal to attach to</string>
     <string name="attach_refusal_host_unreachable">The host is unreachable; the session shown is the last one it reported</string>
+
+    <string name="details_back">Back</string>
+    <string name="details_copy">Copy</string>
+    <string name="details_copy_all">Copy all</string>
+    <string name="details_copy_failed">The text could not be copied</string>
+    <string name="details_removed">This session was removed from the host</string>
 
     <string name="terminal_connecting">Connecting</string>
     <string name="terminal_reconnecting">Reconnecting (attempt %1$d)</string>

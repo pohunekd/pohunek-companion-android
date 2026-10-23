@@ -56,6 +56,11 @@
     <!-- Longest badge text (Work link or role) a session row shows before it is cut with an ellipsis: an integer greater than 0. -->
     <integer name="row_badge_max_chars">32</integer>
     <!--
+      Longest value the session details screen shows before its middle is replaced by an ellipsis; copying always takes the full value:
+      an integer greater than 0.
+    -->
+    <integer name="detail_value_max_chars">48</integer>
+    <!--
       Records requested per notification.list page when the attention notifications are seeded; the page is halved while the daemon
       reports it as too large, and a page of one that is still too large fails the seed: an integer of at least 1.
     -->
