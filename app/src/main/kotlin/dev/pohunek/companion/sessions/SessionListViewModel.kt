@@ -48,6 +48,7 @@ import dev.pohunek.companion.core.domain.sessions.workFacts
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.protocol.HostRoute
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -64,7 +65,7 @@ class SessionListViewModel(
     private val actions: SessionActionRunner,
     private val processLifecycle: Lifecycle,
     private val log: AppLog,
-    private val badgeMaxChars: Int,
+    badgeMaxChars: Flow<Int>,
 ) : BaseViewModel<SessionListState, SessionListEvent, SessionListEffect>(SessionListState()) {
     private var firstHostRequested = false
 
@@ -76,6 +77,8 @@ class SessionListViewModel(
 
     private class Seed(val route: HostRoute, val sessionIds: List<String>)
 
+    private data class ListInputs(val configured: HostsState, val feeds: Map<HostRoute, HostFeed>, val layout: LayoutState, val badgeMaxChars: Int)
+
     init {
         viewModelScope.launch { hosts.load() }
         viewModelScope.launch {
@@ -83,15 +86,17 @@ class SessionListViewModel(
             for (seed in seeds) layouts.reconcile(seed.route, seed.sessionIds)
         }
         viewModelScope.launch {
-            combine(hosts.state, registry.state, layouts.state) { configured, feeds, layout -> Triple(configured, feeds, layout) }
-                .collect { (configured, feeds, layout) ->
-                    if (configured is HostsState.Loaded && configured.hosts.isEmpty() && !firstHostRequested) {
-                        firstHostRequested = true
-                        sendEffect(SessionListEffect.OpenHosts)
-                    }
-                    queueSeeds(feeds)
-                    updateState { listed(it, configured, feeds, layout, badgeMaxChars) }
+            combine(hosts.state, registry.state, layouts.state, badgeMaxChars) { configured, feeds, layout, badge ->
+                ListInputs(configured, feeds, layout, badge)
+            }.collect { input ->
+                val (configured, feeds, layout) = input
+                if (configured is HostsState.Loaded && configured.hosts.isEmpty() && !firstHostRequested) {
+                    firstHostRequested = true
+                    sendEffect(SessionListEffect.OpenHosts)
                 }
+                queueSeeds(feeds)
+                updateState { listed(it, configured, feeds, layout, input.badgeMaxChars) }
+            }
         }
         viewModelScope.launch { processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { hosts.run() } }
     }

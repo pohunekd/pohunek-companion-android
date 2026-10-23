@@ -9,15 +9,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import dev.pohunek.companion.config.AppConfig
-import dev.pohunek.companion.config.AppConfigResult
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.pohunek.companion.config.ApplyResult
+import dev.pohunek.companion.config.ConfigState
+import dev.pohunek.companion.config.RuntimeConfig
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.navigation.AppNavHost
+import kotlinx.coroutines.launch
+import org.koin.mp.KoinPlatform
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalComposeUiApi::class)
@@ -32,9 +40,16 @@ class MainActivity : ComponentActivity() {
                         .background(MaterialTheme.colorScheme.background)
                         .semantics { testTagsAsResourceId = true },
                 ) {
-                    when (val loaded = remember { AppConfig.load(resources) }) {
-                        is AppConfigResult.Valid -> AppNavHost(loaded.config)
-                        is AppConfigResult.Invalid -> ConfigErrorScreen(loaded)
+                    val runtime = remember { KoinPlatform.getKoin().get<RuntimeConfig>() }
+                    val scope = rememberCoroutineScope()
+                    var discardFailure by remember { mutableStateOf<String?>(null) }
+                    when (val state = runtime.state.collectAsStateWithLifecycle().value) {
+                        is ConfigState.Valid -> AppNavHost(runtime)
+                        is ConfigState.Invalid -> ConfigErrorScreen(
+                            state,
+                            discardFailure,
+                            onDiscardSaved = { scope.launch { discardFailure = (runtime.apply(emptyMap()) as? ApplyResult.StorageFailed)?.reason } },
+                        )
                     }
                 }
             }

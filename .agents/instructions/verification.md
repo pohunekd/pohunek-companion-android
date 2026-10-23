@@ -181,6 +181,15 @@ scripts/ui-agent pohunek ARGS...
   `restart`. `ui-agent` has no way to clear a text field yet: delete characters
   with `podman exec pohunek-ui-agent-slot-N adb -s SERIAL shell input keyevent
   KEYCODE_DEL` (SERIAL from `status`).
+- **Settings.** `SessionList.settings` opens `Settings.list`: per tunable `Settings.key.KEY`, the field `Settings.value.KEY`
+  (KEY is the `config.xml` key), `Settings.default.KEY` (or `Settings.error.KEY` with the refusal reason), `Settings.reset.KEY` when the
+  text is not the default; `Settings.resetAll`, `Settings.save` (enabled when an entry differs from the value in force),
+  `Settings.refusal` (nothing saved; one line per broken rule), `Settings.saved`, `Settings.storageError`, `Settings.about`, `Settings.back`.
+  Edits are drafts until Save; Save stores the overrides in `files/settings.json` (`app-file cat settings.json`), restarts the live
+  loops and logs `settings.changed` per key. A field cannot be cleared by `ui-agent`: tap it, then send `KEYCODE_MOVE_END` and
+  `KEYCODE_DEL` with `podman exec pohunek-ui-agent-slot-N adb -s SERIAL shell input keyevent ...`. `Settings.about` opens `About.list`
+  (`About.version`, `About.protocolTag`, `About.notices`, `About.back`). A saved override that no longer validates shows
+  `ConfigError.message` with `ConfigError.discard`; `app-file put settings.json` can plant one.
 - **Gestures and device state.** These commands work only in isolated emulator
   runs and refuse `--device phone` and `--owner-daemon` runs with a message.
   They address elements by test tag like `click`; `android:id/content` (the

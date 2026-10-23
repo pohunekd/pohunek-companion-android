@@ -47,6 +47,7 @@ fun SessionListScreen(
     detailValueMaxChars: Int,
     onOpenTerminal: (HostRoute, String) -> Unit,
     onOpenHosts: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -73,7 +74,7 @@ fun SessionListScreen(
     if (details != null) {
         DetailsScreen(details, detailValueMaxChars, viewModel::onEvent, modifier)
     } else {
-        SessionListContent(state, viewModel::onEvent, onOpenHosts, snackbar, listState, modifier)
+        SessionListContent(state, viewModel::onEvent, onOpenHosts, onOpenSettings, snackbar, listState, modifier)
     }
     state.actionDialog?.let { ActionDialog(it, viewModel::onEvent) }
 }
@@ -84,6 +85,7 @@ private fun SessionListContent(
     state: SessionListState,
     onEvent: (SessionListEvent) -> Unit,
     onOpenHosts: () -> Unit,
+    onOpenSettings: () -> Unit,
     snackbar: SnackbarHostState,
     listState: LazyListState,
     modifier: Modifier = Modifier,
@@ -105,6 +107,9 @@ private fun SessionListContent(
                         TextButton(onClick = onOpenHosts, modifier = Modifier.testTag("SessionList.hosts")) {
                             Text(stringResource(R.string.session_list_hosts))
                         }
+                    }
+                    TextButton(onClick = onOpenSettings, modifier = Modifier.testTag("SessionList.settings")) {
+                        Text(stringResource(R.string.session_list_settings))
                     }
                 },
             )

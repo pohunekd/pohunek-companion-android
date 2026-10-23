@@ -6,6 +6,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
@@ -44,18 +45,27 @@ data class HostFeed(
 class HostRegistry(private val factory: HostLiveFactory) {
     private val feeds = MutableStateFlow<Map<HostRoute, HostFeed>>(emptyMap())
     private val lives = ConcurrentHashMap<HostRoute, HostLive>()
+    private val generation = MutableStateFlow(0)
 
     val state: StateFlow<Map<HostRoute, HostFeed>> get() = feeds
 
     /**
      * Runs the loop of every followed route [hosts] names until cancelled; a route that appears starts its loop and one that disappears
      * stops it and drops its feed, unless it is retained: then the feed stays, not reported. A start begins with every followed feed
-     * connecting again.
+     * connecting again. A [restart] stops every loop and starts it again with the configuration current by then.
      */
     suspend fun run(hosts: Flow<FollowedHosts>): Nothing = supervisorScope {
         val jobs = mutableMapOf<HostRoute, Job>()
+        var started = generation.value
         try {
-            hosts.collect { (wanted, retained) ->
+            hosts.combine(generation) { followed, current -> followed to current }.collect { (followed, current) ->
+                val (wanted, retained) = followed
+                if (current != started) {
+                    started = current
+                    jobs.values.forEach { it.cancel() }
+                    jobs.clear()
+                    lives.clear()
+                }
                 val wantedSet = wanted.toSet()
                 val retainedSet = retained.toSet() - wantedSet
                 for (gone in jobs.keys - wantedSet) {
@@ -76,6 +86,11 @@ class HostRegistry(private val factory: HostLiveFactory) {
         } finally {
             lives.clear()
         }
+    }
+
+    /** Restarts every loop of the running [run] so that it reads the current configuration; the rows stay until the new loop reports. */
+    fun restart() {
+        generation.update { it + 1 }
     }
 
     /** Asks every running loop to re-seed now, or to stop waiting for its next reconnect. */

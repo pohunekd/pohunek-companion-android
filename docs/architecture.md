@@ -99,11 +99,22 @@ as the desktop companion: `v0.35.2` today.
 
 ## App data and configuration
 
-- **Tunables** live in `app/src/main/res/values/config.xml`, each key documented
-  next to its value, and are read once at start-up into a validated `AppConfig`;
-  an invalid value shows a configuration error screen that names the key. Later
-  issues add their keys to the same file.
-- **App data** (hosts and layout now; settings later) is JSON written with
+- **Tunables** live in `app/src/main/res/values/config.xml`: each key is an
+  integer default with a `<key>_help` string next to it. The rules (minimum,
+  upper bound, a longest wait not below the first) are pure logic in
+  `:core:domain` (`Tunable`, `checkOverrides`) and are shared by the start-up
+  check and the Settings form. An invalid default shows a configuration error
+  screen that names the key. A new key is added to the file, to `Tunable` and to
+  `TunableResources`.
+- **Overrides** are the values the owner changed on the Settings screen, stored
+  in `settings.json` (only values that differ from the default, so a changed
+  default still reaches the rest). `RuntimeConfig` merges them over the defaults
+  and consumers read the value in force when they use it. Save checks the whole
+  set, writes it and restarts the live loops, so a change applies at once to the
+  connections; attach settings apply to the next terminal opened. Overrides that
+  stop validating, or an unreadable file, show the configuration error screen
+  with an action that discards them.
+- **App data** (hosts, layout and settings) is JSON written with
   kotlinx-serialization through `AtomicFile` in the app's files directory. An
   unreadable file is shown as an error and never overwritten.
 - **Layout** (`layout.json`, schema version 1 of the desktop's layout with its field names) holds the owner's groups, the
