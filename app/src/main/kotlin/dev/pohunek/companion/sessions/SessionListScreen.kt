@@ -1,5 +1,7 @@
 package dev.pohunek.companion.sessions
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,18 +16,23 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
 import dev.pohunek.companion.core.data.hosts.ConfiguredHost
@@ -37,20 +44,36 @@ import dev.pohunek.companion.protocol.ProtocolError
 @Composable
 fun SessionListScreen(viewModel: SessionListViewModel, onOpenTerminal: (HostRoute, String) -> Unit, modifier: Modifier = Modifier) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val snackbar = remember { SnackbarHostState() }
+    val linkUnavailable = stringResource(R.string.link_unavailable)
+    val noLinkApp = stringResource(R.string.link_no_app)
     CollectEffect(viewModel.effect) { effect ->
         when (effect) {
             is SessionListEffect.OpenTerminal -> onOpenTerminal(effect.route, effect.sessionId)
+            is SessionListEffect.OpenLink -> try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, effect.url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
+            } catch (_: ActivityNotFoundException) {
+                snackbar.showSnackbar(noLinkApp)
+            }
+            SessionListEffect.LinkUnavailable -> snackbar.showSnackbar(linkUnavailable)
         }
     }
-    SessionListContent(state, viewModel::onEvent, modifier)
+    SessionListContent(state, viewModel::onEvent, snackbar, modifier)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SessionListContent(state: SessionListState, onEvent: (SessionListEvent) -> Unit, modifier: Modifier = Modifier) {
+private fun SessionListContent(
+    state: SessionListState,
+    onEvent: (SessionListEvent) -> Unit,
+    snackbar: SnackbarHostState,
+    modifier: Modifier = Modifier,
+) {
     val listShown = state.host != null && state.form == null && state.storageError == null
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = {
@@ -82,6 +105,8 @@ private fun SessionListContent(state: SessionListState, onEvent: (SessionListEve
                     ReconnectingStatus(hostName(state.host).orEmpty(), it)
                 }
                 SessionRows(state, onEvent, Modifier.weight(1f).fillMaxWidth())
+                val sheetRow = state.actionSheet?.let { id -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.id == id } }
+                if (sheetRow != null) RowActionSheet(sheetRow, onEvent)
             }
         }
     }
@@ -117,7 +142,7 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
 
 @Composable
 private fun RowWithDivider(row: SessionRow, onEvent: (SessionListEvent) -> Unit) {
-    SessionRowItem(row) { onEvent(SessionListEvent.OpenSession(row.id)) }
+    SessionRowItem(row, onClick = { onEvent(SessionListEvent.OpenSession(row.id)) }, onMore = { onEvent(SessionListEvent.OpenActions(row.id)) })
     HorizontalDivider()
 }
 

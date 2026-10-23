@@ -134,7 +134,7 @@ scripts/ui-agent pohunek ARGS...
   `version_mismatch` refusal carries the daemon's message); recovery can take up to the current
   backoff, so wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh
   and `SessionList.refresh` ask for a re-seed, `SessionList.editHost` opens the form,
-  `SessionList.empty` and `SessionList.loading` carry the other states, and `ConfigError.message`
+  `SessionList.empty` and `SessionList.loading` carry the other states, each row has `SessionList.rowWork` (project, Work badge and role) and `SessionRow.more`, which, like a long press on the row, opens the action sheet `RowSheet` (`RowSheet.title`, `RowSheet.openTerminal`, `RowSheet.openLink` when the session has an openable link; the sheet is a separate window, so `tree` lists it only while it is open), and `ConfigError.message`
   replaces the app when a value in `app/src/main/res/values/config.xml` is invalid. The app log
   (`scripts/ui-agent app-file cat logs/app.log`) records `live.owner_state` with the session id and
   the previous and new owner state each time a session changes state, which is how a

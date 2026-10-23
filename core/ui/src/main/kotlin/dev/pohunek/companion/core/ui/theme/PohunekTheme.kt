@@ -70,6 +70,10 @@ object PohunekTheme {
     /** Diameter of the owner state dot on a row. */
     val stateDotSize: Dp = 10.dp
 
+    /** Radius of one dot of the vertical "more" icon, and the distance between the centres of two dots. */
+    val moreDotRadius: Dp = 2.dp
+    val moreDotSpacing: Dp = 6.dp
+
     /** Opacity of content that may be out of date, such as session rows while the host is unreachable. */
     const val DIMMED_ALPHA: Float = 0.5f
 }

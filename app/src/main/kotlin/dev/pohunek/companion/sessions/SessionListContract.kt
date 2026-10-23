@@ -11,6 +11,13 @@ data class SessionRow(
     val title: String,
     val agent: String,
     val ownerState: OwnerState,
+    /** The project label, or null for a session outside a project. */
+    val project: String?,
+    /** The Work link badge such as `GH PR #12`, cut to the configured length, and the session's Work role. */
+    val badge: String?,
+    val badgeRole: String?,
+    /** True when the session has a Work link that may be opened and the host is connected. */
+    val hasLink: Boolean,
     /** `<state>: <loss_reason>` of a conflict or incompatible runtime. */
     val runtimeDetail: String?,
     /** Null when a terminal can be attached to the session. */
@@ -50,12 +57,20 @@ data class SessionListState(
     val form: HostForm? = null,
     /** Why the last tapped session was not opened; shown until dismissed, refreshed, or another session opens. */
     val refusal: AttachRefusal? = null,
+    /** Id of the session whose action sheet is open; the sheet closes when the session leaves the list. */
+    val actionSheet: String? = null,
 )
 
 sealed interface SessionListEvent {
     data object Refresh : SessionListEvent
 
     data class OpenSession(val id: String) : SessionListEvent
+
+    data class OpenActions(val id: String) : SessionListEvent
+
+    data object DismissActions : SessionListEvent
+
+    data class OpenLink(val id: String) : SessionListEvent
 
     data object DismissRefusal : SessionListEvent
 
@@ -74,4 +89,10 @@ sealed interface SessionListEvent {
 
 sealed interface SessionListEffect {
     data class OpenTerminal(val route: HostRoute, val sessionId: String) : SessionListEffect
+
+    /** Hand [url], already checked, to the system; it opens in the browser. */
+    data class OpenLink(val url: String) : SessionListEffect
+
+    /** The session has no link that may be opened any more. */
+    data object LinkUnavailable : SessionListEffect
 }

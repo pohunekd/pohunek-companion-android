@@ -30,7 +30,7 @@ fun AppNavHost(
             val koin = remember { KoinPlatform.getKoin() }
             val viewModel: SessionListViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { SessionListViewModel(koin.get(), koin.get { parametersOf(config) }, koin.get()) }
+                    initializer { SessionListViewModel(koin.get(), koin.get { parametersOf(config) }, koin.get(), koin.get(), config.rowBadgeMaxChars) }
                 },
             )
             SessionListScreen(viewModel, onOpenTerminal = { route, sessionId ->

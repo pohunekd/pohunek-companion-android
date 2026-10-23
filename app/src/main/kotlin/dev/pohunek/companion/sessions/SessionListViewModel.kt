@@ -10,11 +10,19 @@ import dev.pohunek.companion.core.data.hosts.HostsLoad
 import dev.pohunek.companion.core.data.live.HostLive
 import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.live.LiveUpdate
+import dev.pohunek.companion.core.domain.log.AppLog
+import dev.pohunek.companion.core.domain.log.LogField
+import dev.pohunek.companion.core.domain.log.info
 import dev.pohunek.companion.core.domain.sessions.OwnerSession
+import dev.pohunek.companion.core.domain.sessions.clipDisplay
+import dev.pohunek.companion.core.domain.sessions.openableWorkLink
 import dev.pohunek.companion.core.domain.sessions.partitionNeedsYou
 import dev.pohunek.companion.core.domain.sessions.runtimeDetail
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.core.domain.sessions.sessionDisplayName
+import dev.pohunek.companion.core.domain.sessions.sessionProjectLabel
+import dev.pohunek.companion.core.domain.sessions.workBadge
+import dev.pohunek.companion.core.domain.sessions.workFacts
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProtocolClientException
@@ -25,10 +33,13 @@ import kotlinx.coroutines.launch
  * The live loop of the saved host runs while [processLifecycle] is started, that is while the app is visible. Each return to the
  * foreground reconnects and re-seeds at once.
  */
+@Suppress("TooManyFunctions") // One state holder for the events of the list screen; the row and list derivations live below it.
 class SessionListViewModel(
     private val hosts: HostStore,
     private val liveFactory: HostLiveFactory,
     private val processLifecycle: Lifecycle,
+    private val log: AppLog,
+    private val badgeMaxChars: Int,
 ) : BaseViewModel<SessionListState, SessionListEvent, SessionListEffect>(SessionListState()) {
     private var live: HostLive? = null
     private var liveJob: Job? = null
@@ -41,6 +52,9 @@ class SessionListViewModel(
         when (event) {
             SessionListEvent.Refresh -> refresh()
             is SessionListEvent.OpenSession -> openSession(event.id)
+            is SessionListEvent.OpenActions -> updateState { it.copy(actionSheet = event.id) }
+            SessionListEvent.DismissActions -> updateState { it.copy(actionSheet = null) }
+            is SessionListEvent.OpenLink -> openLink(event.id)
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
             SessionListEvent.EditHost -> openForm()
             SessionListEvent.CancelEdit -> updateState { it.copy(form = null) }
@@ -66,8 +80,22 @@ class SessionListViewModel(
         val host = state.host ?: return
         val row = (state.needsYou + state.rows.orEmpty()).firstOrNull { it.id == id } ?: return
         val refusal = row.attachRefusal
-        updateState { it.copy(refusal = refusal) }
+        updateState { it.copy(refusal = refusal, actionSheet = null) }
         if (refusal == null) sendEffect(SessionListEffect.OpenTerminal(host.route, row.id))
+    }
+
+    /** The link is read from the session as it is now and checked again, so a value that changed since the row was drawn is not opened. */
+    private fun openLink(id: String) {
+        val state = currentState
+        updateState { it.copy(actionSheet = null) }
+        val reachable = state.connection is ListConnection.Connected
+        val url = state.sessions?.firstOrNull { it.info.id == id }?.let { openableWorkLink(it.info.metadata.orEmpty()) }
+        if (url == null || !reachable) {
+            sendEffect(SessionListEffect.LinkUnavailable)
+            return
+        }
+        log.info("session.open_link", listOf(LogField.sessionId(id)))
+        sendEffect(SessionListEffect.OpenLink(url))
     }
 
     private fun refresh() {
@@ -83,8 +111,8 @@ class SessionListViewModel(
         live = session
         liveJob = viewModelScope.launch {
             processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                updateState { it.copy(connection = ListConnection.Connecting, refreshing = false).relist() }
-                session.updates().collect { update -> updateState { it.apply(update) } }
+                updateState { it.copy(connection = ListConnection.Connecting, refreshing = false).relist(badgeMaxChars) }
+                session.updates().collect { update -> updateState { it.apply(update, badgeMaxChars) } }
             }
         }
     }
@@ -130,6 +158,7 @@ class SessionListViewModel(
                     rows = null,
                     connection = ListConnection.Connecting,
                     refreshing = false,
+                    actionSheet = null,
                 )
             }
             startLive(route)
@@ -155,27 +184,39 @@ class SessionListViewModel(
     private fun updateForm(transform: (HostForm) -> HostForm) = updateState { state -> state.copy(form = state.form?.let(transform)) }
 }
 
-private fun OwnerSession.toRow() = SessionRow(
-    id = info.id,
-    title = sessionDisplayName(info),
-    agent = sanitizeText(info.agent),
-    ownerState = ownerState,
-    runtimeDetail = runtimeDetail(info),
-    attachRefusal = AttachRefusal.forSession(info.external, info.state),
-)
-
-/** Splits [sessions] into the Needs you section and the other rows; a host that is not connected has no Needs you section. */
-private fun SessionListState.relist(): SessionListState {
-    val sessions = sessions ?: return copy(needsYou = emptyList(), rows = null)
-    val listing = partitionNeedsYou(sessions, hostReachable = connection is ListConnection.Connected)
-    return copy(needsYou = listing.needsYou.map { it.toRow() }, rows = listing.others.map { it.toRow() })
+private fun OwnerSession.toRow(hostReachable: Boolean, badgeMaxChars: Int): SessionRow {
+    val badge = workFacts(info.metadata.orEmpty())?.let(::workBadge)
+    return SessionRow(
+        id = info.id,
+        title = sessionDisplayName(info),
+        agent = sanitizeText(info.agent),
+        ownerState = ownerState,
+        project = sessionProjectLabel(info),
+        badge = badge?.let { clipDisplay(it.link, badgeMaxChars) },
+        badgeRole = badge?.role?.let { clipDisplay(it, badgeMaxChars) },
+        hasLink = hostReachable && openableWorkLink(info.metadata.orEmpty()) != null,
+        runtimeDetail = runtimeDetail(info),
+        attachRefusal = AttachRefusal.forSession(info.external, info.state),
+    )
 }
 
-private fun SessionListState.apply(update: LiveUpdate): SessionListState = when (update) {
+/** Splits [sessions] into the Needs you section and the other rows; a host that is not connected has no Needs you section. */
+private fun SessionListState.relist(badgeMaxChars: Int): SessionListState {
+    val sessions = sessions ?: return copy(needsYou = emptyList(), rows = null, actionSheet = null)
+    val reachable = connection is ListConnection.Connected
+    val listing = partitionNeedsYou(sessions, hostReachable = reachable)
+    val shown = copy(
+        needsYou = listing.needsYou.map { it.toRow(reachable, badgeMaxChars) },
+        rows = listing.others.map { it.toRow(reachable, badgeMaxChars) },
+    )
+    return if (sessions.any { it.info.id == actionSheet }) shown else shown.copy(actionSheet = null)
+}
+
+private fun SessionListState.apply(update: LiveUpdate, badgeMaxChars: Int): SessionListState = when (update) {
     // Needs you stays empty until the first list of this connection arrives, so the list from before the outage is not counted.
     LiveUpdate.Connected -> copy(connection = ListConnection.Connected, refreshing = false)
-    is LiveUpdate.Sessions -> copy(sessions = update.sessions).relist()
-    LiveUpdate.Reseeded -> copy(refreshing = false).relist()
+    is LiveUpdate.Sessions -> copy(sessions = update.sessions).relist(badgeMaxChars)
+    LiveUpdate.Reseeded -> copy(refreshing = false).relist(badgeMaxChars)
     is LiveUpdate.Reconnecting ->
-        copy(connection = ListConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false).relist()
+        copy(connection = ListConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false).relist(badgeMaxChars)
 }

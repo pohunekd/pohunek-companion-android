@@ -168,6 +168,8 @@ packages. Re-take it when `ghostty_commit` changes.
   re-seed, backoff; with a liveness probe the desktop lacks) as `core/data/.../live/HostLive.kt`;
   `needs_you.rs` and `tray_summary.rs` (`needs_owner_order`), with `session.rs` (`runtime_detail`)
   and `badge.rs` (`sanitize`), as `core/domain/.../sessions/NeedsYouListing.kt`.
+  `badge.rs` (`WorkFacts`, `WorkBadge`, `clip_display`, `clip_middle`), `open.rs` (`is_openable_url`,
+  link selection) and `session.rs` (project label) as `core/domain/.../sessions/WorkLink.kt`.
   Planned: `filter.rs`, `discovery.rs`, `view.rs`. Pinned commit for the license text:
   `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 
