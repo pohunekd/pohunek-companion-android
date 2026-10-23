@@ -287,8 +287,8 @@ class SessionListViewModel(
      */
     private fun queueSeeds(configured: HostsState, feeds: Map<HostRoute, HostFeed>, groupNameMaxBytes: Int) {
         reconciled.keys.retainAll(feeds.keys)
-        val hostList = (configured as? HostsState.Loaded)?.hosts.orEmpty()
-        val listed = hostList.none { feeds[it.route]?.sessions == null }
+        val hostList = (configured as? HostsState.Loaded)?.hosts
+        val listed = hostList != null && hostList.none { feeds[it.route]?.sessions == null }
         val sweep = listed && !allHostsListed
         allHostsListed = listed
         var queued = false

@@ -380,7 +380,7 @@ private class GroupValueSync(var groups: List<Group>, var items: List<Item>) {
         val value = fact.value
         if (value is GroupValue.Present) {
             val name = sanitizeText(value.name)
-            val target = groups.firstOrNull { it.name.lowercase() == name.lowercase() } ?: groups.appended(name, GroupOrigin.Learned).also {
+            val target = groups.firstOrNull { it.name.matchKey() == name.matchKey() } ?: groups.appended(name, GroupOrigin.Learned).also {
                 groups = groups + it
                 added++
             }
@@ -409,6 +409,9 @@ private class GroupValueSync(var groups: List<Group>, var items: List<Item>) {
         return (groups.size - kept.size).also { groups = kept }
     }
 }
+
+/** What group names are compared by: as shown (whitespace collapsed), ignoring case. */
+private fun String.matchKey(): String = sanitizeText(this).lowercase()
 
 /** A group named [name] after the last of the receiver, with the first free id `g<n>`. */
 private fun List<Group>.appended(name: String, origin: GroupOrigin): Group {

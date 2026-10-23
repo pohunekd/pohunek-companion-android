@@ -136,4 +136,12 @@ class GroupValuesTest {
         val sync = keyed.applyGroupValues(listOf(rejected), allHostsListed = true)
         assertEquals(INBOX_ID, sync.layout.items.single().group)
     }
+
+    @Test
+    fun `names match as they are shown, with whitespace collapsed`() {
+        val layout = Layout.default().withGroup("Night  shift").withSessions(a, "s1", "s2")
+        val sync = layout.applyGroupValues(listOf(fact("s1", "night shift"), fact("s2", "NIGHT\u00a0 SHIFT")), allHostsListed = true)
+        assertEquals(0, sync.learnedAdded)
+        assertEquals(listOf(key("s1"), key("s2")), sync.layout.sessionsIn("g1"))
+    }
 }
