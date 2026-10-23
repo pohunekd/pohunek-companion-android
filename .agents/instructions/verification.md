@@ -76,6 +76,10 @@ scripts/ui-agent type TEXT [--enter] | key esc|ctrl-c|tab|up|down|left|right|ent
 scripts/ui-agent rotate | net-drop | net-restore | host-stop | host-start
 scripts/ui-agent health | log [app|daemon|emulator]
 scripts/ui-agent screen | session-screen ID [--size]
+scripts/ui-agent swipe TAG up|down|left|right | long-press TAG [N] | drag TAG [N] --to TAG [M] [--after]
+scripts/ui-agent background | foreground | clipboard | sockets
+scripts/ui-agent app-file cat|put|rm PATH
+scripts/ui-agent pohunek ARGS...
 ```
 
 - **Slots.** A run is one `scripts/dev` container named
@@ -132,6 +136,39 @@ scripts/ui-agent screen | session-screen ID [--size]
   `restart`. `ui-agent` has no way to clear a text field yet: delete characters
   with `podman exec pohunek-ui-agent-slot-N adb -s SERIAL shell input keyevent
   KEYCODE_DEL` (SERIAL from `status`).
+- **Gestures and device state.** These commands work only in isolated emulator
+  runs and refuse `--device phone` and `--owner-daemon` runs with a message.
+  They address elements by test tag like `click`; `android:id/content` (the
+  whole screen) is a tag too, for scrolling a list that has none of its own.
+  `swipe TAG DIR` moves the finger across the middle half of the element in
+  that direction (`swipe ... down` on a list is pull-to-refresh, `up` scrolls
+  down). `long-press TAG [N]` holds the Nth match. `drag TAG [N] --to TAG [M]
+  [--after]` long-presses the source, moves in steps, sends a last move event
+  at the drop point, then releases, so the drop always registers; the drop
+  point is the target's centre, or three quarters down its height with
+  `--after`. Hold time, step count and step pause are `gesture_*` keys of
+  `config/dev.toml`. `background` presses home and `foreground` brings the
+  app's task back by its launcher intent; both print the app's pid, and
+  `foreground` fails if the process changed. `clipboard` prints the device
+  clipboard text through a debug-only broadcast receiver (the app must be in
+  the foreground: Android lets only the focused app read the clipboard).
+  `app-file cat|put|rm PATH` reads (stdout), writes (stdin) or removes a file
+  below the app's private `files/` directory through `run-as` (debug build
+  only; PATH is relative with plain components). `sockets` prints the app's
+  TCP connections in the device as `STATE LOCAL REMOTE` lines, read from
+  `/proc/net/tcp*` by the app's uid. `pohunek ARGS...` runs the Pohunek CLI
+  of the slot against the isolated daemon (`session new|rename|stop|rm`, ...);
+  `--host` is refused. The CLI of v0.35.2 has no `notifications create`, so
+  `pohunek notification create --title T [--body B] [--session ID] [--kind K]
+  [--severity S] [--provider P] [--dedupe-key KEY]` sends `notification.create`
+  on the daemon socket (default kind `agent_blocked`, severity
+  `action_required`, provider `ui-agent`; a session-scoped create with a hooked
+  provider such as `claude` is refused by the daemon), and `pohunek
+  notification delete|list|read|ack|archive ...` is the CLI's `notifications`
+  group. The debug build's `GestureDemoActivity` (open it with `am start -n
+  dev.pohunek.companion/.debug.GestureDemoActivity`) is a scratch list for
+  `drag`: rows `GestureDemo.row`, the current order in `GestureDemo.order`,
+  and `GestureDemo.copy` puts that order on the clipboard.
 - **Attach debug screen.** Open it in a debug build with `podman exec
   pohunek-ui-agent-slot-N adb -s SERIAL shell am start -n
   dev.pohunek.companion/.debug.AttachDebugActivity` (SERIAL from `status`). Tap

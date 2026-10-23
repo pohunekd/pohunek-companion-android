@@ -8,6 +8,11 @@
             android:exported="true"
             android:label="@string/terminal_demo_title"
             android:windowSoftInputMode="adjustResize" />
+        <!-- Scratch list for the ui-agent gesture commands. -->
+        <activity
+            android:name=".debug.GestureDemoActivity"
+            android:exported="true"
+            android:label="@string/gesture_demo_title" />
         <!-- Handles rotation in place, so it resizes the attached PTY instead of attaching again. Exported for `ui-agent start`'s launch. -->
         <activity
             android:name=".debug.AttachDebugActivity"
@@ -15,5 +20,14 @@
             android:exported="true"
             android:label="@string/attach_debug_title"
             android:windowSoftInputMode="adjustResize" />
+        <!-- Only the adb shell holds android.permission.DUMP, so only the host can trigger a clipboard dump. -->
+        <receiver
+            android:name=".debug.ClipboardDumpReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="dev.pohunek.companion.debug.DUMP_CLIPBOARD" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
