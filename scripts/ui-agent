@@ -39,8 +39,8 @@
 #
 # A slot is a container named pohunek-ui-agent-slot-N holding the emulator
 # (console port emulator_console_port_base + 2N, started from a quick-boot
-# snapshot), the isolated `pohunekd --dev-subprocess` with its own XDG
-# directories, and a socat bridge from 127.0.0.1:(bridge_port_base + N) to the
+# snapshot in its own copy of the AVD), the isolated `pohunekd --dev-subprocess`
+# with its own XDG directories, and a socat bridge from 127.0.0.1:(bridge_port_base + N) to the
 # daemon's Unix socket, reversed into the device with `adb reverse`. The
 # container, not a pid file, is the containment: `stop` removes it and with it
 # every process and temporary directory of the run. Slot count, ports, and the
@@ -144,8 +144,6 @@ claim_slot() { # DEVICE DAEMON
   flock 8
   reclaim_stale_slots
   [ -z "$(run_container)" ] || die "this worktree already has a run; stop it first: scripts/ui-agent stop"
-  local others
-  others="$(podman ps -a --filter "name=^${container_prefix}" --format '{{.Names}}' | wc -l)"
   for ((slot = 0; slot < slots; slot++)); do
     name="$container_prefix$slot"
     if podman container exists "$name"; then continue; fi
@@ -153,8 +151,6 @@ claim_slot() { # DEVICE DAEMON
       --label "ui-agent.worktree=$root" --label "ui-agent.slot=$slot" \
       --label "ui-agent.device=$1" --label "ui-agent.daemon=$2" \
       sleep infinity >/dev/null 8>&-
-    # With no other slot running, a snapshot lock in the shared AVD is stale.
-    if [ "$others" -eq 0 ]; then podman exec "$name" "$guest_script" clean-avd-locks; fi
     exec 8>&-
     printf '%s' "$slot"
     return 0
@@ -276,7 +272,7 @@ start() {
     podman exec "$name" cat /tmp/ui-agent/up.log >&2 || true
     die "$state"
   fi
-  podman exec "$name" grep -E '^(avd_created_secs|boot|boot_secs)=' /tmp/ui-agent/up.log || true
+  podman exec "$name" grep -E '^(avd_created_secs|slot_avd_secs|boot|boot_secs)=' /tmp/ui-agent/up.log || true
 
   guest install >&2
   guest launch
