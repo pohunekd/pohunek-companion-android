@@ -43,8 +43,8 @@ private val STATE_SECTIONS = listOf(
 
 /**
  * The sections [view] shows for the owner's [arranged] groups. My groups shows them as they are; the other views regroup the same
- * rows and keep their My groups order inside a section. The caller lifts the sessions that need the owner out of [arranged] first,
- * for every view alike. Every row lands in exactly one section.
+ * rows and keep their My groups order inside a section. The caller lifts the sessions that need the owner on a connected host out of
+ * [arranged] first, for every view alike. Every row lands in exactly one section.
  */
 fun <R> deriveSections(
     view: LayoutView,

@@ -223,8 +223,8 @@ data class Layout private constructor(
     }
 
     /**
-     * The sections of the selected view for [rows], which exclude the sessions that need the owner (the list lifts those out for every
-     * view). A derived view's sections are collapsed per its stored ids; titles are clipped to [titleMaxChars].
+     * The sections of the selected view for [rows], which exclude the sessions that need the owner on a connected host (the list lifts those
+     * out for every view). A derived view's sections are collapsed per its stored ids; titles are clipped to [titleMaxChars].
      */
     fun <R> presentView(rows: List<R>, keyOf: (R) -> SessionKey, titleMaxChars: Int, factsOf: (R) -> RowFacts): List<GroupSection<R>> {
         val current = view
