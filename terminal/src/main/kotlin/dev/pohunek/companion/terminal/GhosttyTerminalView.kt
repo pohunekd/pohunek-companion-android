@@ -1082,6 +1082,7 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
   // The composition of the current input connection; reset when a connection is created.
   private val composing = ComposingText()
   private val deadKeys = DeadKeyComposer()
+  private var deleteKeyConsumed = false
 
   private fun applyEdit(edit: TextEdit) {
     repeat(edit.backspaces) {
@@ -1128,6 +1129,18 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     }
 
     override fun sendKeyEvent(event: KeyEvent): Boolean {
+      // A backspace key event while composing shortens the composition like a text edit would.
+      if (event.keyCode == KeyEvent.KEYCODE_DEL) {
+        if (event.action == KeyEvent.ACTION_DOWN && composing.isComposing) {
+          applyEdit(composing.deleteBefore(1))
+          deleteKeyConsumed = true
+          return true
+        }
+        if (event.action == KeyEvent.ACTION_UP && deleteKeyConsumed) {
+          deleteKeyConsumed = false
+          return true
+        }
+      }
       if (handleKeyEvent(event)) return true
       return super.sendKeyEvent(event)
     }

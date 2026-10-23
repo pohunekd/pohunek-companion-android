@@ -17,6 +17,8 @@ internal class ComposingText {
 
     private val entries = ArrayList<Entry>()
 
+    val isComposing: Boolean get() = entries.isNotEmpty()
+
     /** The composition becomes [text]: only the part that differs from the previous composition is sent. */
     fun update(text: CharSequence): TextEdit {
         val target = text.toString().codePoints().toArray()
