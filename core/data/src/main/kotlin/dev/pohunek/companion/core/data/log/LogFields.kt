@@ -27,6 +27,7 @@ fun ProtocolClientException.logCode(): String = when (this) {
     is ProtocolClientException.ConnectionLost -> "connection_lost"
     is ProtocolClientException.Framing -> "framing"
     is ProtocolClientException.MalformedResponse -> "malformed_response"
+    is ProtocolClientException.MalformedEvent -> "malformed_event"
     is ProtocolClientException.ResponseIdMismatch -> "response_id_mismatch"
     is ProtocolClientException.ConnectionUnusable -> "connection_unusable"
 }
