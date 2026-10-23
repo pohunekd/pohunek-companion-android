@@ -74,9 +74,17 @@ log_lines = 400
 # scripts/ui-agent gestures (swipe, long-press, drag): positive integers.
 # Milliseconds a swipe takes.
 gesture_swipe_ms = 400
-# Milliseconds a long-press holds; must exceed Android's long-press timeout (500).
+# Milliseconds a long-press holds; must exceed android_long_press_timeout_ms.
 gesture_long_press_ms = 800
 # Intermediate move events of a drag between press and release, and the pause
 # between two of them in milliseconds.
 gesture_drag_steps = 12
 gesture_drag_step_ms = 40
+# Android's long-press timeout (ViewConfiguration), which gesture_long_press_ms must exceed.
+android_long_press_timeout_ms = 500
+
+# Seconds `ui-agent background` waits for the app to leave the screen.
+background_settle_secs = 1
+
+# Seconds a one-shot daemon request (`pohunek notification create`) waits for its reply.
+daemon_reply_wait_secs = 3

@@ -364,5 +364,5 @@ case "${1:-}" in
   rotate) guest rotate ;;
   net-drop | net-restore | host-stop | host-start | health) guest "$1" ;;
   log) warn_unpublishable; guest log "${2:-app}" ;;
-  *) sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,/ui-agent log \[app/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

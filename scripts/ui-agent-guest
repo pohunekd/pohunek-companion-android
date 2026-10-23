@@ -756,10 +756,11 @@ node_bounds() { # TAG N
 }
 
 swipe_tag() { # TAG up|down|left|right
-  local left top right bottom w h cx cy x1 y1 x2 y2
+  local bounds swipe_ms left top right bottom w h cx cy x1 y1 x2 y2
   [ "$#" -eq 2 ] || die "usage: swipe TAG up|down|left|right"
   require_isolated_run swipe
-  read -r left top right bottom <<<"$(node_bounds "$1" 0)"
+  bounds="$(node_bounds "$1" 0)" || exit 1
+  read -r left top right bottom <<<"$bounds"
   w=$((right - left)); h=$((bottom - top)); cx=$((left + w / 2)); cy=$((top + h / 2))
   x1=$cx; x2=$cx; y1=$cy; y2=$cy
   # The finger travels between 25% and 75% of the element, in the named direction.
@@ -770,16 +771,27 @@ swipe_tag() { # TAG up|down|left|right
     right) x1=$((left + w / 4)); x2=$((left + w * 3 / 4)) ;;
     *) die "swipe direction must be up, down, left or right" ;;
   esac
-  adbd shell input swipe "$x1" "$y1" "$x2" "$y2" "$(config_value gesture_swipe_ms)"
+  swipe_ms="$(config_value gesture_swipe_ms)"; positive_int gesture_swipe_ms "$swipe_ms"
+  adbd shell input swipe "$x1" "$y1" "$x2" "$y2" "$swipe_ms"
   echo "swiped $1 $2 from $x1,$y1 to $x2,$y2"
 }
 
+# Hold time of a long press in ms; it must exceed Android's long-press timeout or the press is a tap.
+long_press_ms() {
+  local ms timeout
+  ms="$(config_value gesture_long_press_ms)"; positive_int gesture_long_press_ms "$ms"
+  timeout="$(config_value android_long_press_timeout_ms)"; positive_int android_long_press_timeout_ms "$timeout"
+  [ "$ms" -gt "$timeout" ] || die "$config: gesture_long_press_ms ($ms) must exceed android_long_press_timeout_ms ($timeout)"
+  printf '%s' "$ms"
+}
+
 long_press_tag() { # TAG [N]
-  local left top right bottom x y
+  local bounds left top right bottom x y
   require_isolated_run long-press
-  read -r left top right bottom <<<"$(node_bounds "$1" "${2:-0}")"
+  bounds="$(node_bounds "$1" "${2:-0}")" || exit 1
+  read -r left top right bottom <<<"$bounds"
   x=$(((left + right) / 2)); y=$(((top + bottom) / 2))
-  adbd shell input swipe "$x" "$y" "$x" "$y" "$(config_value gesture_long_press_ms)"
+  adbd shell input swipe "$x" "$y" "$x" "$y" "$(long_press_ms)"
   echo "long-pressed $1 at $x,$y"
 }
 
@@ -789,15 +801,17 @@ long_press_tag() { # TAG [N]
 # target's centre, or three quarters down its height with --after.
 drag_tag() { # TAG N TAG2 M [--after]
   local src="$1" n="$2" dst="$3" m="$4" after="${5:-}"
-  local sl st sr sb dl dt dr db x1 y1 x2 y2 steps step_ms hold_ms i cmd
+  local bounds sl st sr sb dl dt dr db x1 y1 x2 y2 steps step_ms hold_ms i cmd
   [ "$#" -ge 4 ] || die "usage: drag TAG [N] --to TAG [M] [--after]"
   [ -z "$after" ] || [ "$after" = --after ] || die "unknown option '$after'"
   require_isolated_run drag
   steps="$(config_value gesture_drag_steps)"; positive_int gesture_drag_steps "$steps"
   step_ms="$(config_value gesture_drag_step_ms)"; positive_int gesture_drag_step_ms "$step_ms"
-  hold_ms="$(config_value gesture_long_press_ms)"; positive_int gesture_long_press_ms "$hold_ms"
-  read -r sl st sr sb <<<"$(node_bounds "$src" "$n")"
-  read -r dl dt dr db <<<"$(node_bounds "$dst" "$m")"
+  hold_ms="$(long_press_ms)"
+  bounds="$(node_bounds "$src" "$n")" || exit 1
+  read -r sl st sr sb <<<"$bounds"
+  bounds="$(node_bounds "$dst" "$m")" || exit 1
+  read -r dl dt dr db <<<"$bounds"
   x1=$(((sl + sr) / 2)); y1=$(((st + sb) / 2))
   x2=$(((dl + dr) / 2)); y2=$(((dt + db) / 2))
   if [ "$after" = --after ]; then y2=$((dt + (db - dt) * 3 / 4)); fi
@@ -811,13 +825,13 @@ drag_tag() { # TAG N TAG2 M [--after]
   echo "dragged $src[$n] to $dst[$m]${after:+ $after} ($x1,$y1 -> $x2,$y2)"
 }
 
-app_pid() { adbd shell pidof -s "$(config_value app_package)" | tr -d '\r'; }
+app_pid() { adbd shell pidof -s "$(config_value app_package)" | tr -d '\r' || true; }
 
 # Home, with the app's process left alive.
 background_app() {
   require_isolated_run background
   adbd shell input keyevent KEYCODE_HOME
-  sleep 1
+  sleep "$(config_value background_settle_secs)"
   echo "backgrounded; app pid=$(app_pid)"
 }
 
@@ -856,9 +870,11 @@ app_file_path() {
   [ -n "$path" ] || die "app-file needs a path"
   case "$path" in /* | */ ) die "app-file path must be relative and name a file: '$path'" ;; esac
   local IFS=/
+  set -f
   for part in $path; do
-    [[ "$part" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]] || die "app-file path component '$part' is not allowed"
+    [[ "$part" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]] || { set +f; die "app-file path component '$part' is not allowed"; }
   done
+  set +f
   printf 'files/%s' "$path"
 }
 
@@ -926,9 +942,10 @@ app_sockets() {
 daemon_request() { # METHOD PARAMS_JSON
   local request reply
   request="$(jq -cn --arg m "$1" --argjson p "$2" '{v: {minimum: 3, maximum: 4}, id: "ui-agent", method: $m, params: $p}')"
-  reply="$(printf '%s\n' "$request" | socat -t 3 - "UNIX-CONNECT:$iso/run/pohunek/daemon.sock")"
+  reply="$(printf '%s\n' "$request" | socat -t "$(config_value daemon_reply_wait_secs)" - "UNIX-CONNECT:$iso/run/pohunek/daemon.sock")"
   [ -n "$reply" ] || die "no reply from the isolated daemon to $1"
   printf '%s\n' "$reply"
+  jq -e 'has("ok")' <<<"$reply" >/dev/null || die "the daemon refused $1"
 }
 
 # notification create --title T [--body B] [--session ID] [--kind K] [--severity S]
@@ -972,7 +989,10 @@ pohunek_cli() {
   require_isolated_run pohunek
   [ "$#" -gt 0 ] || die "usage: pohunek ARGS..."
   for arg in "$@"; do
-    case "$arg" in --host | --host=*) die "--host is refused: the run only talks to its isolated daemon" ;; esac
+    case "$arg" in
+      --host | --host=*) die "--host is refused: the run only talks to its isolated daemon" ;;
+      *) [[ "$arg" =~ ^[^/[:space:]]+/s-[A-Za-z0-9]+$ ]] && die "a HOST/SESSION target is refused: the run only talks to its isolated daemon" ;;
+    esac
   done
   if [ "$1" = notification ]; then
     shift
