@@ -1,6 +1,9 @@
 package dev.pohunek.companion.core.data.layout
 
 import dev.pohunek.companion.core.domain.layout.Edit
+import dev.pohunek.companion.core.domain.layout.GroupFact
+import dev.pohunek.companion.core.domain.layout.GroupOrigin
+import dev.pohunek.companion.core.domain.layout.GroupValue
 import dev.pohunek.companion.core.domain.layout.INBOX_ID
 import dev.pohunek.companion.core.domain.layout.Layout
 import dev.pohunek.companion.core.domain.layout.LayoutView
@@ -36,6 +39,20 @@ class LayoutCodecTest {
         val read = loaded(LayoutCodec.encode(layout))
         assertEquals(layout, read.layout)
         assertFalse(read.repaired)
+    }
+
+    @Test
+    fun `only a learned group stores its origin and a file without it reads as created`() {
+        val synced = Layout.default().reconcile("h", listOf(SessionKey("h", "a"))).layout
+            .createGroup("Mine").layout()
+            .applyGroupValues(listOf(GroupFact(SessionKey("h", "a"), GroupValue.Present("Night shift"), external = false)), false).layout
+        val text = LayoutCodec.encode(synced)
+        assertEquals(1, Regex("\"origin\":\"learned\"").findAll(text).count())
+        assertFalse(text.contains("\"created\""))
+        val read = loaded(text).layout
+        assertEquals(synced, read)
+        assertEquals(listOf(GroupOrigin.Created, GroupOrigin.Created, GroupOrigin.Learned), read.orderedGroups().map { it.origin })
+        assertTrue(decoded("{\"version\":1,\"groups\":[{\"id\":\"inbox\",\"name\":\"Inbox\",\"order\":\"n\",\"origin\":\"bogus\"}]}") is LayoutRead.Unreadable)
     }
 
     @Test

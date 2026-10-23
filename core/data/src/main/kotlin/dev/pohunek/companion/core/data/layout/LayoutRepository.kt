@@ -4,6 +4,7 @@ import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
 import dev.pohunek.companion.core.domain.layout.Edit
 import dev.pohunek.companion.core.domain.layout.GroupError
+import dev.pohunek.companion.core.domain.layout.GroupFact
 import dev.pohunek.companion.core.domain.layout.Layout
 import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.domain.layout.MoveError
@@ -94,6 +95,26 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
             if (result.added.isNotEmpty() || result.pruned.isNotEmpty()) {
                 val counts = listOf(LogField.number("added", result.added.size.toLong()), LogField.number("pruned", result.pruned.size.toLong()))
                 log.info("layout.reconciled", listOf(hostKeyField(route)) + counts)
+            }
+            result.layout
+        }
+    }
+
+    /**
+     * Places the sessions of [facts] by their group value; see [Layout.applyGroupValues]. Call it after [reconcile] of the same list;
+     * [route] is null for a sweep that has no list.
+     * Saves only when something changed.
+     */
+    suspend fun applyGroupValues(route: HostRoute?, facts: List<GroupFact>, allHostsListed: Boolean) {
+        change { layout ->
+            val result = layout.applyGroupValues(facts, allHostsListed)
+            if (result.moved > 0 || result.learnedAdded > 0 || result.learnedDropped > 0) {
+                val counts = listOf(
+                    LogField.number("moved", result.moved.toLong()),
+                    LogField.number("learned_added", result.learnedAdded.toLong()),
+                    LogField.number("learned_dropped", result.learnedDropped.toLong()),
+                )
+                log.info("layout.groups_applied", listOfNotNull(route?.let(::hostKeyField)) + counts)
             }
             result.layout
         }

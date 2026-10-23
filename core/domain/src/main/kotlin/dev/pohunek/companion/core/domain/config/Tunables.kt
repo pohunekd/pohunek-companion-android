@@ -35,6 +35,7 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long =
     NEW_SESSION_COLS(1, TunableUnit.Count, MAX_TERMINAL_SIDE),
     NEW_SESSION_ROWS(1, TunableUnit.Count, MAX_TERMINAL_SIDE),
     PENDING_PLACEMENT_MAX_AGE_SECS(1, TunableUnit.Seconds),
+    GROUP_NAME_MAX_BYTES(1, TunableUnit.Bytes, MAX_GROUP_NAME_BYTES),
     LOG_MAX_BYTES(MIN_LOG_MAX_BYTES, TunableUnit.Bytes),
     ;
 
@@ -65,6 +66,9 @@ const val MAX_TUNABLE_VALUE: Long = Int.MAX_VALUE.toLong()
 private const val MAX_TERMINAL_SIDE = 65_535L
 
 private const val MIN_LOG_MAX_BYTES = 4096L
+
+/** The daemon refuses a metadata value over 4096 bytes. */
+private const val MAX_GROUP_NAME_BYTES = 4096L
 
 /** Why the value of [tunable] is refused. */
 data class TunableProblem(val tunable: Tunable, val message: String)
