@@ -52,6 +52,7 @@ data class HostRoute(val host: String, val port: Int) {
  * One TCP control connection to a daemon. Requests run one at a time. After a timeout, cancellation, or any failure other than a daemon
  * error the connection is closed and every later call fails with [ProtocolClientException.ConnectionUnusable].
  */
+@Suppress("TooManyFunctions") // One method per daemon request, each a single line over call().
 class PohunekConnection private constructor(
     private val channel: SocketChannel,
     private val config: ClientConfig,
@@ -80,6 +81,9 @@ class PohunekConnection private constructor(
 
     suspend fun listSessions(filters: List<SessionFilter> = emptyList()): List<SessionInfo> =
         call { Requests.sessionList(it, filters) }.decodeResult(ListSerializer(SessionInfo.serializer()))
+
+    suspend fun listNotifications(params: NotificationListParams): NotificationListResult =
+        call { Requests.notificationList(it, params) }.decodeResult(NotificationListResult.serializer())
 
     /** Mints the one-shot stream id for [sessionId]; [dimensions] is the geometry the worker applies before it emits the first byte. */
     suspend fun attach(sessionId: String, dimensions: TerminalDimensions?): SessionAttachResult =

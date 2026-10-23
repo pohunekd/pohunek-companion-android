@@ -50,6 +50,8 @@ class AppConfig private constructor(
                 reconnectMax = atLeast(resources, "reconnect_max_ms", R.integer.reconnect_max_ms, initial).milliseconds,
                 livenessInterval = positive(resources, "liveness_interval_ms", R.integer.liveness_interval_ms).milliseconds,
                 livenessTimeout = positive(resources, "liveness_timeout_ms", R.integer.liveness_timeout_ms).milliseconds,
+                idleThreshold = positive(resources, "idle_threshold_secs", R.integer.idle_threshold_secs).seconds,
+                notificationPageSize = positive(resources, "notification_page_size", R.integer.notification_page_size).toInt(),
             )
         }
 

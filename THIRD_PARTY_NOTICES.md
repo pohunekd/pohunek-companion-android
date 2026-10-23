@@ -157,10 +157,12 @@ packages. Re-take it when `ghostty_commit` changes.
 - License: MIT, Copyright (c) 2026 pohunekd
   (https://github.com/pohunekd/pohunek-companion/blob/0b9d150170bb4829ad59ddcead9d4a4cd02b00b8/LICENSE)
 - Files ported to Kotlin: `attach.rs` (only the attach refusal rules, in
-  `app/.../sessions/AttachRefusal.kt`) and `model.rs` (session seed and event
-  reconcile, without attention, owner state, and the `agent_state`,
-  `subagent_state`, `background_state` handling) as
-  `core/domain/.../sessions/SessionStore.kt`; `sort_key.rs` and `layout.rs` (groups,
+  `app/.../sessions/AttachRefusal.kt`); `model.rs` (session and attention seed and event
+  reconcile, with the `agent_state`, `subagent_state`, `background_state` and notification
+  handling) as `core/domain/.../sessions/SessionStore.kt`; `owner_state.rs` (`derive`) as
+  `core/domain/.../sessions/OwnerState.kt`; `connect.rs` (`fetch_seed`, the notification paging
+  and its halving) as `protocol/.../Notifications.kt` and `core/data/.../live/HostTransport.kt`;
+  `sort_key.rs` and `layout.rs` (groups,
   Inbox, manual order, reconcile, validation; without placement rules, derived-view
   sections, and the TOML store) as `core/domain/.../layout/`; and `live.rs` (connection loop,
   re-seed, backoff; with a liveness probe the desktop lacks) as `core/data/.../live/HostLive.kt`.

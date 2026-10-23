@@ -1,0 +1,19 @@
+{
+  "event": "subagent_state",
+  "runtime": {
+    "runtime_generation": "2",
+    "worker_instance_id": "w-1"
+  },
+  "session_id": "s-1",
+  "subagent": {
+    "activity": "working",
+    "agent_type": "Explore",
+    "id": "sub-1",
+    "lifecycle": "running",
+    "provider": "claude",
+    "revision": "7",
+    "started_at_ms": 1788825600000,
+    "updated_at_ms": 1788825600500
+  },
+  "v": 4
+}

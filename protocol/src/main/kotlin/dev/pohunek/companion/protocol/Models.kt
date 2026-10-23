@@ -115,8 +115,8 @@ data class SessionCapabilities(val resume: Boolean, val fork: Boolean)
 data class CapabilityRefusals(val resume: String? = null, val fork: String? = null)
 
 /**
- * One entry of `session.list`. Timestamps are RFC 3339 strings as sent. `subagents`, `background` and `warnings` are ignored on
- * decode until a consumer needs them. Strings other than ids and codes come from owner-controlled but untrusted metadata.
+ * One entry of `session.list`. Timestamps are RFC 3339 strings as sent. `warnings` is ignored on decode until a consumer needs it.
+ * Strings other than ids and codes come from owner-controlled but untrusted metadata.
  */
 @Serializable
 data class SessionInfo(
@@ -136,6 +136,8 @@ data class SessionInfo(
     val state: SessionState,
     @SerialName("state_source") val stateSource: StateSource,
     val activity: AgentActivity? = null,
+    val subagents: List<SubagentInfo> = emptyList(),
+    val background: SessionBackground? = null,
     @SerialName("active_agent") val activeAgent: String? = null,
     @SerialName("active_agent_base") val activeAgentBase: String? = null,
     @SerialName("active_agent_pid") val activeAgentPid: Long? = null,

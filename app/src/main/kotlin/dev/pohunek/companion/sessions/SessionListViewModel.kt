@@ -152,7 +152,7 @@ private fun SessionInfo.toRow() = SessionRow(
 
 private fun SessionListState.apply(update: LiveUpdate): SessionListState = when (update) {
     LiveUpdate.Connected -> copy(connection = ListConnection.Connected, refreshing = false)
-    is LiveUpdate.Sessions -> copy(rows = update.sessions.map(SessionInfo::toRow))
+    is LiveUpdate.Sessions -> copy(rows = update.sessions.map { it.info.toRow() })
     LiveUpdate.Reseeded -> copy(refreshing = false)
     is LiveUpdate.Reconnecting -> copy(connection = ListConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false)
 }

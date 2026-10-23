@@ -43,7 +43,7 @@ class EventDecoderTest {
     @Test
     fun `an unknown event name decodes to Unknown`() {
         assertEquals(DaemonEvent.Unknown("session_future_thing"), decode("unknown_event"))
-        assertEquals(DaemonEvent.Unknown("agent_state"), EventDecoder.decode("""{"v":4,"event":"agent_state","session_id":"s-1"}"""))
+        assertEquals(DaemonEvent.Unknown("session_future_thing"), EventDecoder.decode("""{"v":4,"event":"session_future_thing","x":1}"""))
     }
 
     @Test

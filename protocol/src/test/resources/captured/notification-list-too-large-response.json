@@ -1,0 +1,10 @@
+{
+  "err": {
+    "class": "runtime",
+    "code": "notification_list_too_large",
+    "msg": "notification.list result does not fit one control line",
+    "recover": "request fewer records with limit and follow next_cursor"
+  },
+  "id": "req-1",
+  "v": 4
+}

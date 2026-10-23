@@ -14,5 +14,5 @@ class HostLiveFactory(
     private val timeSource: TimeSource.WithComparableMarks,
     private val log: AppLog,
 ) {
-    fun create(route: HostRoute): HostLive = HostLive(route, TcpHostTransport(route, client, ioDispatcher), live, timeSource, log)
+    fun create(route: HostRoute): HostLive = HostLive(route, TcpHostTransport(route, client, ioDispatcher, live.notificationPageSize), live, timeSource, log)
 }

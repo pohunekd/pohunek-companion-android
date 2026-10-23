@@ -8,9 +8,11 @@ import dev.pohunek.companion.protocol.StateSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 
 class SessionStoreTest {
-    private val store = SessionStore("host-a")
+    private val store = SessionStore("host-a", TestTimeSource(), 300.seconds)
 
     private fun session(
         id: String,
@@ -40,7 +42,7 @@ class SessionStoreTest {
 
     @Test
     fun `seed then create update and remove`() {
-        val change = store.applySeed(listOf(session("s-1", name = "one")))
+        val change = store.applySeed(listOf(session("s-1", name = "one")), emptyList())
         assertEquals(SeedChange(added = 1), change)
 
         assertEquals(EventOutcome.Applied, store.applyEvent(DaemonEvent.SessionCreated(session("s-2", name = "two"))))
@@ -65,7 +67,7 @@ class SessionStoreTest {
 
     @Test
     fun `an older snapshot is ignored and an equal or newer one applied`() {
-        store.applySeed(listOf(session("s-1", "2026-01-01T10:00:10Z", name = "current")))
+        store.applySeed(listOf(session("s-1", "2026-01-01T10:00:10Z", name = "current")), emptyList())
 
         val stale = store.applyEvent(DaemonEvent.SessionUpdated(session("s-1", "2026-01-01T10:00:09.999999999Z", name = "stale")))
         assertEquals(EventOutcome.Ignored(IgnoreReason.StaleSnapshot), stale)
@@ -80,7 +82,7 @@ class SessionStoreTest {
 
     @Test
     fun `an unparseable timestamp is applied and counted`() {
-        store.applySeed(listOf(session("s-1", "2026-01-01T10:00:10Z", name = "current")))
+        store.applySeed(listOf(session("s-1", "2026-01-01T10:00:10Z", name = "current")), emptyList())
         store.applyEvent(DaemonEvent.SessionUpdated(session("s-1", "garbage", name = "unordered")))
         assertEquals("unordered", store.session("s-1")?.name)
         assertEquals(1, store.report().unorderedSnapshots)
@@ -88,12 +90,12 @@ class SessionStoreTest {
 
     @Test
     fun `an update for a session the store does not hold is ignored`() {
-        store.applySeed(emptyList())
+        store.applySeed(emptyList(), emptyList())
         assertEquals(
             EventOutcome.Ignored(IgnoreReason.UnknownSession),
             store.applyEvent(DaemonEvent.SessionRuntimeLost(session("s-9"))),
         )
-        assertEquals(EventOutcome.Ignored(IgnoreReason.NotModelled), store.applyEvent(DaemonEvent.Unknown("agent_state")))
+        assertEquals(EventOutcome.Ignored(IgnoreReason.NotModelled), store.applyEvent(DaemonEvent.Unknown("session_future_thing")))
         assertEquals(
             EventOutcome.Ignored(IgnoreReason.MalformedPayload),
             store.applyEvent(DaemonEvent.Malformed("session_updated", "no session")),
@@ -103,8 +105,8 @@ class SessionStoreTest {
 
     @Test
     fun `a re-seed that drops a session reports it removed`() {
-        store.applySeed(listOf(session("s-1"), session("s-2"), session("s-3", name = "old")))
-        val change = store.applySeed(listOf(session("s-1"), session("s-3", name = "new"), session("s-4")))
+        store.applySeed(listOf(session("s-1"), session("s-2"), session("s-3", name = "old")), emptyList())
+        val change = store.applySeed(listOf(session("s-1"), session("s-3", name = "new"), session("s-4")), emptyList())
         assertEquals(SeedChange(added = 1, removed = 1, changed = 1), change)
         assertNull(store.session("s-2"))
         assertEquals(setOf("s-1", "s-3", "s-4"), store.sessions().keys.map { it.sessionId }.toSet())
@@ -112,29 +114,30 @@ class SessionStoreTest {
 
     @Test
     fun `a re-seed that differs only in activity timestamps and state source reports nothing`() {
-        store.applySeed(listOf(session("s-1")))
+        store.applySeed(listOf(session("s-1")), emptyList())
         val noisy = session("s-1", "2026-01-01T10:05:00Z").copy(nativeLastActivityAt = "2026-01-01T10:04:00Z", stateSource = StateSource.Screen)
-        assertEquals(SeedChange(), store.applySeed(listOf(noisy)))
+        assertEquals(SeedChange(), store.applySeed(listOf(noisy), emptyList()))
         assertEquals("2026-01-01T10:05:00Z", store.session("s-1")?.updatedAt)
     }
 
     @Test
     fun `the project label survives an update without one`() {
-        store.applySeed(listOf(session("s-1", projectId = "p-1", projectLabel = "proj")))
+        store.applySeed(listOf(session("s-1", projectId = "p-1", projectLabel = "proj")), emptyList())
         store.applyEvent(DaemonEvent.SessionUpdated(session("s-1", "2026-01-01T10:00:05Z", projectId = "p-1")))
         assertNull(store.session("s-1")?.projectLabel)
         assertEquals("proj", store.projectLabel("p-1"))
 
         // The seed carries the label while events omit it, so that difference alone is not a change.
-        assertEquals(SeedChange(), store.applySeed(listOf(session("s-1", "2026-01-01T10:00:05Z", projectId = "p-1", projectLabel = "proj"))))
-        assertEquals(SeedChange(changed = 1), store.applySeed(listOf(session("s-1", "2026-01-01T10:00:05Z", projectId = "p-1", projectLabel = "other"))))
+        assertEquals(SeedChange(), store.applySeed(listOf(session("s-1", "2026-01-01T10:00:05Z", projectId = "p-1", projectLabel = "proj")), emptyList()))
+        val relabelled = session("s-1", "2026-01-01T10:00:05Z", projectId = "p-1", projectLabel = "other")
+        assertEquals(SeedChange(changed = 1), store.applySeed(listOf(relabelled), emptyList()))
     }
 
     @Test
     fun `sessions of different hosts have different keys`() {
-        val other = SessionStore("host-b")
-        store.applySeed(listOf(session("s-1")))
-        other.applySeed(listOf(session("s-1")))
+        val other = SessionStore("host-b", TestTimeSource(), 300.seconds)
+        store.applySeed(listOf(session("s-1")), emptyList())
+        other.applySeed(listOf(session("s-1")), emptyList())
         assertEquals(setOf(SessionKey("host-a", "s-1")), store.sessions().keys)
         assertEquals(setOf(SessionKey("host-b", "s-1")), other.sessions().keys)
     }

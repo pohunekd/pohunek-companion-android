@@ -1,0 +1,13 @@
+{
+  "activity": "working",
+  "activity_epoch": "d-303-1792758140128403886-0",
+  "event": "agent_state",
+  "revision": "50",
+  "runtime": {
+    "runtime_generation": "1",
+    "worker_instance_id": "runtime-32869aa3e9f35200bc5b697aa47b25b6"
+  },
+  "session_id": "s-01M5MBCMAVJ27MX7S3W8P0PGV1",
+  "source": "screen",
+  "v": 4
+}

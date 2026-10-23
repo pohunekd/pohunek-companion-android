@@ -1,5 +1,6 @@
 package dev.pohunek.companion.protocol
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -17,6 +18,12 @@ object EventNames {
     const val SESSION_RUNTIME_LOST: String = "session_runtime_lost"
     const val SESSION_RUNTIME_CONFLICT: String = "session_runtime_conflict"
     const val SESSION_NATIVE_RECOVERED: String = "session_native_recovered"
+    const val AGENT_STATE: String = "agent_state"
+    const val SUBAGENT_STATE: String = "subagent_state"
+    const val BACKGROUND_STATE: String = "background_state"
+    const val NOTIFICATION_CREATED: String = "notification_created"
+    const val NOTIFICATION_UPDATED: String = "notification_updated"
+    const val NOTIFICATION_DELETED: String = "notification_deleted"
 }
 
 /** One line of the `subscribe` stream. */
@@ -64,6 +71,30 @@ sealed interface DaemonEvent {
         override val name: String get() = EventNames.SESSION_NATIVE_RECOVERED
     }
 
+    data class AgentState(val update: AgentStateUpdate) : DaemonEvent {
+        override val name: String get() = EventNames.AGENT_STATE
+    }
+
+    data class SubagentState(val update: SubagentStateUpdate) : DaemonEvent {
+        override val name: String get() = EventNames.SUBAGENT_STATE
+    }
+
+    data class BackgroundState(val update: BackgroundStateUpdate) : DaemonEvent {
+        override val name: String get() = EventNames.BACKGROUND_STATE
+    }
+
+    data class NotificationCreated(val record: NotificationRecord) : DaemonEvent {
+        override val name: String get() = EventNames.NOTIFICATION_CREATED
+    }
+
+    data class NotificationUpdated(val record: NotificationRecord) : DaemonEvent {
+        override val name: String get() = EventNames.NOTIFICATION_UPDATED
+    }
+
+    data class NotificationDeleted(val notificationId: String) : DaemonEvent {
+        override val name: String get() = EventNames.NOTIFICATION_DELETED
+    }
+
     /** A modelled event whose payload does not match the documented shape; the stream stays usable, so the caller counts it and goes on. */
     data class Malformed(override val name: String, val detail: String) : DaemonEvent
 
@@ -88,7 +119,9 @@ object EventDecoder {
         }
     }
 
-    private fun payload(name: String, obj: JsonObject): DaemonEvent = when (name) {
+    private fun payload(name: String, obj: JsonObject): DaemonEvent = sessionEvent(name, obj) ?: observationEvent(name, obj) ?: DaemonEvent.Unknown(name)
+
+    private fun sessionEvent(name: String, obj: JsonObject): DaemonEvent? = when (name) {
         EventNames.SESSION_CREATED -> DaemonEvent.SessionCreated(session(obj))
         EventNames.SESSION_UPDATED -> DaemonEvent.SessionUpdated(session(obj))
         EventNames.SESSION_STOPPED -> DaemonEvent.SessionStopped(session(obj))
@@ -101,7 +134,19 @@ object EventDecoder {
             previousWorkerInstanceId = optionalString(obj, "previous_worker_instance_id"),
             workerInstanceId = optionalString(obj, "worker_instance_id"),
         )
-        else -> DaemonEvent.Unknown(name)
+        else -> null
+    }
+
+    private fun observationEvent(name: String, obj: JsonObject): DaemonEvent? = when (name) {
+        EventNames.AGENT_STATE -> DaemonEvent.AgentState(decode(AgentStateUpdate.serializer(), obj, "agent_state"))
+        EventNames.SUBAGENT_STATE -> DaemonEvent.SubagentState(decode(SubagentStateUpdate.serializer(), obj, "subagent_state"))
+        EventNames.BACKGROUND_STATE -> DaemonEvent.BackgroundState(decode(BackgroundStateUpdate.serializer(), obj, "background_state"))
+        EventNames.NOTIFICATION_CREATED -> DaemonEvent.NotificationCreated(decode(NotificationRecord.serializer(), obj["record"], "record"))
+        EventNames.NOTIFICATION_UPDATED -> DaemonEvent.NotificationUpdated(decode(NotificationRecord.serializer(), obj["record"], "record"))
+        EventNames.NOTIFICATION_DELETED -> DaemonEvent.NotificationDeleted(
+            optionalString(obj, "notification_id") ?: throw PayloadException("notification_id is missing"),
+        )
+        else -> null
     }
 
     private fun checkVersion(obj: JsonObject) {
@@ -109,12 +154,15 @@ object EventDecoder {
         if (version !in Wire.CLIENT_RANGE) throw ProtocolClientException.VersionMismatch(Wire.CLIENT_RANGE, version, null)
     }
 
-    private fun session(obj: JsonObject): SessionInfo = try {
-        Wire.json.decodeFromJsonElement(SessionInfo.serializer(), requireNotNull(obj["session"]) { "no session payload" })
+    private fun session(obj: JsonObject): SessionInfo = decode(SessionInfo.serializer(), obj["session"], "session")
+
+    /** Decodes [element], which is the payload's `what` field or, for flat events, the whole event object. */
+    private fun <T> decode(serializer: KSerializer<T>, element: JsonElement?, what: String): T = try {
+        Wire.json.decodeFromJsonElement(serializer, requireNotNull(element) { "no $what payload" })
     } catch (e: SerializationException) {
-        throw PayloadException("session does not match the documented shape: ${e.message}", e)
+        throw PayloadException("$what does not match the documented shape: ${e.message}", e)
     } catch (e: IllegalArgumentException) {
-        throw PayloadException("session does not match the documented shape: ${e.message}", e)
+        throw PayloadException("$what does not match the documented shape: ${e.message}", e)
     }
 
     private fun optionalString(obj: JsonObject, key: String): String? {

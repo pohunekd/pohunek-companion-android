@@ -30,6 +30,12 @@ class LogField private constructor(val name: String, val value: LogValue) {
         /** A machine-readable error code, never a free-text message. */
         fun errorCode(code: String): LogField = text("error", code)
 
+        /** The name of a value of a closed state enum, such as an owner state. */
+        fun state(name: String): LogField = text("state", name)
+
+        /** The state before the change an event records, next to [state]. */
+        fun previousState(name: String): LogField = text("previous_state", name)
+
         /** A counter, size or duration; [name] is a fixed identifier chosen in code. */
         fun number(name: String, value: Long): LogField = LogField(name, LogValue.Number(value))
 

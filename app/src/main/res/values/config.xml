@@ -37,6 +37,16 @@
     <!-- Milliseconds a liveness check may take before the attach fails with a liveness error: an integer greater than 0. -->
     <integer name="attach_liveness_timeout_ms">3000</integer>
     <!--
+      Seconds a session must stay idle, with no running subagent or background task, before it is shown as Idle instead of Working:
+      an integer greater than 0.
+    -->
+    <integer name="idle_threshold_secs">300</integer>
+    <!--
+      Records requested per notification.list page when the attention notifications are seeded; the page is halved while the daemon
+      reports it as too large, and a page of one that is still too large fails the seed: an integer of at least 1.
+    -->
+    <integer name="notification_page_size">200</integer>
+    <!--
       Size limit in bytes of one log file (files/logs/app.log and the one rotated file app.log.1, so the log never takes more than twice
       this): an integer of at least 4096.
     -->

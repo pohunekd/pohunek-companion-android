@@ -135,7 +135,10 @@ scripts/ui-agent pohunek ARGS...
   backoff, so wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh
   and `SessionList.refresh` ask for a re-seed, `SessionList.editHost` opens the form,
   `SessionList.empty` and `SessionList.loading` carry the other states, and `ConfigError.message`
-  replaces the app when a value in `app/src/main/res/values/config.xml` is invalid. The loops run
+  replaces the app when a value in `app/src/main/res/values/config.xml` is invalid. The app log
+  (`scripts/ui-agent app-file cat logs/app.log`) records `live.owner_state` with the session id and
+  the previous and new owner state each time a session changes state, which is how a
+  `pohunek notification create|delete` is observed without waiting for a re-seed. The loops run
   only while the app is visible: after `background` (the process lifecycle stops about 700 ms
   later) `sockets` shows no ESTABLISHED connection to the daemon, and `foreground` reconnects and
   re-seeds. The saved host survives

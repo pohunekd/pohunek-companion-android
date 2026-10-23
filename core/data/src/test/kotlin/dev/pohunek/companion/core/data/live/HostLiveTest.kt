@@ -3,8 +3,13 @@ package dev.pohunek.companion.core.data.live
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.LogLevel
+import dev.pohunek.companion.core.domain.sessions.OwnerState
+import dev.pohunek.companion.protocol.AgentActivity
 import dev.pohunek.companion.protocol.DaemonEvent
 import dev.pohunek.companion.protocol.HostRoute
+import dev.pohunek.companion.protocol.NotificationKind
+import dev.pohunek.companion.protocol.NotificationRecord
+import dev.pohunek.companion.protocol.NotificationStatus
 import dev.pohunek.companion.protocol.ProtocolClientException
 import dev.pohunek.companion.protocol.SessionCapabilities
 import dev.pohunek.companion.protocol.SessionInfo
@@ -37,6 +42,8 @@ class HostLiveTest {
         reconnectMax = 30.seconds,
         livenessInterval = 10.seconds,
         livenessTimeout = 5.seconds,
+        idleThreshold = 300.seconds,
+        notificationPageSize = 200,
     )
 
     private class FakeStream : EventStream {
@@ -60,11 +67,12 @@ class HostLiveTest {
         val streams = mutableListOf<FakeStream>()
         var subscribe: suspend () -> EventStream = { FakeStream().also { streams += it } }
         var seed: suspend () -> List<SessionInfo> = { emptyList() }
+        var notifications: List<NotificationRecord> = emptyList()
         var probe: suspend () -> Unit = {}
 
         override suspend fun subscribe(): EventStream = subscribe.invoke()
 
-        override suspend fun fetchSeed(): List<SessionInfo> = seed.invoke()
+        override suspend fun fetchSeed(): Seed = Seed(seed.invoke(), notifications)
 
         override suspend fun probe() = probe.invoke()
     }
@@ -73,7 +81,12 @@ class HostLiveTest {
         override fun log(level: LogLevel, event: String, fields: List<LogField>) = Unit
     }
 
-    private fun session(id: String, updatedAt: String = "2026-01-01T10:00:00Z", name: String? = null) = SessionInfo(
+    private fun session(
+        id: String,
+        updatedAt: String = "2026-01-01T10:00:00Z",
+        name: String? = null,
+        activity: AgentActivity? = null,
+    ) = SessionInfo(
         id = id,
         capabilities = SessionCapabilities(resume = false, fork = false),
         name = name,
@@ -85,6 +98,7 @@ class HostLiveTest {
         rows = 24,
         state = SessionState.Running,
         stateSource = StateSource.Process,
+        activity = activity,
         createdAt = "2026-01-01T09:00:00Z",
         updatedAt = updatedAt,
     )
@@ -110,7 +124,7 @@ class HostLiveTest {
         seed.complete(listOf(session("s-1")))
         runCurrent()
 
-        assertEquals(listOf("s-1", "s-2"), updates.lastSessions().map { it.id })
+        assertEquals(listOf("s-1", "s-2"), updates.lastSessions().map { it.info.id })
         assertEquals(1, updates.count { it.second is LiveUpdate.Sessions })
         job.cancel()
     }
@@ -129,7 +143,7 @@ class HostLiveTest {
         seed.complete(listOf(session("s-1", "2026-01-01T10:00:00Z", name = "old")))
         runCurrent()
 
-        assertEquals(listOf<String?>("new"), updates.lastSessions().map { it.name })
+        assertEquals(listOf<String?>("new"), updates.lastSessions().map { it.info.name })
         job.cancel()
     }
 
@@ -150,7 +164,7 @@ class HostLiveTest {
         reseed.complete(listOf(session("s-1", "2026-01-01T10:00:00Z", name = "old")))
         runCurrent()
 
-        assertEquals(listOf<String?>("new"), updates.lastSessions().map { it.name })
+        assertEquals(listOf<String?>("new"), updates.lastSessions().map { it.info.name })
         assertTrue(updates.any { it.second == LiveUpdate.Reseeded })
         job.cancel()
     }
@@ -247,8 +261,49 @@ class HostLiveTest {
         runCurrent()
 
         assertEquals(config.reseedInterval.inWholeMilliseconds, updates.single { it.second is LiveUpdate.Reconnecting }.first)
-        assertEquals(listOf("s-3"), updates.lastSessions().map { it.id })
+        assertEquals(listOf("s-3"), updates.lastSessions().map { it.info.id })
         assertEquals(2, updates.count { it.second == LiveUpdate.Connected })
+        job.cancel()
+    }
+
+    @Test
+    fun `an idle session is published as Idle after the threshold without any event`() = runTest {
+        val transport = FakeTransport()
+        transport.seed = { listOf(session("s-1", activity = AgentActivity.Idle)) }
+        val updates = mutableListOf<Pair<Long, LiveUpdate>>()
+        val job = collect(transport, updates)
+        runCurrent()
+        assertEquals(listOf(OwnerState.Working), updates.lastSessions().map { it.ownerState })
+
+        advanceTimeBy(config.idleThreshold - 1.milliseconds)
+        runCurrent()
+        assertEquals(1, updates.count { it.second is LiveUpdate.Sessions })
+        advanceTimeBy(1.milliseconds)
+        runCurrent()
+
+        assertEquals(listOf(OwnerState.Idle), updates.lastSessions().map { it.ownerState })
+        assertEquals(config.idleThreshold.inWholeMilliseconds, updates.last { it.second is LiveUpdate.Sessions }.first)
+        job.cancel()
+    }
+
+    @Test
+    fun `an attention notification event lifts a session and its deletion clears it without a re-seed`() = runTest {
+        val transport = FakeTransport()
+        transport.seed = { listOf(session("s-1", activity = AgentActivity.Idle)) }
+        val updates = mutableListOf<Pair<Long, LiveUpdate>>()
+        val job = collect(transport, updates)
+        runCurrent()
+
+        val record = NotificationRecord("n-1", NotificationKind.AgentBlocked, NotificationStatus.Unread, "2026-01-01T10:00:00Z", "s-1")
+        val inbox = transport.streams.single().inbox
+        inbox.trySend(DaemonEvent.NotificationCreated(record))
+        runCurrent()
+        assertEquals(listOf(OwnerState.NeedsOwner), updates.lastSessions().map { it.ownerState })
+
+        inbox.trySend(DaemonEvent.NotificationDeleted("n-1"))
+        runCurrent()
+        assertEquals(listOf(OwnerState.Working), updates.lastSessions().map { it.ownerState })
+        assertEquals(0, updates.count { it.second == LiveUpdate.Reseeded })
         job.cancel()
     }
 }

@@ -31,6 +31,9 @@ object Requests {
         return Request(Wire.CLIENT_RANGE, id, "session.list", params)
     }
 
+    fun notificationList(id: String, params: NotificationListParams): Request =
+        Request(Wire.CLIENT_RANGE, id, "notification.list", Wire.json.encodeToJsonElement(NotificationListParams.serializer(), params))
+
     /** `initial_dimensions` is omitted when the geometry is unknown, which keeps the worker's current size. */
     fun sessionAttach(id: String, sessionId: String, dimensions: TerminalDimensions?): Request {
         val params = buildJsonObject {

@@ -25,6 +25,9 @@ class SessionListFixturesTest {
     @Test
     fun `full and minimal session info fixtures decode`() {
         val full = Wire.json.decodeFromJsonElement(SessionInfo.serializer(), Fixtures.json("session-info-full"))
+        assertEquals(listOf(SubagentInfo("agent-fixture-1", "claude", SubagentLifecycle.Running, DecimalWire(1UL))), full.subagents)
+        assertEquals(listOf("agent-fixture-1", "shell-fixture-1", "task-fixture-1"), full.background?.items?.map { it.id })
+        assertEquals(listOf(BackgroundStatus.Running, BackgroundStatus.Running, BackgroundStatus.Other), full.background?.items?.map { it.status })
         assertEquals("zajca/12-typescript-sdk", full.branch)
         assertEquals("/workspace/pohunek-sdk", full.worktreePath)
         assertEquals(true, full.outputForceClosed)
@@ -34,6 +37,7 @@ class SessionListFixturesTest {
         assertEquals(120, minimal.cols)
         assertNull(minimal.name)
         assertNull(minimal.activity)
+        assertEquals(emptyList<SubagentInfo>(), minimal.subagents)
         assertNull(minimal.metadata)
         assertNull(minimal.exitCode)
     }
