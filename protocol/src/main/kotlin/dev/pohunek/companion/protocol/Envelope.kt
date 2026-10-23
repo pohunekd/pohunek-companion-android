@@ -49,7 +49,7 @@ object Requests {
 
     fun hostInspect(id: String): Request = Request(Wire.CLIENT_RANGE, id, "host.inspect", JsonNull)
 
-    /** `name`, `input`, `branch` and `base_branch` are omitted when null; `project` is the daemon's own id, so no path crosses the wire. */
+    /** `name`, `input`, `branch`, `base_branch` and `metadata` are omitted when null; `project` is the daemon's own id, so no path crosses the wire. */
     fun sessionNew(id: String, params: SessionNewParams): Request {
         val body = buildJsonObject {
             put("agent", params.agent)
@@ -60,6 +60,7 @@ object Requests {
             if (params.input != null) put("input", params.input)
             if (params.branch != null) put("branch", params.branch)
             if (params.baseBranch != null) put("base_branch", params.baseBranch)
+            if (params.metadata != null) put("metadata", buildJsonObject { params.metadata.forEach { (key, value) -> put(key, value) } })
         }
         return Request(Wire.CLIENT_RANGE, id, "session.new", body)
     }

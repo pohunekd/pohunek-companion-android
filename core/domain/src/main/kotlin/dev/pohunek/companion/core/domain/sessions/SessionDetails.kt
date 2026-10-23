@@ -24,12 +24,13 @@ data class SessionDetails(val sections: List<DetailSection>) {
 
 /**
  * The details of [session] on the host shown as [hostLabel] at [hostRoute]. A field without a value is left out, and every value is
- * plain text without control or bidi-format characters.
+ * plain text without control or bidi-format characters. [groupNotShared] adds the line that says the session's group exists only on
+ * this phone.
  */
-fun sessionDetails(session: OwnerSession, hostLabel: String, hostRoute: HostRoute): SessionDetails {
+fun sessionDetails(session: OwnerSession, hostLabel: String, hostRoute: HostRoute, groupNotShared: Boolean = false): SessionDetails {
     val info = session.info
     val sections = listOf(
-        DetailSection("Identity", identityFields(info, hostLabel, hostRoute)),
+        DetailSection("Identity", identityFields(info, hostLabel, hostRoute, groupNotShared)),
         DetailSection("Agent", agentFields(session)),
         DetailSection("Location", locationFields(info)),
         DetailSection("Work", workFields(info)),
@@ -47,11 +48,12 @@ private class FieldList {
 
 private fun fields(build: FieldList.() -> Unit): List<DetailField> = FieldList().apply(build).fields
 
-private fun identityFields(info: SessionInfo, hostLabel: String, hostRoute: HostRoute) = fields {
+private fun identityFields(info: SessionInfo, hostLabel: String, hostRoute: HostRoute, groupNotShared: Boolean) = fields {
     val route = sanitizeText(hostRoute.toString())
     add("session_id", "Session id", sanitizeText(info.id))
     add("host", "Host", hostLabel)
     add("host_route", "Host route", route.takeIf { it != hostLabel })
+    add("group", "Group", if (groupNotShared) GROUP_NOT_SHARED_TEXT else null)
 }
 
 private fun agentFields(session: OwnerSession) = fields {
@@ -91,6 +93,9 @@ private fun workFields(info: SessionInfo) = fields {
     add("work_role", "Role", facts?.role)
     add("work_link", "Link", openableWorkLink(metadata))
 }
+
+/** The value of the details line for a session whose group is kept only on this phone. */
+const val GROUP_NOT_SHARED_TEXT = "only on this phone"
 
 /** Drops control and bidi-format characters but keeps every space, which is significant in paths. */
 fun plainText(value: String): String = value.filterNot { it.isISOControl() || isFormatChar(it) }

@@ -95,9 +95,11 @@ as the desktop companion: `v0.35.2` today.
   other daemon error (the daemon can fail after it recorded the session) and any other failure after the request left is unconfirmed,
   which disables Create on that form. A reply whose
   `applied_input` is not true after a prompt was sent leaves the session and disables Create too. A session started from a row's
-  "New session here" is recorded in memory (`PendingPlacementBook`, expiring after `pending_placement_max_age_secs`) and the session
-  list moves it to that row's group as a manual placement once the layout holds it. #118 changes this: a session started from a
-  group other than Inbox will carry `companion.group` in its `session.new` metadata instead.
+  "New session here" is created in that row's group: the form resolves the row's group id to its name from the layout and, for a
+  group other than Inbox, sends `{"companion.group": "<name>"}` as the `metadata` of the `session.new`, so every client sees the
+  session in the group and the phone keeps no pending placement of its own. An unknown group id (deleted since), Inbox, or a name
+  that is not a valid group value sends no metadata, and the session starts unplaced. A fork needs no handling: the daemon
+  copies the source's metadata, so a fork lands in its parent's group.
   Templates are the selected project's actions with provider `none` (`project.actions`, read when the host and project are known, over a
   connection of its own); choosing one reads its recipe (`project.action`) and fills agent and prompt, and its `branch` and `base_branch`
   go into the request. A prompt containing `${` (only static templates are supported), a recipe that cannot be read, or an agent the host
@@ -172,8 +174,10 @@ as the desktop companion: `v0.35.2` today.
   non-empty, at most `group_name_max_bytes` UTF-8 bytes and free of control and bidirectional-format characters, and the same
   rules refuse a group name in the dialog. A session that cannot carry the key (`external`, or refused with
   `session_external_read_only`, a runtime that is not launchable on its host, or `method_not_found` from an older daemon)
-  gets no write (an external session is never sent one); it keeps today's local placement and is added to the in-memory
-  `LayoutRepository.notShared` set. The manual placements already in `layout.json` are migrated once per host route, after
+  gets no write (an external session is never sent one); it keeps its local placement and is added to the in-memory
+  `LayoutRepository.notShared` set. The list marks such a session, and every external one, with an "Only on this phone" label
+  next to the Work badge (read by TalkBack as "This session's group is kept only on this phone") and the details screen shows a
+  "Group: only on this phone" line; a session that gets a usable key leaves the set and loses both. The manual placements already in `layout.json` are migrated once per host route, after
   that host's first full list: each manual item outside Inbox whose session is listed, not external and without any
   `companion.group` key gets its group's name written (a present key is never overwritten, manual Inbox items need no
   write). A refused session is marked not shared and not retried; the route goes into `migrated_hosts` only when no write

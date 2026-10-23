@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,8 +52,18 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
                 }
                 Text(summary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val work = listOfNotNull(row.project, row.badge, row.badgeRole)
-                if (work.isNotEmpty()) {
-                    Text(work.joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.rowWork"))
+                if (work.isNotEmpty() || row.notShared) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.sm)) {
+                        if (work.isNotEmpty()) {
+                            Text(
+                                work.joinToString(" · "),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false).testTag("SessionList.rowWork"),
+                            )
+                        }
+                        if (row.notShared) NotSharedLabel()
+                    }
                 }
                 row.runtimeDetail?.let { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.runtimeDetail")) }
                 if (row.link == HostLink.Down) {
@@ -82,6 +93,19 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
             )
             .semantics(mergeDescendants = true) {}
             .testTag("SessionList.row"),
+    )
+}
+
+/** Says that the session's group is kept only on this phone; TalkBack reads the longer description instead of the label. */
+@Composable
+private fun NotSharedLabel() {
+    val description = stringResource(R.string.session_row_not_shared_description)
+    Text(
+        stringResource(R.string.session_row_not_shared),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        modifier = Modifier.semantics { contentDescription = description }.testTag("SessionList.notShared"),
     )
 }
 

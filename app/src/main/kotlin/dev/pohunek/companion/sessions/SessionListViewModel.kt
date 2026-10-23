@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions") // The state holder is followed by the pure derivations of the rows, the details and the filters.
+
 package dev.pohunek.companion.sessions
 
 import androidx.lifecycle.Lifecycle
@@ -10,14 +12,12 @@ import dev.pohunek.companion.core.data.commands.ResumeResult
 import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.hosts.HostsState
 import dev.pohunek.companion.core.data.hosts.KnownHosts
-import dev.pohunek.companion.core.data.layout.LayoutEdit
 import dev.pohunek.companion.core.data.layout.LayoutRepository
 import dev.pohunek.companion.core.data.layout.LayoutState
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostFeed
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.log.hostKeyField
-import dev.pohunek.companion.core.data.newsession.PendingPlacementBook
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.layout.Edit
@@ -90,7 +90,6 @@ class SessionListViewModel(
     private val registry: HostRegistry,
     private val commands: SessionCommands,
     private val actions: SessionActionRunner,
-    private val placements: PendingPlacementBook,
     private val processLifecycle: Lifecycle,
     private val log: AppLog,
     limits: Flow<DisplayLimits>,
@@ -132,6 +131,7 @@ class SessionListViewModel(
         val feeds: Map<HostRoute, HostFeed>,
         val layout: LayoutState,
         val limits: DisplayLimits,
+        val notShared: Set<SessionKey>,
     )
 
     init {
@@ -141,7 +141,7 @@ class SessionListViewModel(
             for (seed in seeds) applySeed(seed)
         }
         viewModelScope.launch {
-            combine(hosts.state, registry.state, layouts.state, limits, ::ListInputs).collect { input ->
+            combine(hosts.state, registry.state, layouts.state, limits, layouts.notShared, ::ListInputs).collect { input ->
                 val (configured, feeds, layout) = input
                 if (configured is HostsState.Loaded && configured.hosts.isEmpty() && !firstHostRequested) {
                     firstHostRequested = true
@@ -149,28 +149,11 @@ class SessionListViewModel(
                 }
                 editor.configure(input.limits.groupNameMaxBytes, (configured as? HostsState.Loaded)?.hosts.orEmpty())
                 queueSeeds(configured, feeds, layout, input.limits.groupNameMaxBytes)
-                updateState { listed(it, configured, feeds, layout, input.limits.rowBadgeMaxChars, input.limits.sectionTitleMaxChars) }
+                updateState { listed(it, configured, feeds, layout, input.notShared, input.limits.rowBadgeMaxChars, input.limits.sectionTitleMaxChars) }
                 pruneCollapsed(configured, feeds, input.limits.sectionTitleMaxChars)
             }
         }
-        viewModelScope.launch { combine(placements.state, layouts.state) { _, layout -> layout }.collect { settlePlacements(it) } }
         viewModelScope.launch { processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { hosts.run() } }
-    }
-
-    /**
-     * Moves the sessions the new session form created into the group it recorded, once the layout holds them. A group deleted in
-     * the meantime leaves the session where the layout put it.
-     */
-    private suspend fun settlePlacements(layout: LayoutState) {
-        if (placements.state.value.entries.isEmpty()) return
-        val available = layout as? LayoutState.Available ?: return
-        val settlement = placements.take(available.layout.items.mapTo(HashSet()) { it.key })
-        for (key in settlement.expired) log.warn("new_session.placement_expired", listOf(LogField.sessionId(key.sessionId)))
-        for (placement in settlement.apply) {
-            if (layouts.moveSession(placement.key, placement.group, manual = true) !is LayoutEdit.Applied) {
-                log.warn("new_session.placement_dropped", listOf(LogField.groupId(placement.group), LogField.sessionId(placement.key.sessionId)))
-            }
-        }
     }
 
     private suspend fun applySeed(seed: Seed) {
@@ -427,7 +410,7 @@ class SessionListViewModel(
         val session = registry.state.value[ref.route]?.sessions?.firstOrNull { it.info.id == ref.sessionId } ?: return
         val row = (currentState.needsYou + currentState.rows.orEmpty()).firstOrNull { it.ref == ref } ?: return
         log.info("session.open_details", listOf(LogField.sessionId(ref.sessionId)))
-        updateState { it.copy(details = DetailsView(ref, row.title, sessionDetails(session, row.hostLabel, ref.route))) }
+        updateState { it.copy(details = DetailsView(ref, row.title, sessionDetails(session, row.hostLabel, ref.route, row.notShared))) }
     }
 
     /** The form opens on the row's host and project; the new session lands in the owner group the layout holds the row in, whatever view is shown. */
@@ -557,6 +540,7 @@ private fun listed(
     configured: HostsState,
     feeds: Map<HostRoute, HostFeed>,
     layout: LayoutState,
+    notShared: Set<SessionKey>,
     badgeMaxChars: Int,
     sectionTitleMaxChars: Int,
 ): SessionListState {
@@ -567,7 +551,7 @@ private fun listed(
         (feeds[host.route]?.connection as? HostConnection.Reconnecting)?.let { HostStatus(hostDisplayLabel(host), it) }
     }
     val awaiting = awaitsList(hostList, feeds, empty = listing.needsYou.isEmpty() && listing.others.isEmpty())
-    val others = listing.others.map { it.toRow(badgeMaxChars) }
+    val others = listing.others.map { it.toRow(badgeMaxChars, notShared) }
     val available = layout as? LayoutState.Available
     // Row actions need the daemon: the sheet closes with the session or with its host's connection.
     val sheetOpen = state.actionSheet?.let { ref ->
@@ -587,7 +571,7 @@ private fun listed(
         hostsRead = configured !is HostsState.Loading,
         storageError = (configured as? HostsState.Unreadable)?.reason,
         hasHosts = hostList.isNotEmpty(),
-        needsYou = listing.needsYou.map { it.toRow(badgeMaxChars) },
+        needsYou = listing.needsYou.map { it.toRow(badgeMaxChars, notShared) },
         // The list waits for the layout, so that it never shows once flat and then arranged.
         rows = if (awaiting || available == null) null else others,
         view = view,
@@ -602,7 +586,7 @@ private fun listed(
         layoutIssue = available?.issue,
         statuses = statuses,
         refreshing = feeds.values.any { it.refreshing },
-        details = state.details?.let { refreshedDetails(it, listing.needsYou + listing.others, feeds, hostList) },
+        details = state.details?.let { refreshedDetails(it, listing.needsYou + listing.others, feeds, hostList, notShared) },
         // The unreachable-host reason ends with the outage of the host it explained.
         refusal = state.refusal.takeUnless {
             it == AttachRefusal.HostUnreachable && entries.none { e -> e.host.route == state.refusalHost && e.link == HostLink.Down }
@@ -635,10 +619,20 @@ private fun awaitsList(hostList: List<ConfiguredHost>, feeds: Map<HostRoute, Hos
  * The open details rebuilt from the latest lists. A session that is absent from a list its host sent, or whose host is no longer
  * configured, keeps its last name and loses its fields; a host that has sent no list yet leaves the details as they are.
  */
-private fun refreshedDetails(open: DetailsView, shown: List<HostedSession>, feeds: Map<HostRoute, HostFeed>, hosts: List<ConfiguredHost>): DetailsView {
+private fun refreshedDetails(
+    open: DetailsView,
+    shown: List<HostedSession>,
+    feeds: Map<HostRoute, HostFeed>,
+    hosts: List<ConfiguredHost>,
+    notShared: Set<SessionKey>,
+): DetailsView {
     val hosted = shown.firstOrNull { it.route == open.ref.route && it.session.info.id == open.ref.sessionId }
     return when {
-        hosted != null -> DetailsView(open.ref, sessionDisplayName(hosted.session.info), sessionDetails(hosted.session, hosted.hostLabel, hosted.route))
+        hosted != null -> DetailsView(
+            open.ref,
+            sessionDisplayName(hosted.session.info),
+            sessionDetails(hosted.session, hosted.hostLabel, hosted.route, hosted.groupNotShared(notShared)),
+        )
         hosts.none { it.route == open.ref.route } || feeds[open.ref.route]?.sessions != null -> open.copy(details = null)
         else -> open
     }
@@ -660,7 +654,11 @@ private fun HostFeed?.link(): HostLink = when (this?.connection) {
 /** A host that is down or no longer reported by discovery will not send a list on its own. */
 private fun HostConnection.expectsList(): Boolean = this !is HostConnection.Reconnecting && this != HostConnection.NotReported
 
-private fun HostedSession.toRow(badgeMaxChars: Int): SessionRow {
+/** External sessions never carry the key; any other session is marked when the layout recorded that the daemon cannot hold it. */
+private fun HostedSession.groupNotShared(notShared: Set<SessionKey>): Boolean =
+    session.info.external == true || SessionKey(route.toString(), session.info.id) in notShared
+
+private fun HostedSession.toRow(badgeMaxChars: Int, notShared: Set<SessionKey>): SessionRow {
     val info = session.info
     val facts = workFacts(info.metadata.orEmpty())
     val badge = facts?.let(::workBadge)
@@ -684,5 +682,6 @@ private fun HostedSession.toRow(badgeMaxChars: Int): SessionRow {
         canStop = reachable && offersStop(info),
         canRemove = reachable && offersRemove(info),
         resume = resumeOffer(info),
+        notShared = groupNotShared(notShared),
     )
 }

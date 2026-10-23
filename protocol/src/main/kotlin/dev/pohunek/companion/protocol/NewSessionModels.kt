@@ -76,6 +76,8 @@ data class SessionNewParams(
     val branch: String? = null,
     /** Branch the worktree's branch is created from; omitted when null. */
     val baseBranch: String? = null,
+    /** Session metadata written at creation; omitted when null. The daemon validates it like `session.set_metadata`. */
+    val metadata: Map<String, String>? = null,
 )
 
 /**

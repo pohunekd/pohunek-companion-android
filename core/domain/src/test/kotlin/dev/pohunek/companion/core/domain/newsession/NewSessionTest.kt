@@ -110,6 +110,13 @@ class NewSessionTest {
     }
 
     @Test
+    fun `a group name becomes the companion group metadata and no name sends none`() {
+        assertEquals(mapOf("companion.group" to "Later"), sessionNewParams(form, 80, 24, "Later")?.metadata)
+        assertNull(sessionNewParams(form, 80, 24)?.metadata)
+        assertNull(sessionNewParams(form, 80, 24, null)?.metadata)
+    }
+
+    @Test
     fun `a daemon error is a refusal with its code and recovery hint`() {
         val error = ProtocolError(ErrorClass.Runtime, "agent_binary_missing", "claude is missing\u0007", "install it")
         val outcome = classifyCreateFailure(ProtocolClientException.Daemon(error))
