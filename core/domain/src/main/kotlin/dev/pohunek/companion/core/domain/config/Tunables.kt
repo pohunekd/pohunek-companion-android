@@ -27,6 +27,7 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit) {
     REATTACH_GIVE_UP_MS(1, TunableUnit.Milliseconds),
     IDLE_THRESHOLD_SECS(1, TunableUnit.Seconds),
     ROW_BADGE_MAX_CHARS(1, TunableUnit.Characters),
+    SECTION_TITLE_MAX_CHARS(1, TunableUnit.Characters),
     DETAIL_VALUE_MAX_CHARS(1, TunableUnit.Characters),
     NOTIFICATION_PAGE_SIZE(1, TunableUnit.Count),
     LOG_MAX_BYTES(MIN_LOG_MAX_BYTES, TunableUnit.Bytes),

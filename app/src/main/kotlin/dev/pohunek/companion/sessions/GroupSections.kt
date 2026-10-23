@@ -1,11 +1,16 @@
 package dev.pohunek.companion.sessions
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,18 +28,49 @@ import dev.pohunek.companion.R
 import dev.pohunek.companion.core.data.layout.LayoutIssue
 import dev.pohunek.companion.core.domain.layout.GroupSection
 import dev.pohunek.companion.core.domain.layout.INBOX_ID
+import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** The header of an owner group: its name, how many sessions it holds and a tap target that collapses or expands it. */
+/** The chip row that switches the list between its views; it scrolls sideways when the labels do not fit. */
 @Composable
-internal fun GroupHeader(section: GroupSection<SessionRow>, onEvent: (SessionListEvent) -> Unit) {
+internal fun ViewChips(selected: LayoutView, onEvent: (SessionListEvent) -> Unit) {
+    val spacing = PohunekTheme.spacing
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = spacing.gutter, vertical = spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+    ) {
+        for (view in LayoutView.entries) {
+            FilterChip(
+                selected = view == selected,
+                onClick = { onEvent(SessionListEvent.SelectView(view)) },
+                label = { Text(stringResource(view.labelRes())) },
+                modifier = Modifier.testTag("SessionList.view.${view.id}"),
+            )
+        }
+    }
+}
+
+@StringRes
+private fun LayoutView.labelRes(): Int = when (this) {
+    LayoutView.MY_GROUPS -> R.string.view_my_groups
+    LayoutView.BY_STATE -> R.string.view_by_state
+    LayoutView.BY_PROJECT -> R.string.view_by_project
+    LayoutView.BY_WORK_ITEM -> R.string.view_by_work_item
+}
+
+/**
+ * The header of a section: its name, how many sessions it holds and a tap target that collapses or expands it. An owner group other
+ * than Inbox has a menu; the sections of a derived view are [editable] only in My groups, so they have none.
+ */
+@Composable
+internal fun GroupHeader(section: GroupSection<SessionRow>, editable: Boolean, onEvent: (SessionListEvent) -> Unit) {
     val spacing = PohunekTheme.spacing
     val state = stringResource(if (section.collapsed) R.string.group_collapsed else R.string.group_expanded)
     Row(
         Modifier
             .fillMaxWidth()
             .clickable(onClickLabel = stringResource(if (section.collapsed) R.string.group_expand else R.string.group_collapse)) {
-                onEvent(SessionListEvent.SetGroupCollapsed(section.id, !section.collapsed))
+                onEvent(SessionListEvent.SetSectionCollapsed(section.id, !section.collapsed))
             }
             .padding(horizontal = spacing.gutter, vertical = spacing.md)
             .semantics(mergeDescendants = true) { stateDescription = state }
@@ -50,7 +86,7 @@ internal fun GroupHeader(section: GroupSection<SessionRow>, onEvent: (SessionLis
             modifier = Modifier.weight(1f).padding(start = spacing.md),
         )
         Text(section.rows.size.toString(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (section.id != INBOX_ID) {
+        if (editable && section.id != INBOX_ID) {
             IconButton(onClick = { onEvent(SessionListEvent.OpenGroupMenu(section.id)) }, modifier = Modifier.testTag("GroupHeader.more")) {
                 MoreIcon(stringResource(R.string.group_more))
             }

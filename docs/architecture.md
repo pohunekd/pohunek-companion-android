@@ -122,8 +122,12 @@ as the desktop companion: `v0.35.2` today.
   layout lives in a process-wide `LayoutRepository`: every list a connected host sends is reconciled into it for that host
   only (new sessions join the end of Inbox, that host's missing ones leave), and it is saved only when its content
   changed. A host that is connecting or down never prunes. A file that cannot be read or is invalid is shown as an error
-  above the list and kept as it is; the app then runs with an unsaved Inbox-only layout. The list shows the owner's groups
-  (My groups) whatever view the file stores; other views arrive with their own issue. The owner creates, renames and
+  above the list and kept as it is; the app then runs with an unsaved Inbox-only layout. A chip row selects the view the list
+  shows, stored in the file: My groups (the owner's groups, editable), By state, By project and By Work item. The last three
+  are read-only regroupings of the same sessions (ported from desktop `view.rs`) that keep the My groups order inside a
+  section and keep Needs you first; their collapsed sections are stored per view in `collapsed_sections` and ids no
+  section has any more are dropped once every host has sent a list. A By state session that waits for the owner on a host
+  that is not connected is not in Needs you, so it is shown in a trailing "Waiting (host not connected)" section. The owner creates, renames and
   deletes groups (a deletion has no confirmation and moves the sessions to the end of Inbox in their order; Inbox has
   neither) and moves a session to the end of a group from its action sheet, also into a new group; each edit is one
   `LayoutRepository` call that is applied, saved and logged by group and session id, or refused with nothing changed.

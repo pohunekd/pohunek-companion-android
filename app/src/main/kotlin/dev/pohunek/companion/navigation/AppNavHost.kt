@@ -42,6 +42,7 @@ fun AppNavHost(
                         SessionListViewModel(
                             koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(),
                             runtime.configs.map { it.rowBadgeMaxChars }.distinctUntilChanged(),
+                            runtime.configs.map { it.sectionTitleMaxChars }.distinctUntilChanged(),
                         )
                     }
                 },

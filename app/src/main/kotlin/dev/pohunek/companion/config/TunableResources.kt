@@ -28,6 +28,7 @@ private val RESOURCES: Map<Tunable, TunableResources> = mapOf(
     Tunable.REATTACH_GIVE_UP_MS to TunableResources(R.integer.reattach_give_up_ms, R.string.reattach_give_up_ms_help),
     Tunable.IDLE_THRESHOLD_SECS to TunableResources(R.integer.idle_threshold_secs, R.string.idle_threshold_secs_help),
     Tunable.ROW_BADGE_MAX_CHARS to TunableResources(R.integer.row_badge_max_chars, R.string.row_badge_max_chars_help),
+    Tunable.SECTION_TITLE_MAX_CHARS to TunableResources(R.integer.section_title_max_chars, R.string.section_title_max_chars_help),
     Tunable.DETAIL_VALUE_MAX_CHARS to TunableResources(R.integer.detail_value_max_chars, R.string.detail_value_max_chars_help),
     Tunable.NOTIFICATION_PAGE_SIZE to TunableResources(R.integer.notification_page_size, R.string.notification_page_size_help),
     Tunable.LOG_MAX_BYTES to TunableResources(R.integer.log_max_bytes, R.string.log_max_bytes_help),

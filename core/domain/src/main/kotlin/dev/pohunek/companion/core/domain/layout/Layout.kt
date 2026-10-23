@@ -222,6 +222,33 @@ data class Layout private constructor(
         return if (unplaced.isEmpty()) sections else sections.map { if (it.id == INBOX_ID) it.copy(rows = it.rows + unplaced) else it }
     }
 
+    /**
+     * The sections of the selected view for [rows], which exclude the sessions that need the owner on a connected host (the list lifts those
+     * out for every view). A derived view's sections are collapsed per its stored ids; titles are clipped to [titleMaxChars].
+     */
+    fun <R> presentView(rows: List<R>, keyOf: (R) -> SessionKey, titleMaxChars: Int, factsOf: (R) -> RowFacts): List<GroupSection<R>> {
+        val current = view
+        val sections = deriveSections(current, present(rows, keyOf), titleMaxChars, factsOf)
+        if (current.isEditable) return sections
+        val collapsed = collapsedSections[current.id].orEmpty()
+        return sections.map { it.copy(collapsed = it.id in collapsed) }
+    }
+
+    /**
+     * Drops the stored collapsed ids of the derived views that no section of [rows] has, so the file stays bounded by the live
+     * sections. Without rows nothing is dropped, so a host that is not connected keeps the state.
+     */
+    fun <R> pruneCollapsedSections(rows: List<R>, keyOf: (R) -> SessionKey, titleMaxChars: Int, factsOf: (R) -> RowFacts): Layout {
+        if (rows.isEmpty() || collapsedSections.isEmpty()) return this
+        val arranged = present(rows, keyOf)
+        val pruned = collapsedSections.mapValues { (viewId, ids) ->
+            val derived = LayoutView.parse(viewId)?.takeUnless { it.isEditable } ?: return@mapValues ids
+            val live = deriveSections(derived, arranged, titleMaxChars, factsOf).mapTo(HashSet()) { it.id }
+            ids.filterTo(HashSet()) { it in live }
+        }.filterValues { it.isNotEmpty() }
+        return if (pruned == collapsedSections) this else copy(collapsedSections = pruned)
+    }
+
     private fun nameTaken(name: String, except: String?): Boolean {
         val folded = name.lowercase()
         return groups.any { it.id != except && it.name.lowercase() == folded }

@@ -136,6 +136,7 @@ private fun SessionListContent(
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
                 state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
                 state.statuses.forEach { HostStatusLine(it) }
+                ViewChips(state.view, onEvent)
                 SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())
                 RowWindows(state, onEvent)
             }
@@ -147,7 +148,7 @@ private fun SessionListContent(
 @Composable
 private fun RowWindows(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
     val sheetRow = state.actionSheet?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
-    if (sheetRow != null) RowActionSheet(sheetRow, sheetRow.ref in state.resuming, onEvent)
+    if (sheetRow != null) RowActionSheet(sheetRow, sheetRow.ref in state.resuming, state.view.isEditable, onEvent)
     state.rename?.let { RenameDialog(it, onEvent) }
     val moveRow = state.movePicker?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
     if (moveRow != null) MoveToGroupSheet(moveRow, state.groups, onEvent)
@@ -174,10 +175,10 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
                         items(state.needsYou, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
                     }
                     for (section in state.groups) {
-                        item(key = "group:${section.id}") { GroupHeader(section, onEvent) }
+                        item(key = "group:${section.id}") { GroupHeader(section, state.view.isEditable, onEvent) }
                         if (!section.collapsed) items(section.rows, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
                     }
-                    item(key = "newGroup") { NewGroupButton(onEvent) }
+                    if (state.view.isEditable) item(key = "newGroup") { NewGroupButton(onEvent) }
                 }
             }
         }

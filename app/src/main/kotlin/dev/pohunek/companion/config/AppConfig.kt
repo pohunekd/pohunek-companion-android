@@ -21,6 +21,7 @@ class AppConfig private constructor(
     val discovery: DiscoveryConfig,
     val logMaxBytes: Long,
     val rowBadgeMaxChars: Int,
+    val sectionTitleMaxChars: Int,
     val detailValueMaxChars: Int,
 ) {
     companion object {
@@ -65,6 +66,7 @@ class AppConfig private constructor(
                 ),
                 value(Tunable.LOG_MAX_BYTES),
                 value(Tunable.ROW_BADGE_MAX_CHARS).toInt(),
+                value(Tunable.SECTION_TITLE_MAX_CHARS).toInt(),
                 value(Tunable.DETAIL_VALUE_MAX_CHARS).toInt(),
             )
         }
