@@ -88,13 +88,14 @@ class SessionListViewModel(
         viewModelScope.launch {
             combine(hosts.state, registry.state, layouts.state, badgeMaxChars) { configured, feeds, layout, badge ->
                 ListInputs(configured, feeds, layout, badge)
-            }.collect { (configured, feeds, layout, badge) ->
+            }.collect { input ->
+                val (configured, feeds, layout) = input
                 if (configured is HostsState.Loaded && configured.hosts.isEmpty() && !firstHostRequested) {
                     firstHostRequested = true
                     sendEffect(SessionListEffect.OpenHosts)
                 }
                 queueSeeds(feeds)
-                updateState { listed(it, configured, feeds, layout, badge) }
+                updateState { listed(it, configured, feeds, layout, input.badgeMaxChars) }
             }
         }
         viewModelScope.launch { processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { hosts.run() } }
