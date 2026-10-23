@@ -123,7 +123,10 @@ as the desktop companion: `v0.35.2` today.
   only (new sessions join the end of Inbox, that host's missing ones leave), and it is saved only when its content
   changed. A host that is connecting or down never prunes. A file that cannot be read or is invalid is shown as an error
   above the list and kept as it is; the app then runs with an unsaved Inbox-only layout. The list shows the owner's groups
-  (My groups) whatever view the file stores; other views arrive with their own issue.
+  (My groups) whatever view the file stores; other views arrive with their own issue. The owner creates, renames and
+  deletes groups (a deletion has no confirmation and moves the sessions to the end of Inbox in their order; Inbox has
+  neither) and moves a session to the end of a group from its action sheet, also into a new group; each edit is one
+  `LayoutRepository` call that is applied, saved and logged by group and session id, or refused with nothing changed.
 - **Hosts** are a list of `(route, optional label)` in `hosts.json`; a route is
   listed once, so the same daemon under two spellings of its address (such as
   `127.0.0.1:PORT` and `localhost:PORT`) counts as two hosts. One live loop

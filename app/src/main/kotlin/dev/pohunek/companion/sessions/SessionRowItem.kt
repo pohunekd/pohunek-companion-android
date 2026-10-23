@@ -128,7 +128,7 @@ private fun ownerStateLabel(state: OwnerState): String = stringResource(
 
 /** Three vertical dots; drawn here because the Material icon set is not a dependency of the app. */
 @Composable
-private fun MoreIcon(description: String) {
+internal fun MoreIcon(description: String) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     val radius = PohunekTheme.moreDotRadius
     val spacing = PohunekTheme.moreDotSpacing

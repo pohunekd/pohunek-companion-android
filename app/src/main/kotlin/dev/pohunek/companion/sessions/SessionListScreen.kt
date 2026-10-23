@@ -55,6 +55,7 @@ fun SessionListScreen(
     val snackbar = remember { SnackbarHostState() }
     val linkUnavailable = stringResource(R.string.link_unavailable)
     val noLinkApp = stringResource(R.string.link_no_app)
+    val editRefused = stringResource(R.string.group_edit_refused)
     CollectEffect(viewModel.effect) { effect ->
         when (effect) {
             is SessionListEffect.OpenTerminal -> onOpenTerminal(effect.route, effect.sessionId)
@@ -66,6 +67,7 @@ fun SessionListScreen(
                 snackbar.showSnackbar(noLinkApp)
             }
             SessionListEffect.LinkUnavailable -> snackbar.showSnackbar(linkUnavailable)
+            SessionListEffect.LayoutEditRefused -> snackbar.showSnackbar(editRefused)
         }
     }
     // Hoisted so the list keeps its scroll position while the details cover it.
@@ -141,12 +143,16 @@ private fun SessionListContent(
     }
 }
 
-/** The windows opened from a row: its action sheet and the rename dialog. */
+/** The windows opened from a row or a group header: the action sheet, the rename dialog, the move list, the group menu and the group name dialog. */
 @Composable
 private fun RowWindows(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
     val sheetRow = state.actionSheet?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
     if (sheetRow != null) RowActionSheet(sheetRow, sheetRow.ref in state.resuming, onEvent)
     state.rename?.let { RenameDialog(it, onEvent) }
+    val moveRow = state.movePicker?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
+    if (moveRow != null) MoveToGroupSheet(moveRow, state.groups, onEvent)
+    state.groups.firstOrNull { it.id == state.groupMenu }?.let { GroupMenuSheet(it, onEvent) }
+    state.groupDraft?.let { GroupNameDialog(it, onEvent) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -171,9 +177,20 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
                         item(key = "group:${section.id}") { GroupHeader(section, onEvent) }
                         if (!section.collapsed) items(section.rows, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
                     }
+                    item(key = "newGroup") { NewGroupButton(onEvent) }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NewGroupButton(onEvent: (SessionListEvent) -> Unit) {
+    TextButton(
+        onClick = { onEvent(SessionListEvent.OpenNewGroup) },
+        modifier = Modifier.padding(horizontal = PohunekTheme.spacing.sm).testTag("SessionList.newGroup"),
+    ) {
+        Text(stringResource(R.string.group_new))
     }
 }
 

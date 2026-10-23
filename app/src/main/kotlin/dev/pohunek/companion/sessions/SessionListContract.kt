@@ -45,19 +45,20 @@ data class SessionRow(
 
     val ref: RowRef get() = RowRef(route, sessionId)
 
-    /** The session's identity in the layout. */
-    val layoutKey: SessionKey get() = SessionKey(route.toString(), sessionId)
+    val layoutKey: SessionKey get() = ref.layoutKey
 
-    /** Row actions need the daemon, so a row of a host that is not connected offers none. */
-    val hasActions: Boolean get() =
-        reachable && (attachRefusal == null || hasLink || canRename || canStop || canRemove || resume != ResumeOffer.NotApplicable)
+    /** Row actions need the daemon, so a row of a host that is not connected offers none; Details and Move to group are always offered. */
+    val hasActions: Boolean get() = reachable
 
     /** Unique across hosts and a plain string, so that the list can save its state by it. */
     val listKey: String get() = "$route|$sessionId"
 }
 
 /** A session on its host; two hosts can hold the same session id. */
-data class RowRef(val route: HostRoute, val sessionId: String)
+data class RowRef(val route: HostRoute, val sessionId: String) {
+    /** The session's identity in the layout. */
+    val layoutKey: SessionKey get() = SessionKey(route.toString(), sessionId)
+}
 
 /** The details screen of one session; [details] is null once the session has left its host's list, [name] is then its last known name. */
 data class DetailsView(val ref: RowRef, val name: String, val details: SessionDetails?)
@@ -119,6 +120,41 @@ data class SessionListState(
     val resuming: Set<RowRef> = emptySet(),
     /** The last resume outcome, shown above the list until dismissed or replaced. */
     val resumeNote: ResumeNote? = null,
+    /** The id of the owner group whose menu is open; the menu closes when the group is deleted. */
+    val groupMenu: String? = null,
+    /** The session whose "Move to group" list is open; it closes when the session leaves the list. */
+    val movePicker: RowRef? = null,
+    /** The open group name dialog. */
+    val groupDraft: GroupDraft? = null,
+)
+
+/** What the group name dialog will do with the name. */
+sealed interface GroupDraftPurpose {
+    /** Appends an empty group to My groups. */
+    data object New : GroupDraftPurpose
+
+    data class Rename(val groupId: String) : GroupDraftPurpose
+
+    /** Appends a group and moves the session into it. */
+    data class NewAndMove(val ref: RowRef) : GroupDraftPurpose
+}
+
+/** Why the group name dialog was refused; the texts are composed in the view. */
+sealed interface GroupNameError {
+    data object Empty : GroupNameError
+
+    data class Duplicate(val name: String) : GroupNameError
+
+    /** The group or the session left the layout while the dialog was open. */
+    data object Gone : GroupNameError
+}
+
+/** The group name dialog: the text being edited, the edit in flight and why the last one was refused. */
+data class GroupDraft(
+    val purpose: GroupDraftPurpose,
+    val text: String,
+    val busy: Boolean = false,
+    val error: GroupNameError? = null,
 )
 
 /** What the last resume left to tell the owner; the texts are composed in the view. */
@@ -199,6 +235,37 @@ sealed interface SessionListEvent {
 
     /** Collapses or expands an owner group; the state is saved with the layout. */
     data class SetGroupCollapsed(val id: String, val collapsed: Boolean) : LayoutEvent
+
+    /** The events of the group menu and the group name dialog. */
+    sealed interface GroupEvent : LayoutEvent
+
+    data class OpenGroupMenu(val id: String) : GroupEvent
+
+    data object DismissGroupMenu : GroupEvent
+
+    /** Opens the name dialog for a new group. */
+    data object OpenNewGroup : GroupEvent
+
+    data class OpenRenameGroup(val groupId: String) : GroupEvent
+
+    /** Opens the name dialog for a new group that takes the session [ref]. */
+    data class OpenNewGroupFor(val ref: RowRef) : GroupEvent
+
+    data class EditGroupName(val text: String) : GroupEvent
+
+    data object SubmitGroupName : GroupEvent
+
+    /** Closes the name dialog; ignored while its edit runs. */
+    data object DismissGroupName : GroupEvent
+
+    /** Deletes the group without a confirmation; its sessions go to the end of Inbox. */
+    data class DeleteGroup(val id: String) : GroupEvent
+
+    data class OpenMoveToGroup(val ref: RowRef) : LayoutEvent
+
+    data object DismissMoveToGroup : LayoutEvent
+
+    data class MoveToGroup(val ref: RowRef, val groupId: String) : LayoutEvent
 }
 
 sealed interface SessionListEffect {
@@ -212,4 +279,7 @@ sealed interface SessionListEffect {
 
     /** No host is configured: the owner adds the first one. */
     data object OpenHosts : SessionListEffect
+
+    /** A move or delete found its group or session gone. */
+    data object LayoutEditRefused : SessionListEffect
 }
