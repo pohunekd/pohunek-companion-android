@@ -26,6 +26,8 @@ class SessionListViewModel(
     override fun onEvent(event: SessionListEvent) {
         when (event) {
             SessionListEvent.Refresh -> refresh()
+            is SessionListEvent.OpenSession -> openSession(event.id)
+            SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
             SessionListEvent.EditHost -> openForm()
             SessionListEvent.CancelEdit -> updateState { it.copy(form = null) }
             SessionListEvent.ClearHost -> clearHost()
@@ -45,6 +47,15 @@ class SessionListViewModel(
         }
     }
 
+    private fun openSession(id: String) {
+        val state = currentState
+        val host = state.host ?: return
+        val row = state.rows?.firstOrNull { it.id == id } ?: return
+        val refusal = row.attachRefusal
+        updateState { it.copy(refusal = refusal) }
+        if (refusal == null) sendEffect(SessionListEffect.OpenTerminal(host.route, row.id))
+    }
+
     private fun refresh() {
         val host = currentState.host ?: return
         if (currentState.loading) return
@@ -53,7 +64,7 @@ class SessionListViewModel(
 
     private fun loadSessions(route: HostRoute) {
         loadJob?.cancel()
-        updateState { it.copy(loading = true) }
+        updateState { it.copy(loading = true, refusal = null) }
         loadJob = viewModelScope.launch {
             try {
                 val rows = sessions.list(route).map(SessionInfo::toRow)
@@ -124,4 +135,5 @@ private fun SessionInfo.toRow() = SessionRow(
     agent = agent,
     state = state,
     activity = activity,
+    attachRefusal = AttachRefusal.forSession(external, state),
 )

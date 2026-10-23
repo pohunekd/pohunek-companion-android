@@ -14,12 +14,16 @@ import java.io.File
 /** Qualifier of the dispatcher that runs blocking I/O. */
 val ioDispatcher = named("io")
 
+/** Qualifier of the dispatcher that runs UI-thread work. */
+val mainDispatcher = named("main")
+
 /** App data lives in this file of the app's private files directory. */
 private const val HOSTS_FILE = "hosts.json"
 
 /** Koin bindings owned by the application shell. */
 val appModule = module {
     single<CoroutineDispatcher>(ioDispatcher) { Dispatchers.IO }
+    single<CoroutineDispatcher>(mainDispatcher) { Dispatchers.Main }
     single { HostStore(AtomicFile(File(get<Context>().filesDir, HOSTS_FILE)), get(ioDispatcher)) }
     factory { (client: ClientConfig) -> HostSessions(client, get(ioDispatcher)) }
 }

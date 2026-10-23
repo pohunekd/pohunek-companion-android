@@ -2,6 +2,7 @@ package dev.pohunek.companion.sessions
 
 import dev.pohunek.companion.core.data.hosts.ConfiguredHost
 import dev.pohunek.companion.protocol.AgentActivity
+import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.SessionState
 
 /** One session as the list shows it; every text is untrusted metadata and is rendered as plain text only. */
@@ -11,6 +12,8 @@ data class SessionRow(
     val agent: String,
     val state: SessionState,
     val activity: AgentActivity?,
+    /** Null when a terminal can be attached to the session. */
+    val attachRefusal: AttachRefusal?,
 )
 
 /** Why the list could not be loaded; [incompatible] marks a host that speaks no protocol version this app does. */
@@ -30,10 +33,16 @@ data class SessionListState(
     val error: ListError? = null,
     /** Non-null while the host form is shown. */
     val form: HostForm? = null,
+    /** Why the last tapped session was not opened; shown until dismissed, refreshed, or another session opens. */
+    val refusal: AttachRefusal? = null,
 )
 
 sealed interface SessionListEvent {
     data object Refresh : SessionListEvent
+
+    data class OpenSession(val id: String) : SessionListEvent
+
+    data object DismissRefusal : SessionListEvent
 
     data object EditHost : SessionListEvent
 
@@ -48,4 +57,6 @@ sealed interface SessionListEvent {
     data class LabelChanged(val label: String) : SessionListEvent
 }
 
-sealed interface SessionListEffect
+sealed interface SessionListEffect {
+    data class OpenTerminal(val route: HostRoute, val sessionId: String) : SessionListEffect
+}
