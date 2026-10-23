@@ -199,7 +199,11 @@ class HostLive(
         when {
             wake is Wake.Message -> if (connection.apply(wake.message)) connection.publish()
             wake == Wake.Refresh || connection.reseedDue.hasPassedNow() -> reseed(connection)
-            connection.probeDue.hasPassedNow() -> connection.probe()
+            connection.probeDue.hasPassedNow() -> {
+                connection.probe()
+                // The probe can outlast an idle deadline, which then no longer wakes the loop.
+                connection.publish()
+            }
             else -> connection.publish()
         }
     }
