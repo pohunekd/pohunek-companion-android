@@ -310,7 +310,7 @@ class SessionListViewModel(
 
     private fun stepGroup(id: String, direction: StepDirection) {
         updateState { it.copy(groupMenu = null) }
-        val ids = currentState.ownerGroups.map { it.id }
+        val ids = currentState.shownGroups.map { it.id }
         val placement = if (direction == StepDirection.Up) groupStepUp(ids, id) else groupStepDown(ids, id)
         if (placement == null) sendEffect(SessionListEffect.LayoutEditRefused) else editing { editor.dropGroup(id, placement) }
     }

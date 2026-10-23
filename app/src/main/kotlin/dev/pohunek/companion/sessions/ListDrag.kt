@@ -280,9 +280,9 @@ internal fun SessionListState.stepOffer(row: SessionRow): StepOffer? {
     return StepOffer(stepUp(shown, row.layoutKey) != null, stepDown(shown, row.layoutKey) != null)
 }
 
-/** The steps of group [id] over its neighbours in the owner's order. */
+/** The steps of group [id] over its neighbours among the groups shown. */
 internal fun SessionListState.groupStepOffer(id: String): StepOffer {
-    val ids = ownerGroups.map { it.id }
+    val ids = shownGroups.map { it.id }
     return StepOffer(groupStepUp(ids, id) != null, groupStepDown(ids, id) != null)
 }
 
