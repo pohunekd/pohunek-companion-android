@@ -13,6 +13,7 @@ import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
 import java.nio.channels.ClosedByInterruptException
 import java.nio.channels.SocketChannel
+import java.nio.channels.UnresolvedAddressException
 import kotlin.time.Duration
 
 /** Timeouts of a connection; both are required and positive. */
@@ -223,10 +224,14 @@ class PohunekConnection private constructor(
             } catch (e: IOException) {
                 opened.close()
                 throw connectFailure(route, config, e)
+            } catch (e: UnresolvedAddressException) {
+                // The channel layer reports a name that does not resolve this way when it is not translated to UnknownHostException.
+                opened.close()
+                throw connectFailure(route, config, e)
             }
         }
 
-        private fun connectFailure(route: HostRoute, config: ClientConfig, e: IOException): Exception = when (e) {
+        private fun connectFailure(route: HostRoute, config: ClientConfig, e: Exception): Exception = when (e) {
             is SocketTimeoutException -> ProtocolClientException.ConnectTimeout(route, config.connectTimeout.inWholeMilliseconds).also { it.addSuppressed(e) }
             is ClosedByInterruptException -> CancellationException("interrupted while connecting to $route", e)
             else -> ProtocolClientException.ConnectionFailed(route, e)
