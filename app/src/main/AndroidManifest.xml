@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- The session list opens TCP connections to the owner's Pohunek daemons; the app has no other network use. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".PohunekApplication"
         android:allowBackup="false"

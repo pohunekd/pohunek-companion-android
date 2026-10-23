@@ -2,19 +2,36 @@
 package dev.pohunek.companion.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import dev.pohunek.companion.StartScreen
+import dev.pohunek.companion.config.AppConfig
+import dev.pohunek.companion.sessions.SessionListScreen
+import dev.pohunek.companion.sessions.SessionListViewModel
+import org.koin.core.parameter.parametersOf
+import org.koin.mp.KoinPlatform
 
 @Composable
 fun AppNavHost(
+    config: AppConfig,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
     NavHost(navController = navController, startDestination = StartDestination, modifier = modifier) {
-        composable<StartDestination> { StartScreen() }
+        composable<StartDestination> {
+            val koin = remember { KoinPlatform.getKoin() }
+            val viewModel: SessionListViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer { SessionListViewModel(koin.get(), koin.get { parametersOf(config.client) }) }
+                },
+            )
+            SessionListScreen(viewModel)
+        }
     }
 }

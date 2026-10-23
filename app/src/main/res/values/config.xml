@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tunables of the app, read once at start-up into AppConfig. A value that is not valid shows a configuration
+  error screen that names the key. Every key is documented here, next to its value.
+-->
+<resources>
+    <!-- Milliseconds to wait for a TCP connection to a daemon to open: an integer greater than 0. -->
+    <integer name="connect_timeout_ms">5000</integer>
+    <!-- Milliseconds to wait for the response to one request on an open connection: an integer greater than 0. -->
+    <integer name="request_timeout_ms">5000</integer>
+</resources>

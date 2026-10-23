@@ -1,4 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Pohunek Companion</string>
+
+    <string name="config_error">Invalid configuration: %1$s %2$s (res/values/config.xml)</string>
+
+    <string name="session_list_refresh">Refresh</string>
+    <string name="session_list_edit_host">Edit</string>
+    <string name="session_list_loading">Loading sessions</string>
+    <string name="session_list_empty">No sessions</string>
+    <string name="session_list_error">Cannot load sessions: %1$s</string>
+    <string name="session_list_incompatible">This host runs an incompatible Pohunek version: %1$s</string>
+    <string name="session_state_starting">starting</string>
+    <string name="session_state_running">running</string>
+    <string name="session_state_stopped">stopped</string>
+    <string name="session_state_done">done</string>
+    <string name="session_state_failed">failed</string>
+    <string name="session_activity_working">working</string>
+    <string name="session_activity_blocked">blocked</string>
+    <string name="session_activity_idle">idle</string>
+
+    <string name="host_form_title">Pohunek host</string>
+    <string name="host_form_route">Address (HOST:PORT)</string>
+    <string name="host_form_label">Name (optional)</string>
+    <string name="host_form_save">Save</string>
+    <string name="host_form_cancel">Cancel</string>
+    <string name="host_form_clear">Remove host</string>
+    <string name="host_storage_unreadable">The saved host cannot be read and is left untouched: %1$s</string>
 </resources>
