@@ -72,13 +72,13 @@ private fun SettingsContent(
                 Row(Modifier.padding(horizontal = spacing.gutter), horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
                     OutlinedButton(onClick = {
                         onEvent(SettingsEvent.ResetAll)
-                    }, enabled = state.anyOverride, modifier = Modifier.testTag("Settings.resetAll")) {
+                    }, enabled = state.anyOverride && !state.saving, modifier = Modifier.testTag("Settings.resetAll")) {
                         Text(stringResource(R.string.settings_reset_all))
                     }
                 }
             }
             items(state.items, key = { it.tunable.key }) { item ->
-                TunableRow(item, onEvent)
+                TunableRow(item, state.saving, onEvent)
                 HorizontalDivider()
             }
             item {
@@ -116,7 +116,7 @@ private fun Outcome(outcome: SaveOutcome?) {
 }
 
 @Composable
-private fun TunableRow(item: TunableItem, onEvent: (SettingsEvent) -> Unit) {
+private fun TunableRow(item: TunableItem, saving: Boolean, onEvent: (SettingsEvent) -> Unit) {
     val spacing = PohunekTheme.spacing
     val key = item.tunable.key
     val unit = unitLabel(item.tunable.unit)
@@ -127,6 +127,7 @@ private fun TunableRow(item: TunableItem, onEvent: (SettingsEvent) -> Unit) {
             value = item.text,
             onValueChange = { onEvent(SettingsEvent.Edit(item.tunable, it)) },
             singleLine = true,
+            enabled = !saving,
             isError = item.error != null,
             suffix = unit?.let { { Text(it) } },
             supportingText = {
@@ -139,7 +140,7 @@ private fun TunableRow(item: TunableItem, onEvent: (SettingsEvent) -> Unit) {
             modifier = Modifier.fillMaxWidth().testTag("Settings.value.$key"),
         )
         if (item.text.trim() != item.default.toString()) {
-            TextButton(onClick = { onEvent(SettingsEvent.Reset(item.tunable)) }, modifier = Modifier.testTag("Settings.reset.$key")) {
+            TextButton(onClick = { onEvent(SettingsEvent.Reset(item.tunable)) }, enabled = !saving, modifier = Modifier.testTag("Settings.reset.$key")) {
                 Text(stringResource(R.string.settings_reset))
             }
         }

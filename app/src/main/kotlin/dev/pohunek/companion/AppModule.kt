@@ -64,7 +64,7 @@ val appModule = module {
         val runtime = get<RuntimeConfig>()
         val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         JsonLineLog(
-            RotatingLogFile(File(context.filesDir, LOG_DIRECTORY), LOG_FILE) { runtime.current().logMaxBytes },
+            RotatingLogFile(File(context.filesDir, LOG_DIRECTORY), LOG_FILE) { runtime.logMaxBytes() },
             get(),
             if (debuggable) LogMirror { level, _, line -> Log.println(level.priority(), LOGCAT_TAG, line) } else null,
         ) { failure -> Log.w(LOGCAT_TAG, "cannot write the log: ${failure.message}") }

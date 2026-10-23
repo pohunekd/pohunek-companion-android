@@ -8,6 +8,7 @@ import dev.pohunek.companion.core.domain.config.Tunable
 import dev.pohunek.companion.core.domain.config.TunableProblem
 import dev.pohunek.companion.core.domain.config.checkOverrideValues
 import dev.pohunek.companion.core.domain.config.tunableProblems
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** The overrides live in this file of the app's private files directory. */
 const val SETTINGS_FILE = "settings.json"
@@ -66,14 +68,20 @@ class RuntimeConfig(resources: Resources, private val store: SettingsStore) {
         val kept = overrides.filter { (tunable, value) -> value != defaults.getValue(tunable) }
         val problems = checkOverrideValues(defaults, kept)
         if (problems.isNotEmpty()) return ApplyResult.Refused(problems)
-        try {
-            store.save(kept)
-        } catch (e: SettingsStoreException) {
-            return ApplyResult.StorageFailed(e.message.orEmpty())
+        // A write that finished is published even when the caller's scope is cancelled, so the file and the process never disagree.
+        withContext(NonCancellable) {
+            try {
+                store.save(kept)
+            } catch (e: SettingsStoreException) {
+                return@withContext ApplyResult.StorageFailed(e.message.orEmpty())
+            }
+            mutableState.value = evaluate(SettingsLoad.Loaded(kept))
+            ApplyResult.Applied
         }
-        mutableState.value = evaluate(SettingsLoad.Loaded(kept))
-        ApplyResult.Applied
     }
+
+    /** The log size limit in force; the default while the configuration is not valid, so a log call never fails. */
+    fun logMaxBytes(): Long = (mutableState.value as? ConfigState.Valid)?.config?.logMaxBytes ?: defaults.getValue(Tunable.LOG_MAX_BYTES)
 
     private fun evaluate(load: SettingsLoad): ConfigState {
         tunableProblems(defaults).firstOrNull()?.let { return ConfigState.Invalid(it.tunable.key, it.message, fromOverrides = false) }

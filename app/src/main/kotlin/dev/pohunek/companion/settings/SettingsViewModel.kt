@@ -68,25 +68,31 @@ class SettingsViewModel(
 
     private suspend fun apply(overrides: Map<Tunable, Long>) {
         val before = currentState.items.associate { it.tunable to it.saved }
-        when (val result = runtime.apply(overrides)) {
+        val result = try {
+            runtime.apply(overrides)
+        } finally {
+            // Left set by a cancelled or failed apply, the flag would keep Save disabled.
+            updateState { it.copy(saving = false) }
+        }
+        when (result) {
             ApplyResult.Applied -> {
-                registry.restart()
                 val effective = defaults + overrides
+                // A restart resets the idle clocks, so only a change a running loop captured at its start triggers one.
+                if (Tunable.entries.any { it.readByLiveLoops && before.getValue(it) != effective.getValue(it) }) registry.restart()
                 logChanges(before, effective)
                 updateState { state ->
                     checked(
                         state.copy(
                             items = state.items.map { it.copy(saved = effective.getValue(it.tunable), text = effective.getValue(it.tunable).toString()) },
                             outcome = SaveOutcome.Saved,
-                            saving = false,
                         ),
                     )
                 }
             }
-            is ApplyResult.Refused -> updateState { it.copy(saving = false, outcome = SaveOutcome.Refused(result.problems.lines())) }
+            is ApplyResult.Refused -> updateState { it.copy(outcome = SaveOutcome.Refused(result.problems.lines())) }
             is ApplyResult.StorageFailed -> {
                 log.warn("settings.save_failed", listOf(LogField.errorCode("storage")))
-                updateState { it.copy(saving = false, outcome = SaveOutcome.StorageFailed(result.reason)) }
+                updateState { it.copy(outcome = SaveOutcome.StorageFailed(result.reason)) }
             }
         }
     }

@@ -34,6 +34,15 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit) {
 
     val key: String get() = name.lowercase()
 
+    /** True when a running live loop captured the value at its start, so a change needs the loops restarted to take effect. */
+    val readByLiveLoops: Boolean
+        get() = when (this) {
+            CONNECT_TIMEOUT_MS, REQUEST_TIMEOUT_MS, RESEED_INTERVAL_SECS, RECONNECT_INITIAL_MS, RECONNECT_MAX_MS, LIVENESS_INTERVAL_MS,
+            LIVENESS_TIMEOUT_MS, IDLE_THRESHOLD_SECS, NOTIFICATION_PAGE_SIZE,
+            -> true
+            else -> false
+        }
+
     /** The tunable this one may not fall below: a longest wait is never shorter than the first. */
     val lowerBound: Tunable?
         get() = when (this) {
