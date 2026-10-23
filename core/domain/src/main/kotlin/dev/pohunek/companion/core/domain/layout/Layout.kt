@@ -319,7 +319,7 @@ data class Layout private constructor(
      * The `companion.group` writes that move the manual placements of [host] into session metadata, none once the host is migrated. A
      * candidate is a manual item outside Inbox whose session [facts] list, is not external and has no key at all (a value other clients
      * would ignore still counts as a key, and is never overwritten). A group name that cannot be written as a value leaves its sessions
-     * local, listed in [GroupMigration.unshared].
+     * local, listed in [GroupMigration.unshared] together with the manual placements of external sessions.
      */
     fun migrationPlan(host: String, facts: List<GroupFact>, maxBytes: Int): GroupMigration {
         if (host in migratedHosts) return GroupMigration(emptyList(), emptyList())
@@ -328,9 +328,11 @@ data class Layout private constructor(
         val checked = items.filter { it.key.host == host && it.manual && it.group != INBOX_ID && it.key in writable }.mapNotNull { item ->
             names[item.group]?.let { item.key to checkGroupName(it, maxBytes) }
         }
+        val external = facts.filter { it.external }.mapTo(HashSet()) { it.key }
+        val localOnly = items.filter { it.key.host == host && it.manual && it.group != INBOX_ID && it.key in external }.map { it.key }
         return GroupMigration(
             writes = checked.mapNotNull { (key, check) -> (check as? GroupNameCheck.Valid)?.let { GroupWrite(key, it.name) } },
-            unshared = checked.filter { it.second is GroupNameCheck.Invalid }.map { it.first },
+            unshared = checked.filter { it.second is GroupNameCheck.Invalid }.map { it.first } + localOnly,
         )
     }
 

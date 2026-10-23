@@ -108,6 +108,9 @@ class SessionListViewModel(
     /** Hosts whose migration was started for the current connection and list; a changed list or a new connection arms it again. */
     private val migrationArmed = HashSet<HostRoute>()
 
+    /** Hosts whose armed seed arrived while their migration ran. */
+    private val migrationRearm = HashSet<HostRoute>()
+
     /** Hosts with a migration running, so that two never write the same sessions. */
     private val migrating = HashSet<HostRoute>()
 
@@ -183,12 +186,17 @@ class SessionListViewModel(
 
     /** Runs beside the seed consumer, so that slow writes never hold back the lists that follow. */
     private fun startMigration(route: HostRoute, facts: List<GroupFact>) {
-        if (!migrating.add(route)) return
+        if (!migrating.add(route)) {
+            // The list that armed this seed is newer than the running migration's; arming again once it ends lets that list retry a failure.
+            migrationRearm.add(route)
+            return
+        }
         viewModelScope.launch {
             try {
                 editor.migrate(route, facts)
             } finally {
                 migrating.remove(route)
+                if (migrationRearm.remove(route)) migrationArmed.remove(route)
             }
         }
     }

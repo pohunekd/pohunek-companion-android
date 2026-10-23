@@ -20,6 +20,7 @@ import dev.pohunek.companion.core.domain.layout.groupFact
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.info
+import dev.pohunek.companion.core.domain.log.warn
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.SessionInfo
 
@@ -151,13 +152,22 @@ internal class GroupEditor(
         if (limit == null || plan == null) return
         layouts.markNotShared(plan.unshared)
         val outcomes = plan.writes.filter { !currentInfo(route, it.key.sessionId).hasGroupKey() }.mapNotNull { write ->
-            writeTarget(route, write.key.sessionId)?.let { write.key to writes.write(it, write.name, limit) }
+            writeTarget(route, write.key.sessionId)?.let { target -> Triple(write.key, target, writes.write(target, write.name, limit)) }
         }
-        layouts.markNotShared(outcomes.filter { it.second == WriteOutcome.Unwritable }.map { it.first })
-        val failed = outcomes.count { it.second is WriteOutcome.Failed }
+        layouts.markNotShared(outcomes.filter { it.third == WriteOutcome.Unwritable }.map { it.first })
+        val failures = outcomes.filter { it.third is WriteOutcome.Failed }
+        val failed = failures.size
         if (plan.writes.isNotEmpty()) {
-            val counts = listOf(LogField.number("written", (outcomes.size - failed).toLong()), LogField.number("failed", failed.toLong()))
-            log.info("layout.migration_run", listOf(hostKeyField(route)) + counts)
+            val counts = listOf(
+                LogField.number("written", outcomes.count { it.third == WriteOutcome.Written }.toLong()),
+                LogField.number("unwritable", outcomes.count { it.third == WriteOutcome.Unwritable }.toLong()),
+                LogField.number("failed", failed.toLong()),
+            )
+            val fields = listOf(hostKeyField(route)) + counts
+            if (failed == 0) log.info("layout.migration_run", fields) else log.warn("layout.migration_run", fields)
+        }
+        failures.firstOrNull()?.let { (_, target, outcome) ->
+            report(GroupWriteNote(failed, outcomes.count { it.third != WriteOutcome.Unwritable }, target.hostLabel, (outcome as? WriteOutcome.Failed)?.reason))
         }
         if (failed == 0) layouts.markMigrated(route)
     }
