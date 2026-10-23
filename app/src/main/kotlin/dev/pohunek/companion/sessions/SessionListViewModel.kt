@@ -144,13 +144,19 @@ class SessionListViewModel(
             SessionListEvent.DismissActions, SessionListEvent.CloseDetails -> updateState { it.copy(actionSheet = null, details = null) }
             is SessionListEvent.RenameEvent -> onRenameEvent(event)
             is SessionListEvent.ResumeEvent -> onResumeEvent(event)
-            is SessionListEvent.OpenLink -> openLink(event.ref)
-            is SessionListEvent.NewSessionHere -> newSessionHere(event.ref)
+            is SessionListEvent.LeaveEvent -> onLeaveEvent(event)
             is SessionListEvent.ActionEvent -> onActionEvent(event)
             SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
             is SessionListEvent.SearchEvent -> onSearchEvent(event)
             is SessionListEvent.LayoutEvent -> onLayoutEvent(event)
+        }
+    }
+
+    private fun onLeaveEvent(event: SessionListEvent.LeaveEvent) {
+        when (event) {
+            is SessionListEvent.OpenLink -> openLink(event.ref)
+            is SessionListEvent.NewSessionHere -> newSessionHere(event.ref)
         }
     }
 

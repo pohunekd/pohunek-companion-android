@@ -238,10 +238,13 @@ sealed interface SessionListEvent {
 
     data object DismissResumeNote : ResumeEvent
 
-    data class OpenLink(val ref: RowRef) : SessionListEvent
+    /** The events that take the owner from a row to something else: its link, or a new session beside it. */
+    sealed interface LeaveEvent : SessionListEvent
+
+    data class OpenLink(val ref: RowRef) : LeaveEvent
 
     /** Opens the new session form on the host, project and group of the row. */
-    data class NewSessionHere(val ref: RowRef) : SessionListEvent
+    data class NewSessionHere(val ref: RowRef) : LeaveEvent
 
     /** The events of the stop and remove confirmation. */
     sealed interface ActionEvent : SessionListEvent
