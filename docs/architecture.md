@@ -74,6 +74,14 @@ as the desktop companion: `v0.35.2` today.
   `attach_liveness_interval_ms` and must answer within `attach_liveness_timeout_ms`, else the
   attach fails with a typed liveness error (at most the sum of both after the
   connection died).
+- Re-attach: a failed or broken attachment is redone whole (`session.attach`,
+  then the prelude, because the stream id is one-shot) with a doubling wait
+  (`reattach_initial_ms` up to `reattach_max_ms`), the terminal is reset and
+  repainted from the snapshot, and input typed meanwhile is discarded. Retrying
+  ends with a final error when the daemon reports the session not found, not
+  running, external, or its runtime lost (`session.resume` is the recovery for
+  those), when the route or protocol version is unusable, or after
+  `reattach_give_up_ms` without an attachment.
 - Wire fixtures come from two sources: Pohunek `sdk/ts/protocol/fixtures` at the
   pinned tag (`protocol/src/test/resources/fixtures/`), and, where that
   directory has no fixture for a method or event the app uses, captures from

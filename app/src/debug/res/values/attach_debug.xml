@@ -12,6 +12,7 @@
     <string name="attach_debug_status_connecting">Connecting</string>
     <string name="attach_debug_status_attached">Attached %1$s</string>
     <string name="attach_debug_status_attached_sized">Attached %1$s, daemon size %2$dx%3$d</string>
+    <string name="attach_debug_status_reconnecting">Reconnecting (attempt %1$d)</string>
     <string name="attach_debug_status_failed">Failed</string>
     <string name="attach_debug_status_detached">Detached</string>
     <string name="attach_debug_status_detach_unconfirmed">Detached, the daemon did not confirm</string>

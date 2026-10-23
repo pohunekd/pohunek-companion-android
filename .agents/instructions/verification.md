@@ -180,8 +180,13 @@ scripts/ui-agent pohunek ARGS...
   and `GestureDemo.copy` puts that order on the clipboard.
 - **Terminal.** Tapping a `SessionList.row` of a running session opens `Terminal` full
   screen: `Terminal.view` is the terminal (tap it before `type` or `key`), `Terminal.status`
-  and `Terminal.error` (with `Terminal.back`) float over it while connecting or after a
-  failed attach. System back detaches and returns to the list (the daemon records
+  and `Terminal.error` (with `Terminal.back`) float over it while connecting, while
+  reconnecting (`Terminal.status` reads "Reconnecting (attempt N)", `Terminal.back` leaves)
+  or after a final failure. After `net-drop` the status appears within the liveness bound and
+  `net-restore` re-attaches on its own, within `reattach_max_ms`; `host-stop` loses the
+  session's runtime in the isolated daemon (its workers are children of the daemon), so the
+  terminal ends with a final message there; `kill -STOP`/`-CONT` of `pohunekd` in the slot
+  container freezes the daemon without losing the sessions. System back detaches and returns to the list (the daemon records
   `attach_closed`; press it twice while the soft keyboard is open, the first press hides
   it, and never past the list, which leaves the app). A stopped, done, failed, external, or
   starting session opens nothing and shows `SessionList.refusal` (`SessionList.refusalDismiss`

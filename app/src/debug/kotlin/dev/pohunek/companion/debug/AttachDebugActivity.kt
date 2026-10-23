@@ -76,7 +76,8 @@ class AttachDebugActivity : ComponentActivity() {
             setContent { PohunekTheme { ConfigError("${app.key} ${app.detail}", Modifier.semantics { testTagsAsResourceId = true }) } }
             return
         }
-        val created = AttachDebugModel(config, lifecycleScope, Dispatchers.IO, Dispatchers.Main, KoinPlatform.getKoin().get())
+        val reattach = (app as AppConfigResult.Valid).config.attachSettings.reattach
+        val created = AttachDebugModel(config, reattach, lifecycleScope, Dispatchers.IO, Dispatchers.Main, KoinPlatform.getKoin().get())
         model = created
         registerReceiver(screenDump, IntentFilter(ScreenDumpReceiver.ACTION), ScreenDumpReceiver.SENDER_PERMISSION, null, Context.RECEIVER_EXPORTED)
         setContent {
@@ -190,6 +191,7 @@ private fun ColumnScope.AttachedTerminal(active: ActiveAttach, onDetach: () -> U
 @Composable
 private fun statusText(state: AttachState): String = when (state) {
     AttachState.Connecting -> stringResource(R.string.attach_debug_status_connecting)
+    is AttachState.Reconnecting -> stringResource(R.string.attach_debug_status_reconnecting, state.attempt)
     is AttachState.Attached -> state.reportedSize?.let {
         stringResource(R.string.attach_debug_status_attached_sized, state.streamId, it.cols, it.rows)
     } ?: stringResource(R.string.attach_debug_status_attached, state.streamId)
