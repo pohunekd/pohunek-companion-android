@@ -1,17 +1,18 @@
 package dev.pohunek.companion.sessions
 
 import dev.pohunek.companion.core.data.hosts.ConfiguredHost
-import dev.pohunek.companion.protocol.AgentActivity
+import dev.pohunek.companion.core.domain.sessions.OwnerSession
+import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.protocol.HostRoute
-import dev.pohunek.companion.protocol.SessionState
 
 /** One session as the list shows it; every text is untrusted metadata and is rendered as plain text only. */
 data class SessionRow(
     val id: String,
     val title: String,
     val agent: String,
-    val state: SessionState,
-    val activity: AgentActivity?,
+    val ownerState: OwnerState,
+    /** `<state>: <loss_reason>` of a conflict or incompatible runtime. */
+    val runtimeDetail: String?,
     /** Null when a terminal can be attached to the session. */
     val attachRefusal: AttachRefusal?,
 )
@@ -36,7 +37,11 @@ data class SessionListState(
     /** Set when the hosts file is unreadable; nothing is saved then. */
     val storageError: String? = null,
     val host: ConfiguredHost? = null,
-    /** Null until the first list arrives; kept, though out of date, while the connection is down. */
+    /** The last list the host sent; null until the first arrives, kept, though out of date, while the connection is down. */
+    val sessions: List<OwnerSession>? = null,
+    /** Sessions that need the owner, longest waiting first; empty while the connection is down. */
+    val needsYou: List<SessionRow> = emptyList(),
+    /** The other sessions, or null until the first list arrives. */
     val rows: List<SessionRow>? = null,
     val connection: ListConnection = ListConnection.Connecting,
     /** True from a requested re-seed until it finishes or the connection fails. */

@@ -1,6 +1,5 @@
 package dev.pohunek.companion.sessions
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +12,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -27,17 +25,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
 import dev.pohunek.companion.core.data.hosts.ConfiguredHost
 import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
-import dev.pohunek.companion.protocol.AgentActivity
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProtocolError
-import dev.pohunek.companion.protocol.SessionState
 
 @Composable
 fun SessionListScreen(viewModel: SessionListViewModel, onOpenTerminal: (HostRoute, String) -> Unit, modifier: Modifier = Modifier) {
@@ -105,14 +100,35 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
                 rows == null -> item {
                     Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_loading), "SessionList.loading") }
                 }
-                rows.isEmpty() -> item { Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_empty), "SessionList.empty") } }
-                else -> items(rows) { row ->
-                    SessionRowItem(row) { onEvent(SessionListEvent.OpenSession(row.id)) }
-                    HorizontalDivider()
+                rows.isEmpty() && state.needsYou.isEmpty() ->
+                    item { Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_empty), "SessionList.empty") } }
+                else -> {
+                    if (state.needsYou.isNotEmpty()) {
+                        item { SectionHeader(stringResource(R.string.session_list_needs_you), "SessionList.needsYou") }
+                        items(state.needsYou, key = { it.id }) { row -> RowWithDivider(row, onEvent) }
+                        if (rows.isNotEmpty()) item { SectionHeader(stringResource(R.string.session_list_other_sessions), "SessionList.others") }
+                    }
+                    items(rows, key = { it.id }) { row -> RowWithDivider(row, onEvent) }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun RowWithDivider(row: SessionRow, onEvent: (SessionListEvent) -> Unit) {
+    SessionRowItem(row) { onEvent(SessionListEvent.OpenSession(row.id)) }
+    HorizontalDivider()
+}
+
+@Composable
+private fun SectionHeader(text: String, tag: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = PohunekTheme.spacing.gutter, vertical = PohunekTheme.spacing.sm).testTag(tag),
+    )
 }
 
 private fun hostName(host: ConfiguredHost?): String? = host?.let { it.label ?: it.route.toString() }
@@ -132,36 +148,6 @@ private fun ReconnectingStatus(host: String, connection: ListConnection.Reconnec
         modifier = Modifier.fillMaxWidth().padding(PohunekTheme.spacing.gutter).testTag("SessionList.status"),
     )
 }
-
-@Composable
-private fun SessionRowItem(row: SessionRow, onClick: () -> Unit) {
-    val summary = listOfNotNull(row.agent, stateLabel(row.state), row.activity?.let { activityLabel(it) }).joinToString(" · ")
-    ListItem(
-        headlineContent = { Text(row.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text(summary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        modifier = Modifier.clickable(onClick = onClick).semantics(mergeDescendants = true) {}.testTag("SessionList.row"),
-    )
-}
-
-@Composable
-private fun stateLabel(state: SessionState): String = stringResource(
-    when (state) {
-        SessionState.Starting -> R.string.session_state_starting
-        SessionState.Running -> R.string.session_state_running
-        SessionState.Stopped -> R.string.session_state_stopped
-        SessionState.Done -> R.string.session_state_done
-        SessionState.Failed -> R.string.session_state_failed
-    },
-)
-
-@Composable
-private fun activityLabel(activity: AgentActivity): String = stringResource(
-    when (activity) {
-        AgentActivity.Working -> R.string.session_activity_working
-        AgentActivity.Blocked -> R.string.session_activity_blocked
-        AgentActivity.Idle -> R.string.session_activity_idle
-    },
-)
 
 @Composable
 internal fun Centered(modifier: Modifier, content: @Composable () -> Unit) {
