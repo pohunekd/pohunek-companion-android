@@ -94,6 +94,10 @@ class SessionStoreTest {
             store.applyEvent(DaemonEvent.SessionRuntimeLost(session("s-9"))),
         )
         assertEquals(EventOutcome.Ignored(IgnoreReason.NotModelled), store.applyEvent(DaemonEvent.Unknown("agent_state")))
+        assertEquals(
+            EventOutcome.Ignored(IgnoreReason.MalformedPayload),
+            store.applyEvent(DaemonEvent.Malformed("session_updated", "no session")),
+        )
         assertEquals(emptyMap<SessionKey, SessionInfo>(), store.sessions())
     }
 

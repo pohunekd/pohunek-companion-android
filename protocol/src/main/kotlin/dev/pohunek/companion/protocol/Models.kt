@@ -92,8 +92,8 @@ enum class RuntimeState {
 data class SessionRuntime(
     val state: RuntimeState,
     @SerialName("runtime_generation") val runtimeGeneration: String,
-    @SerialName("worker_id") val workerId: String,
-    @SerialName("worker_instance_id") val workerInstanceId: String,
+    @SerialName("worker_id") val workerId: String? = null,
+    @SerialName("worker_instance_id") val workerInstanceId: String? = null,
     @SerialName("started_at") val startedAt: String? = null,
     @SerialName("last_connected_at") val lastConnectedAt: String? = null,
     @SerialName("loss_reason") val lossReason: String? = null,

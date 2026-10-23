@@ -3,8 +3,8 @@
 `sdk/ts/protocol/fixtures` of Pohunek `v0.35.2` has no fixture for `session_*`
 events or for runtime-bearing `session.list` entries, so these files were
 captured from the isolated `pohunekd` 0.35.2 that `scripts/ui-agent` runs (same
-tag as `POHUNEK_VERSION` in `container/Containerfile`). Paths are rewritten to
-`/work/...`; ids, names, and timestamps are the synthetic ones of the run.
+tag as `POHUNEK_VERSION` in `container/Containerfile`). Working directories of the fixed sessions are rewritten to
+`/work/...` and sessions created for the capture run in `/tmp`; ids, names, and timestamps are the synthetic ones of the run.
 
 Captured as received (keys sorted, pretty-printed):
 

@@ -64,31 +64,44 @@ sealed interface DaemonEvent {
         override val name: String get() = EventNames.SESSION_NATIVE_RECOVERED
     }
 
+    /** A modelled event whose payload does not match the documented shape; the stream stays usable, so the caller counts it and goes on. */
+    data class Malformed(override val name: String, val detail: String) : DaemonEvent
+
     /** An event this client does not model, so a daemon that adds events never breaks decoding. */
     data class Unknown(override val name: String) : DaemonEvent
 }
 
-/** Decodes event lines of one subscription; a modelled event whose payload has the wrong shape is a typed failure, never a default. */
+/**
+ * Decodes event lines of one subscription. An invalid envelope throws [ProtocolClientException.MalformedEvent]; a modelled event whose payload has
+ * the wrong shape decodes to [DaemonEvent.Malformed], never to a default.
+ */
 object EventDecoder {
     fun decode(line: String): DaemonEvent {
         val obj = parseObject(line)
         checkVersion(obj)
         val name = (obj["event"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw malformed("missing string event")
-        return when (name) {
-            EventNames.SESSION_CREATED -> DaemonEvent.SessionCreated(session(name, obj))
-            EventNames.SESSION_UPDATED -> DaemonEvent.SessionUpdated(session(name, obj))
-            EventNames.SESSION_STOPPED -> DaemonEvent.SessionStopped(session(name, obj))
-            EventNames.SESSION_REMOVED -> DaemonEvent.SessionRemoved(session(name, obj))
-            EventNames.SESSION_RUNTIME_RECONNECTED -> DaemonEvent.SessionRuntimeReconnected(session(name, obj))
-            EventNames.SESSION_RUNTIME_LOST -> DaemonEvent.SessionRuntimeLost(session(name, obj))
-            EventNames.SESSION_RUNTIME_CONFLICT -> DaemonEvent.SessionRuntimeConflict(session(name, obj))
-            EventNames.SESSION_NATIVE_RECOVERED -> DaemonEvent.SessionNativeRecovered(
-                session = session(name, obj),
-                previousWorkerInstanceId = optionalString(name, obj, "previous_worker_instance_id"),
-                workerInstanceId = optionalString(name, obj, "worker_instance_id"),
-            )
-            else -> DaemonEvent.Unknown(name)
+        if (name.isEmpty() || name.any { it.isISOControl() }) throw malformed("invalid event name")
+        return try {
+            payload(name, obj)
+        } catch (e: PayloadException) {
+            DaemonEvent.Malformed(name, e.message.orEmpty())
         }
+    }
+
+    private fun payload(name: String, obj: JsonObject): DaemonEvent = when (name) {
+        EventNames.SESSION_CREATED -> DaemonEvent.SessionCreated(session(obj))
+        EventNames.SESSION_UPDATED -> DaemonEvent.SessionUpdated(session(obj))
+        EventNames.SESSION_STOPPED -> DaemonEvent.SessionStopped(session(obj))
+        EventNames.SESSION_REMOVED -> DaemonEvent.SessionRemoved(session(obj))
+        EventNames.SESSION_RUNTIME_RECONNECTED -> DaemonEvent.SessionRuntimeReconnected(session(obj))
+        EventNames.SESSION_RUNTIME_LOST -> DaemonEvent.SessionRuntimeLost(session(obj))
+        EventNames.SESSION_RUNTIME_CONFLICT -> DaemonEvent.SessionRuntimeConflict(session(obj))
+        EventNames.SESSION_NATIVE_RECOVERED -> DaemonEvent.SessionNativeRecovered(
+            session = session(obj),
+            previousWorkerInstanceId = optionalString(obj, "previous_worker_instance_id"),
+            workerInstanceId = optionalString(obj, "worker_instance_id"),
+        )
+        else -> DaemonEvent.Unknown(name)
     }
 
     private fun checkVersion(obj: JsonObject) {
@@ -96,20 +109,20 @@ object EventDecoder {
         if (version !in Wire.CLIENT_RANGE) throw ProtocolClientException.VersionMismatch(Wire.CLIENT_RANGE, version, null)
     }
 
-    private fun session(name: String, obj: JsonObject): SessionInfo = try {
+    private fun session(obj: JsonObject): SessionInfo = try {
         Wire.json.decodeFromJsonElement(SessionInfo.serializer(), requireNotNull(obj["session"]) { "no session payload" })
     } catch (e: SerializationException) {
-        throw malformed("$name session does not match the documented shape: ${e.message}", e)
+        throw PayloadException("session does not match the documented shape: ${e.message}", e)
     } catch (e: IllegalArgumentException) {
-        throw malformed("$name session does not match the documented shape: ${e.message}", e)
+        throw PayloadException("session does not match the documented shape: ${e.message}", e)
     }
 
-    private fun optionalString(name: String, obj: JsonObject, key: String): String? {
+    private fun optionalString(obj: JsonObject, key: String): String? {
         val value: JsonElement = obj[key] ?: return null
-        val primitive = value as? JsonPrimitive ?: throw malformed("$name $key is not a string")
+        val primitive = value as? JsonPrimitive ?: throw PayloadException("$key is not a string")
         if (primitive.isString) return primitive.content
         if (primitive.contentOrNull == null) return null
-        throw malformed("$name $key is not a string")
+        throw PayloadException("$key is not a string")
     }
 
     private fun parseObject(line: String): JsonObject = try {
@@ -117,6 +130,9 @@ object EventDecoder {
     } catch (e: SerializationException) {
         throw malformed("invalid JSON", e)
     }
+
+    /** Internal: a payload failure, turned into [DaemonEvent.Malformed] by [decode]. */
+    private class PayloadException(detail: String, cause: Throwable? = null) : Exception(detail, cause)
 
     private fun malformed(detail: String, cause: Throwable? = null) = ProtocolClientException.MalformedEvent(detail, cause)
 }

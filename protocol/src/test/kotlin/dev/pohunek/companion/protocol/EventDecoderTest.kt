@@ -1,5 +1,9 @@
 package dev.pohunek.companion.protocol
 
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -50,11 +54,34 @@ class EventDecoderTest {
     }
 
     @Test
+    fun `a modelled event with a wrong payload decodes to Malformed and leaves the stream usable`() {
+        assertTrue(EventDecoder.decode("""{"v":4,"event":"session_updated"}""") is DaemonEvent.Malformed)
+        assertTrue(EventDecoder.decode("""{"v":4,"event":"session_updated","session":{"id":"s"}}""") is DaemonEvent.Malformed)
+    }
+
+    @Test
+    fun `a runtime without worker ids decodes`() {
+        val session = Wire.json.parseToJsonElement(Fixtures.captured("session_updated")).jsonObject.getValue("session").jsonObject
+        val runtime = buildJsonObject {
+            put("state", "live")
+            put("runtime_generation", "1")
+        }
+        val line = buildJsonObject {
+            put("v", 4)
+            put("event", "session_updated")
+            put("session", JsonObject(session + ("runtime" to runtime)))
+        }.toString()
+        val event = EventDecoder.decode(line) as DaemonEvent.SessionUpdated
+        assertNull(event.session.runtime?.workerId)
+        assertNull(event.session.runtime?.workerInstanceId)
+    }
+
+    @Test
     fun `malformed event lines are typed failures`() {
         assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("not json") }
         assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("""{"v":4}""") }
-        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("""{"v":4,"event":"session_updated"}""") }
-        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("""{"v":4,"event":"session_updated","session":{"id":"s"}}""") }
+        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("""{"v":4,"event":""}""") }
+        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("{\"v\":4,\"event\":\"a\\nb\"}") }
         assertThrows(ProtocolClientException.VersionMismatch::class.java) { EventDecoder.decode("""{"v":3,"event":"session_updated"}""") }
     }
 }

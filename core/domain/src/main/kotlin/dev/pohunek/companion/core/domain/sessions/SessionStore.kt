@@ -20,6 +20,9 @@ enum class IgnoreReason {
 
     /** An event the store does not model. */
     NotModelled,
+
+    /** The payload does not decode as the event it names. */
+    MalformedPayload,
 }
 
 /** What [SessionStore.applyEvent] did with one event. */
@@ -122,6 +125,7 @@ class SessionStore(val host: String) {
             if (sessions.remove(key(event.session.id)) != null) EventOutcome.Applied else EventOutcome.Ignored(IgnoreReason.UnknownSession)
         is DaemonEvent.Snapshot -> replaceSnapshot(event.session, insertIfAbsent = false)
         is DaemonEvent.Unknown -> EventOutcome.Ignored(IgnoreReason.NotModelled)
+        is DaemonEvent.Malformed -> EventOutcome.Ignored(IgnoreReason.MalformedPayload)
     }
 
     private fun key(sessionId: String) = SessionKey(host, sessionId)
