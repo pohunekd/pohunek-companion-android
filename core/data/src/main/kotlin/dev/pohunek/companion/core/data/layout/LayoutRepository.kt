@@ -6,6 +6,7 @@ import dev.pohunek.companion.core.domain.layout.GroupError
 import dev.pohunek.companion.core.domain.layout.GroupFact
 import dev.pohunek.companion.core.domain.layout.GroupMember
 import dev.pohunek.companion.core.domain.layout.GroupMigration
+import dev.pohunek.companion.core.domain.layout.GroupPlacement
 import dev.pohunek.companion.core.domain.layout.GroupValue
 import dev.pohunek.companion.core.domain.layout.Layout
 import dev.pohunek.companion.core.domain.layout.LayoutView
@@ -231,10 +232,16 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
         { moved -> log.info("layout.group_deleted", listOf(LogField.groupId(id), LogField.number("sessions", moved.size.toLong()))) },
     )
 
-    /** Moves [key] to the end of [group], with its manual flag set to [manual]; the value is whether anything changed. */
-    suspend fun moveSession(key: SessionKey, group: String, manual: Boolean): LayoutEdit<Boolean, MoveError> = edit(
-        { it.moveSession(key, group, Placement.End, manual) },
+    /** Moves [key] into [group] at [placement] (the end by default), with its manual flag set to [manual]; the value is whether anything changed. */
+    suspend fun moveSession(key: SessionKey, group: String, manual: Boolean, placement: Placement = Placement.End): LayoutEdit<Boolean, MoveError> = edit(
+        { it.moveSession(key, group, placement, manual) },
         { changed -> if (changed) log.info("layout.session_moved", listOf(LogField.groupId(group), LogField.sessionId(key.sessionId))) },
+    )
+
+    /** Moves group [id] to [placement] among the others; the value is whether anything changed. */
+    suspend fun moveGroup(id: String, placement: GroupPlacement): LayoutEdit<Boolean, GroupError> = edit(
+        { it.moveGroup(id, placement) },
+        { changed -> if (changed) log.info("layout.group_moved", listOf(LogField.groupId(id))) },
     )
 
     /** Applies one owner edit under the lock; [logged] runs once the layout in use holds a change. */

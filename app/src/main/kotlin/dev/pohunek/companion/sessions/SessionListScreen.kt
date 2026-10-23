@@ -27,11 +27,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -138,20 +141,35 @@ private fun SessionListContent(
 @Composable
 private fun RowWindows(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
     val sheetRow = state.actionSheet?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
-    if (sheetRow != null) RowActionSheet(sheetRow, sheetRow.ref in state.resuming, onEvent)
+    if (sheetRow != null) RowActionSheet(sheetRow, sheetRow.ref in state.resuming, state.stepOffer(sheetRow), onEvent)
     state.rename?.let { RenameDialog(it, onEvent) }
     val moveRow = state.movePicker?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
     if (moveRow != null) MoveToGroupSheet(moveRow, state.ownerGroups, onEvent)
-    state.groups.firstOrNull { it.id == state.groupMenu }?.let { GroupMenuSheet(it, onEvent) }
+    state.groups.firstOrNull { it.id == state.groupMenu }?.let { GroupMenuSheet(it, state.groupStepOffer(it.id), onEvent) }
     state.groupDraft?.let { GroupNameDialog(it, onEvent) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> Unit, listState: LazyListState, modifier: Modifier) {
+    val drag = remember(listState) { ListDrag(listState) }
+    val editable = state.view.isEditable
+    val items = remember(state.shownGroups, editable) { if (editable) dragItems(state.shownGroups) else emptyMap() }
+    val haptics = LocalHapticFeedback.current
+    SideEffect {
+        drag.items = items
+        drag.haptics = haptics
+        drag.onDrop = { target -> onEvent(target.event()) }
+    }
+    LaunchedEffect(items) { drag.dropIfGone() }
+    DragAutoScroll(drag, listState)
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier) {
         val rows = state.rows
-        LazyColumn(Modifier.fillMaxSize().testTag("SessionList.list"), listState, contentPadding = PaddingValues(bottom = PohunekTheme.fabClearance)) {
+        LazyColumn(
+            with(drag) { Modifier.fillMaxSize().testTag("SessionList.list").reorderGesture() },
+            listState,
+            contentPadding = PaddingValues(bottom = PohunekTheme.fabClearance),
+        ) {
             when {
                 rows == null && state.statuses.isNotEmpty() -> item { Spacer(Modifier.fillParentMaxSize()) }
                 rows == null -> item {
@@ -167,13 +185,20 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
                         items(state.shownNeedsYou, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
                     }
                     for (section in state.shownGroups) {
-                        item(key = "group:${section.id}") { GroupHeader(section, state.view.isEditable, onEvent) }
-                        if (!section.collapsed) items(section.rows, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
+                        item(key = groupItemKey(section.id)) {
+                            GroupHeader(section, editable, lifted = drag.source == groupItemKey(section.id), onEvent)
+                        }
+                        if (!section.collapsed) {
+                            items(section.rows, key = { it.listKey }) { row ->
+                                RowWithDivider(row, onEvent, draggable = editable, lifted = drag.source == row.listKey)
+                            }
+                        }
                     }
-                    if (state.view.isEditable) item(key = "newGroup") { NewGroupButton(onEvent) }
+                    if (editable) item(key = "newGroup") { NewGroupButton(onEvent) }
                 }
             }
         }
+        DragOverlay(drag, Modifier.fillMaxSize())
     }
 }
 
@@ -188,8 +213,14 @@ private fun NewGroupButton(onEvent: (SessionListEvent) -> Unit) {
 }
 
 @Composable
-private fun RowWithDivider(row: SessionRow, onEvent: (SessionListEvent) -> Unit) {
-    SessionRowItem(row, onClick = { onEvent(SessionListEvent.OpenSession(row.ref)) }, onMore = { onEvent(SessionListEvent.OpenActions(row.ref)) })
+private fun RowWithDivider(row: SessionRow, onEvent: (SessionListEvent) -> Unit, draggable: Boolean = false, lifted: Boolean = false) {
+    SessionRowItem(
+        row,
+        onClick = { onEvent(SessionListEvent.OpenSession(row.ref)) },
+        onMore = { onEvent(SessionListEvent.OpenActions(row.ref)) },
+        draggable = draggable,
+        lifted = lifted,
+    )
     HorizontalDivider()
 }
 

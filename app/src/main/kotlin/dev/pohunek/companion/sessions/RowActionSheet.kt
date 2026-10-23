@@ -27,7 +27,7 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun RowActionSheet(row: SessionRow, resuming: Boolean, onEvent: (SessionListEvent) -> Unit) {
+internal fun RowActionSheet(row: SessionRow, resuming: Boolean, step: StepOffer?, onEvent: (SessionListEvent) -> Unit) {
     ModalBottomSheet(onDismissRequest = {
         onEvent(SessionListEvent.DismissActions)
     }, modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("RowSheet")) {
@@ -52,6 +52,14 @@ internal fun RowActionSheet(row: SessionRow, resuming: Boolean, onEvent: (Sessio
                 onEvent(SessionListEvent.NewSessionHere(row.ref))
             }
             SheetAction(stringResource(R.string.row_action_move), "RowSheet.move") { onEvent(SessionListEvent.OpenMoveToGroup(row.ref)) }
+            if (step?.up == true) {
+                SheetAction(stringResource(R.string.action_move_up), "RowSheet.moveUp") { onEvent(SessionListEvent.StepSession(row.ref, StepDirection.Up)) }
+            }
+            if (step?.down == true) {
+                SheetAction(stringResource(R.string.action_move_down), "RowSheet.moveDown") {
+                    onEvent(SessionListEvent.StepSession(row.ref, StepDirection.Down))
+                }
+            }
             if (row.hasLink) {
                 SheetAction(stringResource(R.string.row_action_open_link), "RowSheet.openLink") { onEvent(SessionListEvent.OpenLink(row.ref)) }
             }

@@ -4,9 +4,11 @@ import dev.pohunek.companion.core.data.layout.LayoutIssue
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.domain.layout.FilterFacts
 import dev.pohunek.companion.core.domain.layout.Group
+import dev.pohunek.companion.core.domain.layout.GroupPlacement
 import dev.pohunek.companion.core.domain.layout.GroupSection
 import dev.pohunek.companion.core.domain.layout.HostOption
 import dev.pohunek.companion.core.domain.layout.LayoutView
+import dev.pohunek.companion.core.domain.layout.Placement
 import dev.pohunek.companion.core.domain.layout.ProjectChip
 import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.RowFacts
@@ -355,7 +357,21 @@ sealed interface SessionListEvent {
     data object DismissMoveToGroup : LayoutEvent
 
     data class MoveToGroup(val ref: RowRef, val groupId: String) : LayoutEvent
+
+    /** A session dropped into group [groupId] at [placement] by a drag. */
+    data class DropSession(val ref: RowRef, val groupId: String, val placement: Placement) : LayoutEvent
+
+    /** A group dropped at [placement] among the others by a drag. */
+    data class DropGroup(val id: String, val placement: GroupPlacement) : LayoutEvent
+
+    /** "Move up" or "Move down" of a session over its neighbour in the shown groups. */
+    data class StepSession(val ref: RowRef, val direction: StepDirection) : LayoutEvent
+
+    /** "Move up" or "Move down" of a group over its neighbour. */
+    data class StepGroup(val id: String, val direction: StepDirection) : LayoutEvent
 }
+
+enum class StepDirection { Up, Down }
 
 sealed interface SessionListEffect {
     data class OpenTerminal(val route: HostRoute, val sessionId: String) : SessionListEffect

@@ -160,7 +160,9 @@ as the desktop companion: `v0.35.2` today.
   that is not connected is not in Needs you, so it is shown in a trailing "Waiting (host not connected)" section. The owner creates, renames and
   deletes groups (a deletion has no confirmation and moves the sessions to the end of Inbox in their order; Inbox has
   neither) and moves a session to the end of a group from its action sheet, also into a new group. Create, reorder and
-  collapse stay local. The rest write `companion.group` with `session.set_metadata` (a merge patch, one call per session, from
+  collapse stay local. Reordering is a long press on a session row or a group header of My groups, dragged to a drop
+  indicator (a session lands before or after a row or at the end of a group, a group before or after another group), or
+  "Move up" / "Move down" in the row and group sheets for the same moves without a drag. The rest write `companion.group` with `session.set_metadata` (a merge patch, one call per session, from
   `SessionCommands.setGroup`; the daemon applies it under its sessions lock, so the last write wins per key) and change the
   layout only once the daemon holds the value, so there is no optimistic membership change: a move writes the group's name
   (`Inbox` for Inbox) and then places the row; a rename writes the new name to every member session (the sessions whose key
