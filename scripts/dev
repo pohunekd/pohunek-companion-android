@@ -8,6 +8,11 @@
 #   --detach           run in the background and print the container id
 #   --android-home     mount the shared Android home volume (AVDs, quick-boot
 #                      snapshots, adb keys) at /android-home
+#   --env NAME         pass the environment variable NAME from the caller into the
+#                      container (repeatable). Only the name is on the command
+#                      line, so a secret value never shows up in a process list.
+#   --ro-dir DIR       mount the host directory DIR read-only at the same path
+#                      (repeatable)
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -22,6 +27,8 @@ name=""
 labels=()
 detach=0
 android_home=0
+env_flags=()
+ro_flags=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --name)
@@ -32,13 +39,22 @@ while [ "$#" -gt 0 ]; do
       [ "$#" -ge 2 ] || die "--label needs a value"
       [[ "$2" =~ ^[a-z][a-z0-9.-]*=[^[:cntrl:]]*$ ]] || die "invalid label '$2', expected key=value"
       labels+=(--label "$2"); shift 2 ;;
+    --env)
+      [ "$#" -ge 2 ] || die "--env needs a variable name"
+      [[ "$2" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "invalid variable name '$2'"
+      [ -n "${!2:-}" ] || die "--env $2: the variable is not set or empty"
+      env_flags+=(--env "$2"); shift 2 ;;
+    --ro-dir)
+      [ "$#" -ge 2 ] || die "--ro-dir needs a directory"
+      [[ "$2" == /* ]] && [[ "$2" =~ ^[A-Za-z0-9_./-]+$ ]] && [ -d "$2" ] || die "--ro-dir needs an existing absolute directory path of [A-Za-z0-9_./-], got '$2'"
+      ro_flags+=(--volume "$2:$2:ro"); shift 2 ;;
     --detach) detach=1; shift ;;
     --android-home) android_home=1; shift ;;
     --) shift; break ;;
     *) break ;;
   esac
 done
-[ "$#" -gt 0 ] || die "usage: scripts/dev [--name NAME] [--label KEY=VALUE] [--detach] [--android-home] [--] <command...>"
+[ "$#" -gt 0 ] || die "usage: scripts/dev [--name NAME] [--label KEY=VALUE] [--detach] [--android-home] [--env NAME] [--ro-dir DIR] [--] <command...>"
 command -v podman >/dev/null || die "podman is not installed"
 [ "$(podman info --format '{{.Host.Security.Rootless}}')" = "true" ] \
   || die "podman is not rootless; refusing to run the toolchain"
@@ -90,7 +106,8 @@ workdir="$root"
 case "$(pwd -P)" in "$root"|"$root"/*) workdir="$(pwd -P)" ;; esac
 
 # Only the worktree, the Gradle volume (and the Android home volume on request),
-# and /dev/kvm enter the container. No host environment, home directory, or
+# /dev/kvm, and the variables and read-only directories named with --env and
+# --ro-dir enter the container. No other host environment, home directory, or
 # Pohunek runtime directory is passed.
 # A regular clone's .git directory is mounted read-only so a build cannot plant
 # hooks or config that the host's git would later run; a worktree's .git file
@@ -105,5 +122,6 @@ exec podman run --rm --init "${tty_flags[@]}" "${name_flags[@]}" "${labels[@]}" 
   --device /dev/kvm \
   --volume "$root:$root" "${git_mount[@]}" \
   --volume "$gradle_volume:/gradle-home" "${android_home_flags[@]}" \
+  "${env_flags[@]}" "${ro_flags[@]}" \
   --workdir "$workdir" \
   "$tag" "$@"

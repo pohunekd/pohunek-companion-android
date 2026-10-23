@@ -1,0 +1,256 @@
+# A `vX.Y.Z` or `vX.Y.Z-pre.N` tag on a commit of main whose `ci` check passed
+# builds the release APK in the same toolchain container as ci.yml, signs it with
+# the owner's release key and publishes it as a GitHub release.
+#
+# Jobs:
+#   prepare  checks the tag, that its commit is on main and that `ci` passed there.
+#            No secrets.
+#   build    the only job in the `release` environment and the only one that sees
+#            the signing secrets; its token is read-only. Uploads the APK and its
+#            checksum as a workflow artifact, nothing else.
+#   publish  the only job with `contents: write`; it holds no secret.
+#
+# The owner's one-time setup (key, environment, secrets) is in docs/release.md.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the tag and its commit
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-pre\.[1-9][0-9]*)?$ ]]; then
+            echo "::error::tag '$TAG' is not vX.Y.Z or vX.Y.Z-pre.N"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA is not on main; a release is built from main only"
+            exit 1
+          fi
+          green="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=ci&per_page=100" \
+            --jq '[.check_runs[] | select(.conclusion == "success")] | length')"
+          if [ "$green" -lt 1 ]; then
+            echo "::error::no successful ci check on $GITHUB_SHA; wait for CI or fix main, then delete the remote tag and push it again"
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          case "$TAG" in *-pre.*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      TAG: ${{ github.ref_name }}
+    outputs:
+      cert_sha256: ${{ steps.verify.outputs.cert_sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Fail before the long build when a secret of the release environment is missing.
+      - name: Require the signing secrets
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          missing=0
+          for name in ANDROID_RELEASE_KEYSTORE_BASE64 ANDROID_RELEASE_KEYSTORE_PASSWORD ANDROID_RELEASE_KEY_ALIAS ANDROID_RELEASE_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::secret $name is missing in the release environment"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      # scripts/dev passes /dev/kvm through; hosted runners ship it but restrict access.
+      - name: Allow access to /dev/kvm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Same key as ci.yml. Restore only: a job that holds secrets never writes a cache.
+      - name: Restore libghostty-vt
+        id: libghostty-vt
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: vendor/libghostty-vt
+          key: libghostty-vt-${{ hashFiles('config/libghostty-vt.toml', 'scripts/build-libghostty-vt', 'container/Containerfile') }}
+
+      - name: Build libghostty-vt
+        if: steps.libghostty-vt.outputs.cache-hit != 'true'
+        run: scripts/build-libghostty-vt
+
+      # The path matches output_dir in config/libghostty-vt.toml.
+      - name: Verify libghostty-vt
+        env:
+          CACHE_HIT: ${{ steps.libghostty-vt.outputs.cache-hit }}
+        run: |
+          if ! scripts/build-libghostty-vt --verify; then
+            [ "$CACHE_HIT" = true ] || exit 1
+            echo "restored cache failed verification; rebuilding"
+            rm -rf vendor/libghostty-vt
+            scripts/build-libghostty-vt
+          fi
+          sha256sum vendor/libghostty-vt/*/libghostty-vt.a
+
+      # The keystore lives in a directory only the runner user can read and is
+      # removed again by the last step.
+      - name: Decode the keystore
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir "$RUNNER_TEMP/signing"
+          printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/release.jks"
+          test -s "$RUNNER_TEMP/signing/release.jks"
+
+      - name: Build the signed release APK
+        env:
+          ANDROID_RELEASE_KEYSTORE_FILE: ${{ runner.temp }}/signing/release.jks
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          scripts/dev \
+            --env ANDROID_RELEASE_KEYSTORE_FILE \
+            --env ANDROID_RELEASE_KEYSTORE_PASSWORD \
+            --env ANDROID_RELEASE_KEY_ALIAS \
+            --env ANDROID_RELEASE_KEY_PASSWORD \
+            --ro-dir "$RUNNER_TEMP/signing" \
+            ./gradlew --console=plain :app:assembleRelease "-PreleaseTag=$TAG"
+
+      # Only the certificate digest (public) is printed; the full apksigner
+      # report stays in a file that is neither printed nor uploaded.
+      - name: Verify the signature and the version
+        id: verify
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-release.apk
+          test -f "$apk"
+          tools="/opt/android-sdk/build-tools/$(sed -n 's/^buildTools = "\(.*\)"$/\1/p' gradle/libs.versions.toml)"
+          scripts/dev "$tools/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/apksigner.txt"
+          grep -Eq '^Verified using v(2|3|3\.[0-9]+) scheme .*: true$' "$RUNNER_TEMP/apksigner.txt" \
+            || { echo "::error::the APK is not signed with a v2 or newer scheme"; exit 1; }
+          grep -q '^Number of signers: 1$' "$RUNNER_TEMP/apksigner.txt" \
+            || { echo "::error::the APK must have exactly one signer"; exit 1; }
+          # One line per verified scheme (`V2 Signer: ...`, or `Signer #1 ...` for v1); all carry the same digest.
+          digest="$(sed -n -E 's/^(V[0-9.]+ Signer: |Signer #1 )certificate SHA-256 digest: //p' "$RUNNER_TEMP/apksigner.txt" | sort -u)"
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::no certificate SHA-256 digest in the apksigner report"; exit 1; }
+          scripts/dev "$tools/aapt2" dump badging "$apk" > "$RUNNER_TEMP/badging.txt"
+          grep -q "versionName='$VERSION'" "$RUNNER_TEMP/badging.txt" \
+            || { echo "::error::the APK versionName is not $VERSION"; exit 1; }
+          echo "Certificate SHA-256: $digest"
+          echo "cert_sha256=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Stage the release assets
+        run: |
+          set -euo pipefail
+          name="pohunek-companion-${VERSION}.apk"
+          mkdir "$RUNNER_TEMP/dist"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/dist/$name"
+          ( cd "$RUNNER_TEMP/dist" && sha256sum "$name" > "$name.sha256" && cat "$name.sha256" )
+
+      - name: Upload the release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-apk
+          path: ${{ runner.temp }}/dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove the keystore
+        if: ${{ always() }}
+        run: rm -rf "$RUNNER_TEMP/signing"
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      CERT_SHA256: ${{ needs.build.outputs.cert_sha256 }}
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-apk
+          path: ${{ runner.temp }}/release
+
+      # A rerun must not add a second release for the same tag. The release is
+      # created as a draft, its assets are compared with the local files, and
+      # only then is it published.
+      - name: Create the release and upload the assets
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/release"
+          test "$(ls | wc -l)" = 2
+          sha256sum -c "pohunek-companion-${VERSION}.apk.sha256"
+          if [ -n "$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$TAG\") | .id")" ]; then
+            echo "::error::a release or draft for $TAG already exists"
+            exit 1
+          fi
+          flags=(--draft --verify-tag --title "$TAG")
+          [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+          notes="Signed APK \`pohunek-companion-${VERSION}.apk\` built from commit ${GITHUB_SHA}.
+
+          Signing certificate SHA-256: \`${CERT_SHA256}\`
+
+          Verify the download with \`sha256sum -c pohunek-companion-${VERSION}.apk.sha256\` and the signer with \`apksigner verify --print-certs\`; see docs/release.md."
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" "${flags[@]}" --notes "$notes" ./*
+
+      - name: Verify the draft's assets
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/release"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | "\(.name) \(.size) \(.digest)"' | LC_ALL=C sort > "$RUNNER_TEMP/remote.txt"
+          for f in *; do
+            echo "$f $(stat -c %s "$f") sha256:$(sha256sum "$f" | cut -d' ' -f1)"
+          done | LC_ALL=C sort > "$RUNNER_TEMP/local.txt"
+          diff "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt"
+
+      - name: Publish the release
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
