@@ -11,8 +11,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * Reads the static templates of the selected host's project and the recipe of the chosen one into the form's state. Every host,
- * project or template change advances a generation, and an answer that no longer matches it is dropped.
+ * Reads the static templates of the selected host's project and the recipe of the chosen one into the form's state. The list and
+ * the recipe each have a job and a generation that every change they depend on advances, and an answer that no longer matches its
+ * generation is dropped. Choosing a template or Blank never cancels the read of the list.
  */
 class TemplateReader(
     private val scope: CoroutineScope,
@@ -20,16 +21,17 @@ class TemplateReader(
     private val read: () -> NewSessionState,
     private val update: ((NewSessionState) -> NewSessionState) -> Unit,
 ) {
-    private var job: Job? = null
-    private var generation = 0
+    private var listJob: Job? = null
+    private var listGeneration = 0
+    private var recipeJob: Job? = null
+    private var recipeGeneration = 0
 
     /** The host and project whose templates are loaded or loading; null while none is selected. */
     private var loadedFor: Pair<HostRoute, String>? = null
 
     /** The host changed: whatever is loading belongs to the old host, and the project's templates are read again once it is known. */
     fun hostChanged() {
-        job?.cancel()
-        generation++
+        cancelAll()
         loadedFor = null
         update { it.copy(form = it.form.withoutTemplate(), templates = null, templateError = null) }
     }
@@ -42,13 +44,13 @@ class TemplateReader(
         val key = if (host != null && project != null) host to project else null
         if (key == loadedFor) return
         loadedFor = key
-        job?.cancel()
-        val token = ++generation
+        cancelAll()
+        val token = listGeneration
         update { it.copy(form = it.form.withoutTemplate(), templates = null, templateError = null) }
         if (key == null) return
-        job = scope.launch {
+        listJob = scope.launch {
             val step = newSessions.templates(key.first, key.second)
-            if (token != generation) return@launch
+            if (token != listGeneration) return@launch
             when (step) {
                 is TemplateStep.Applied -> update { it.copy(templates = step.value) }
                 is TemplateStep.Failed -> update { it.copy(templateError = step.error) }
@@ -58,18 +60,26 @@ class TemplateReader(
 
     /** Blank clears the template and keeps the agent and prompt; a template is read, then fills the agent and the prompt. */
     fun select(name: String?) {
-        job?.cancel()
-        val token = ++generation
+        recipeJob?.cancel()
+        val token = ++recipeGeneration
         val target = target(read(), name)
         if (target == null) {
             update { it.copy(form = it.form.withoutTemplate(), templateError = null) }
             return
         }
         update { it.copy(form = it.form.copy(template = target.name, recipe = null, templateLoading = true), templateError = null) }
-        job = scope.launch {
+        recipeJob = scope.launch {
             val step = newSessions.recipe(target.route, target.project, target.name)
-            if (token == generation) arrived(target.name, step)
+            if (token == recipeGeneration) arrived(target.name, step)
         }
+    }
+
+    /** Drops every read in flight; the answers still on their way are ignored. */
+    private fun cancelAll() {
+        listJob?.cancel()
+        recipeJob?.cancel()
+        listGeneration++
+        recipeGeneration++
     }
 
     private class Target(val route: HostRoute, val project: String, val name: String)
