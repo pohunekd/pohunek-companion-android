@@ -8,8 +8,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import dev.pohunek.companion.config.AppConfig
 import dev.pohunek.companion.config.AppConfigResult
-import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.actions.SessionActionRunner
+import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.hosts.HostStore
 import dev.pohunek.companion.core.data.hosts.HostsRepository
 import dev.pohunek.companion.core.data.live.HostLiveFactory

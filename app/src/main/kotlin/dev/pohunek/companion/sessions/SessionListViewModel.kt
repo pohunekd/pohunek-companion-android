@@ -3,9 +3,9 @@ package dev.pohunek.companion.sessions
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
+import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.commands.CommandResult
 import dev.pohunek.companion.core.data.commands.SessionCommands
-import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.hosts.HostsRepository
 import dev.pohunek.companion.core.data.hosts.HostsState
 import dev.pohunek.companion.core.data.live.HostConnection

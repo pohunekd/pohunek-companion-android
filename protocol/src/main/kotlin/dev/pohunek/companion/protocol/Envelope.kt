@@ -18,6 +18,7 @@ data class Request(val v: ProtocolVersionRange, val id: String, val method: Stri
     fun toLine(): String = Wire.json.encodeToString(serializer(), this)
 }
 
+@Suppress("TooManyFunctions") // One request builder per daemon method.
 object Requests {
     fun health(id: String): Request = Request(Wire.CLIENT_RANGE, id, "daemon.health", JsonNull)
 
