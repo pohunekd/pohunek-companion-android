@@ -35,9 +35,21 @@ object Requests {
     /** `params` is `{}`: no filters, as for `session.list`. */
     fun projectList(id: String): Request = Request(Wire.CLIENT_RANGE, id, "project.list", buildJsonObject { })
 
+    /** `reference` is the daemon's own project id. */
+    fun projectActions(id: String, reference: String): Request =
+        Request(Wire.CLIENT_RANGE, id, "project.actions", buildJsonObject { put("reference", reference) })
+
+    fun projectAction(id: String, reference: String, name: String): Request {
+        val params = buildJsonObject {
+            put("reference", reference)
+            put("name", name)
+        }
+        return Request(Wire.CLIENT_RANGE, id, "project.action", params)
+    }
+
     fun hostInspect(id: String): Request = Request(Wire.CLIENT_RANGE, id, "host.inspect", JsonNull)
 
-    /** `name` and `input` are omitted when null; `project` is the daemon's own id, so no path crosses the wire. */
+    /** `name`, `input`, `branch` and `base_branch` are omitted when null; `project` is the daemon's own id, so no path crosses the wire. */
     fun sessionNew(id: String, params: SessionNewParams): Request {
         val body = buildJsonObject {
             put("agent", params.agent)
@@ -46,6 +58,8 @@ object Requests {
             put("project", params.project)
             if (params.name != null) put("name", params.name)
             if (params.input != null) put("input", params.input)
+            if (params.branch != null) put("branch", params.branch)
+            if (params.baseBranch != null) put("base_branch", params.baseBranch)
         }
         return Request(Wire.CLIENT_RANGE, id, "session.new", body)
     }

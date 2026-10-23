@@ -1,0 +1,1 @@
+{"v":{"minimum":4,"maximum":4},"id":"req-1","method":"session.new","params":{"agent":"claude","cols":80,"rows":24,"project":"p-617cf33c","name":"fixture-branched","input":"echo hi","branch":"fixture/branch","base_branch":"master"}}

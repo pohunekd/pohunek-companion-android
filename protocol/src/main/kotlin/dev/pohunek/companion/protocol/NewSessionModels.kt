@@ -1,5 +1,6 @@
 package dev.pohunek.companion.protocol
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -23,11 +24,45 @@ data class AgentRuntime(
     val supported: Boolean? = null,
 )
 
-/** The part of `host.inspect`'s `HostCapabilities` the app reads. */
+/**
+ * The part of `host.inspect`'s `HostCapabilities` the app reads. [gitAvailable] and [worktreeSupported] have no wire default at the
+ * pinned tag, so a snapshot without them fails to decode.
+ */
 @Serializable
-data class HostCapabilities(val runtimes: List<AgentRuntime>)
+data class HostCapabilities(
+    val runtimes: List<AgentRuntime>,
+    @SerialName("git_available") val gitAvailable: Boolean,
+    @SerialName("worktree_supported") val worktreeSupported: Boolean,
+)
 
-/** The parameters of a `session.new` that runs [agent] in [project] (a project id of `project.list`). */
+/**
+ * One entry of `project.actions`. [provider] stays a string so that a kind a newer daemon adds does not break the list; a template is
+ * an action whose provider is [PROVIDER_NONE]. Only the fields the app uses are decoded.
+ */
+@Serializable
+data class ActionSummary(val name: String, val provider: String) {
+    companion object {
+        /** The `provider` of an action that needs no Linear or GitHub data: a static template. */
+        const val PROVIDER_NONE = "none"
+    }
+}
+
+@Serializable
+data class ProjectActionsResult(val actions: List<ActionSummary>)
+
+/**
+ * Result of `project.action`: the launch recipe of one action. [branch] and [baseBranch] are absent when the template sets none;
+ * [promptContent] is the raw template text with any `${var}` placeholder intact.
+ */
+@Serializable
+data class ProjectActionResult(
+    val agent: String,
+    @SerialName("prompt_content") val promptContent: String,
+    val branch: String? = null,
+    @SerialName("base_branch") val baseBranch: String? = null,
+)
+
+/** The parameters of a `session.new` that runs [agent] in [project] (a project id of `project.list`), in a worktree when [branch] is set. */
 data class SessionNewParams(
     val agent: String,
     val cols: Int,
@@ -37,6 +72,10 @@ data class SessionNewParams(
     val name: String? = null,
     /** Initial prompt injected into the new terminal; omitted when null. */
     val input: String? = null,
+    /** Branch of the worktree the session runs in; omitted when null. */
+    val branch: String? = null,
+    /** Branch the worktree's branch is created from; omitted when null. */
+    val baseBranch: String? = null,
 )
 
 /**

@@ -23,6 +23,40 @@ class NewSessionWireTest {
         assertEquals(capturedLine("host-inspect-request"), Requests.hostInspect("req-1").toLine())
         val params = SessionNewParams("claude", cols = 80, rows = 24, project = "p-617cf33c", name = "fixture-three", input = "echo hi")
         assertEquals(capturedLine("session-new-request"), Requests.sessionNew("req-1", params).toLine())
+        assertEquals(capturedLine("project-actions-request"), Requests.projectActions("req-1", "p-617cf33c").toLine())
+        assertEquals(capturedLine("project-action-request"), Requests.projectAction("req-1", "p-617cf33c", "fix-bug").toLine())
+        val branched = params.copy(name = "fixture-branched", branch = "fixture/branch", baseBranch = "master")
+        assertEquals(capturedLine("session-new-branch-request"), Requests.sessionNew("req-1", branched).toLine())
+    }
+
+    @Test
+    fun `project actions decode every provider and keep an unknown one as text`() {
+        val actions = decode("project-actions-response").decodeResult(ProjectActionsResult.serializer()).actions
+        assertEquals(listOf("fix-bug", "from-linear", "ghost-agent", "with-vars"), actions.map { it.name })
+        assertEquals(listOf("none", "linear_issue", "none", "none"), actions.map { it.provider })
+    }
+
+    @Test
+    fun `a project action decodes the recipe with its branches`() {
+        val action = decode("project-action-response").decodeResult(ProjectActionResult.serializer())
+        assertEquals("claude", action.agent)
+        assertEquals("template/fix-bug", action.branch)
+        assertEquals("master", action.baseBranch)
+        assertEquals("Investigate the failing test and fix it.\n", action.promptContent)
+    }
+
+    @Test
+    fun `an unknown action is a runtime error and a base branch alone is a bad request`() {
+        val missing = assertThrows(ProtocolClientException.Daemon::class.java) { decode("project-action-not-found-error") }
+        assertEquals("action_not_found", missing.error.code)
+        val refused = assertThrows(ProtocolClientException.Daemon::class.java) { decode("session-new-base-branch-error") }
+        assertEquals("bad_request", refused.error.code)
+    }
+
+    @Test
+    fun `a session created in a worktree reports its branch`() {
+        val session = decode("session-new-branch-response").decodeSessionNewResult().session
+        assertEquals("fixture/branch", session.branch)
     }
 
     @Test
@@ -43,6 +77,7 @@ class NewSessionWireTest {
         val capabilities = decode("host-inspect-response").decodeResult(HostCapabilities.serializer())
         assertEquals(listOf("shell", "claude", "codex"), capabilities.runtimes.map { it.agent })
         assertTrue(capabilities.runtimes.all { it.available && it.supported == null && it.version == null })
+        assertTrue(capabilities.gitAvailable && capabilities.worktreeSupported)
     }
 
     @Test
@@ -53,6 +88,12 @@ class NewSessionWireTest {
         assertEquals(SessionState.Running, result.session.state)
         assertEquals("p-617cf33c", result.session.projectId)
         assertEquals(true, result.appliedInput)
+    }
+
+    @Test
+    fun `host inspect without worktree flags is malformed`() {
+        val withoutGit = JsonObject((decode("host-inspect-response") as JsonObject) - "git_available")
+        assertThrows(ProtocolClientException.MalformedResponse::class.java) { withoutGit.decodeResult(HostCapabilities.serializer()) }
     }
 
     @Test

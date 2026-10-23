@@ -1,13 +1,16 @@
 package dev.pohunek.companion.core.domain.newsession
 
+import dev.pohunek.companion.protocol.ActionSummary
 import dev.pohunek.companion.protocol.AgentRuntime
 import dev.pohunek.companion.protocol.ErrorClass
 import dev.pohunek.companion.protocol.HostRoute
+import dev.pohunek.companion.protocol.ProjectActionResult
 import dev.pohunek.companion.protocol.ProtocolClientException
 import dev.pohunek.companion.protocol.ProtocolError
 import dev.pohunek.companion.protocol.ProtocolVersionRange
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 
@@ -20,6 +23,8 @@ class NewSessionTest {
     private val choices = NewSessionChoices(
         projects = listOf(ProjectChoice("p-1", "alpha")),
         agents = agentChoices(listOf(runtime("shell"), runtime("claude"), runtime("codex", available = false))),
+        gitAvailable = true,
+        worktreeSupported = true,
     )
 
     private val form = NewSessionForm(host = route, project = "p-1", agent = "claude", name = "  my session ", prompt = "\n do it  ")
@@ -55,7 +60,7 @@ class NewSessionTest {
 
     @Test
     fun `blockers follow the order the owner fixes them in`() {
-        val unlaunchable = NewSessionChoices(choices.projects, agentChoices(listOf(runtime("codex", available = false))))
+        val unlaunchable = choices.copy(agents = agentChoices(listOf(runtime("codex", available = false))))
         val all = NewSessionActivity(loading = true, loadError = "down", inFlight = true, unconfirmed = true)
         assertEquals(CreateBlocker.NoHost, blocker(form.copy(host = null), activity = all))
         assertEquals(CreateBlocker.Loading, blocker(activity = all))
@@ -85,11 +90,11 @@ class NewSessionTest {
     @Test
     fun `a new host keeps the project and agent it offers and falls back otherwise`() {
         assertEquals(form.copy(project = "p-1", agent = "claude"), settleSelection(form, choices))
-        val other = NewSessionChoices(listOf(ProjectChoice("p-9", "other")), agentChoices(listOf(runtime("shell"), runtime("codex"))))
+        val other = choices.copy(projects = listOf(ProjectChoice("p-9", "other")), agents = agentChoices(listOf(runtime("shell"), runtime("codex"))))
         val settled = settleSelection(form, other)
         assertNull(settled.project)
         assertEquals("shell", settled.agent)
-        assertNull(settleSelection(form, NewSessionChoices(emptyList(), emptyList())).agent)
+        assertNull(settleSelection(form, choices.copy(projects = emptyList(), agents = emptyList())).agent)
     }
 
     @Test
@@ -140,5 +145,95 @@ class NewSessionTest {
             ProtocolClientException.VersionMismatch(ProtocolVersionRange(4, 4), 3, null),
         )
         failures.forEach { assertEquals(it.message, CreateOutcome.Unconfirmed, classifyCreateFailure(it)) }
+    }
+
+    private fun action(prompt: String, branch: String? = "feat/x", baseBranch: String? = "main", agent: String = "claude") =
+        ProjectActionResult(agent, prompt, branch, baseBranch)
+
+    private fun recipe(prompt: String = "do it", branch: String? = "feat/x", baseBranch: String? = "main", agent: String = "claude") =
+        (recipeFromAction("t", action(prompt, branch, baseBranch, agent)) as TemplateStep.Applied).value
+
+    @Test
+    fun `only provider-less actions are templates`() {
+        val actions = listOf(
+            ActionSummary("fix", "none"),
+            ActionSummary("issue", "linear_issue"),
+            ActionSummary("review", "github_pr"),
+            ActionSummary("later", "a_kind_from_a_newer_daemon"),
+            ActionSummary("docs", "none"),
+        )
+        assertEquals(listOf("fix", "docs"), templateNames(actions))
+    }
+
+    @Test
+    fun `a prompt with variables is refused and a plain dollar sign is not`() {
+        assertEquals(TemplateStep.Failed(TemplateError.Variables("fix")), recipeFromAction("fix", action("work on \${issue}")))
+        assertTrue(recipeFromAction("fix", action("costs $5")) is TemplateStep.Applied)
+        val trimmed = recipe(branch = "  ", baseBranch = " main ")
+        assertNull(trimmed.branch)
+        assertEquals("main", trimmed.baseBranch)
+    }
+
+    @Test
+    fun `a template fills agent and prompt and a Blank form keeps its own branch texts`() {
+        val applied = applyRecipe(form, choices, "fix", recipe(prompt = "template text", agent = "shell")) as TemplateStep.Applied
+        assertEquals("shell", applied.value.agent)
+        assertEquals("template text", applied.value.prompt)
+        assertEquals("fix", applied.value.template)
+        val params = sessionNewParams(applied.value.copy(branch = "ignored", baseBranch = "ignored"), 80, 24)
+        assertEquals("feat/x" to "main", params?.branch to params?.baseBranch)
+        val blank = sessionNewParams(form.copy(branch = "  topic \n", baseBranch = "release"), 80, 24)
+        assertEquals("topic" to "release", blank?.branch to blank?.baseBranch)
+        val none = sessionNewParams(form.copy(branch = " ", baseBranch = ""), 80, 24)
+        assertEquals(null to null, none?.branch to none?.baseBranch)
+    }
+
+    @Test
+    fun `a template whose agent the host cannot launch is not applied`() {
+        assertEquals(
+            TemplateStep.Failed(TemplateError.AgentNotLaunchable("codex")),
+            applyRecipe(form, choices, "fix", recipe(agent = "codex")),
+        )
+        assertEquals(
+            TemplateStep.Failed(TemplateError.AgentNotLaunchable("absent")),
+            applyRecipe(form, choices, "fix", recipe(agent = "absent")),
+        )
+    }
+
+    @Test
+    fun `git and worktree support matter only when a branch will be sent`() {
+        val noGit = choices.copy(gitAvailable = false, worktreeSupported = false)
+        val noWorktree = choices.copy(worktreeSupported = false)
+        val branched = form.copy(branch = " topic ")
+        val both = branched.copy(baseBranch = "main")
+        assertNull(blocker(form, noGit))
+        for (f in listOf(branched, both)) {
+            assertNull(blocker(f))
+            assertEquals(LaunchBlocker.GitUnavailable, blocker(f, noGit))
+            assertEquals(LaunchBlocker.WorktreeUnsupported, blocker(f, noWorktree))
+        }
+        assertNull(blocker(form.copy(branch = "  "), noGit))
+        val templated = form.copy(template = "fix", recipe = recipe(), branch = "", baseBranch = "")
+        assertEquals(LaunchBlocker.GitUnavailable, blocker(templated, noGit))
+        val withoutBranches = form.copy(template = "fix", recipe = recipe(branch = null, baseBranch = null), branch = "typed")
+        assertNull(blocker(withoutBranches, noGit))
+    }
+
+    @Test
+    fun `a base branch without a branch is blocked on any host`() {
+        val based = form.copy(baseBranch = "main")
+        assertEquals(LaunchBlocker.BaseBranchWithoutBranch, blocker(based))
+        assertEquals(LaunchBlocker.BaseBranchWithoutBranch, blocker(based, choices.copy(gitAvailable = false)))
+        val templated = form.copy(template = "fix", recipe = recipe(branch = null, baseBranch = "main"))
+        assertEquals(LaunchBlocker.BaseBranchWithoutBranch, blocker(templated))
+    }
+
+    @Test
+    fun `a template still loading blocks after the agent checks and before the host checks`() {
+        val loading = form.copy(template = "fix", templateLoading = true)
+        assertEquals(LaunchBlocker.TemplateLoading, blocker(loading))
+        assertEquals(CreateBlocker.AgentNotLaunchable("codex"), blocker(loading.copy(agent = "codex")))
+        val noGit = choices.copy(gitAvailable = false)
+        assertEquals(LaunchBlocker.TemplateLoading, blocker(loading.copy(branch = "b"), noGit))
     }
 }

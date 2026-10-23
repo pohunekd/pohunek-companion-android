@@ -182,6 +182,15 @@
     <string name="new_session_selected">Selected</string>
     <string name="new_session_agent">Agent</string>
     <string name="new_session_agent_unavailable">%1$s: %2$s</string>
+    <string name="new_session_template">Template</string>
+    <string name="new_session_template_blank">Blank</string>
+    <string name="new_session_template_loading">Reading the template...</string>
+    <string name="new_session_template_failed">Cannot use the project\'s templates: %1$s</string>
+    <string name="new_session_template_variables">The template %1$s uses variables (${...}); only static templates are supported.</string>
+    <string name="new_session_template_agent_not_launchable">The template\'s agent %1$s is not launchable on this host.</string>
+    <string name="new_session_advanced">Advanced</string>
+    <string name="new_session_branch">Branch (optional)</string>
+    <string name="new_session_base_branch">Base branch (optional)</string>
     <string name="new_session_name">Name (optional)</string>
     <string name="new_session_prompt">Prompt (optional)</string>
     <string name="new_session_attach">Open after creating</string>
@@ -201,4 +210,10 @@
     <string name="new_session_blocker_no_launchable">The daemon reports no launchable agent.</string>
     <string name="new_session_blocker_no_agent">Choose an agent.</string>
     <string name="new_session_blocker_not_launchable">The agent %1$s is not launchable on this host.</string>
+    <string name="new_session_blocker_template_loading">The template is still loading.</string>
+    <string name="new_session_blocker_base_branch_without_branch">A base branch needs a branch. Set a branch or clear the base branch.</string>
+    <string name="new_session_blocker_git_unavailable">A branch or base branch is set, but git is not available on the host.</string>
+    <string name="new_session_blocker_worktree_unsupported">A branch or base branch is set, but the host does not support worktrees.</string>
+    <string name="new_session_worktree_note_git">This host has no git, so a branch cannot be used.</string>
+    <string name="new_session_worktree_note_worktree">This host does not support worktrees, so a branch cannot be used.</string>
 </resources>

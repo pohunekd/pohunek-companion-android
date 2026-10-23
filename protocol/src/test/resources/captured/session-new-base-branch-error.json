@@ -1,0 +1,9 @@
+{
+  "err": {
+    "class": "daemon",
+    "code": "bad_request",
+    "msg": "session.new base_branch requires branch"
+  },
+  "id": "req-1",
+  "v": 4
+}
