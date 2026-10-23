@@ -1,5 +1,8 @@
 package dev.pohunek.companion.settings
 
+import android.content.ClipData
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,6 +24,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -30,11 +34,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
 import dev.pohunek.companion.config.resources
 import dev.pohunek.companion.core.domain.config.TunableUnit
+import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel, onOpenAbout: () -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val logsContent = stringResource(R.string.settings_logs_content)
+    val shareSubject = stringResource(R.string.settings_logs_share_subject)
+    val shareTitle = stringResource(R.string.settings_logs_share_title)
+    CollectEffect(viewModel.effect) { effect ->
+        when (effect) {
+            is SettingsEffect.ShareLogs -> context.startActivity(shareLogsIntent(effect.uri, logsContent, shareSubject, shareTitle))
+        }
+    }
     SettingsContent(state, viewModel::onEvent, onOpenAbout, onBack, modifier)
 }
 
@@ -77,6 +91,7 @@ private fun SettingsContent(
                     }
                 }
             }
+            item { LogsSection(state, onEvent) }
             items(state.items, key = { it.tunable.key }) { item ->
                 TunableRow(item, state.saving, onEvent)
                 HorizontalDivider()
@@ -90,6 +105,45 @@ private fun SettingsContent(
             }
         }
     }
+}
+
+@Composable
+private fun LogsSection(state: SettingsState, onEvent: (SettingsEvent) -> Unit) {
+    val spacing = PohunekTheme.spacing
+    Column(Modifier.fillMaxWidth().padding(horizontal = spacing.gutter), verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+        Text(stringResource(R.string.settings_logs_title), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.settings_logs_content),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("Settings.logsContent"),
+        )
+        OutlinedButton(onClick = { onEvent(SettingsEvent.ExportLogs) }, enabled = !state.exporting, modifier = Modifier.testTag("Settings.exportLogs")) {
+            Text(stringResource(if (state.exporting) R.string.settings_logs_exporting else R.string.settings_logs_export))
+        }
+        when (val note = state.exportNote) {
+            null -> Unit
+            ExportNote.Empty -> Text(stringResource(R.string.settings_logs_empty), modifier = Modifier.testTag("Settings.exportEmpty"))
+            is ExportNote.Failed -> Text(
+                stringResource(R.string.settings_logs_failed, note.reason),
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.testTag("Settings.exportError"),
+            )
+        }
+    }
+}
+
+/** The share sheet for the exported file: one stream, the description of its content as the message text, and a read grant for that URI only. */
+private fun shareLogsIntent(uri: Uri, content: String, subject: String, title: String): Intent {
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = LOG_EXPORT_MIME_TYPE
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        putExtra(Intent.EXTRA_TEXT, content)
+        clipData = ClipData.newRawUri(null, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    return Intent.createChooser(send, title)
 }
 
 @Composable

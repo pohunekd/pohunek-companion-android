@@ -7,6 +7,7 @@ import dev.pohunek.companion.core.domain.log.LogValue
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.io.File
 import java.io.IOException
 import java.time.Clock
 
@@ -36,6 +37,10 @@ class JsonLineLog(
             }
         }
     }
+
+    /** Replaces [target] with every kept line, oldest first, as of one instant: appends wait while the copy runs. Returns the bytes written. */
+    @Throws(IOException::class)
+    fun exportTo(target: File): Long = synchronized(file) { file.copyAllTo(target) }
 
     companion object {
         private val ENVELOPE = setOf("ts", "level", "event")

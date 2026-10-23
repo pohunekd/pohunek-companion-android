@@ -26,9 +26,11 @@ import dev.pohunek.companion.core.data.newsession.PendingPlacementBook
 import dev.pohunek.companion.core.data.settings.SettingsStore
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogLevel
+import dev.pohunek.companion.settings.LogExporter
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import org.koin.core.qualifier.named
+import org.koin.dsl.bind
 import org.koin.dsl.module
 import java.io.File
 import java.time.Clock
@@ -61,7 +63,7 @@ val appModule = module {
     single { SettingsStore(AtomicFile(File(get<Context>().filesDir, SETTINGS_FILE)), get(ioDispatcher)) }
     // One source for the tunables: consumers read the value in force whenever they use it.
     single { RuntimeConfig(get<Context>().resources, get()) }
-    single<AppLog> {
+    single {
         val context = get<Context>()
         val runtime = get<RuntimeConfig>()
         val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
@@ -70,7 +72,8 @@ val appModule = module {
             get(),
             if (debuggable) LogMirror { level, _, line -> Log.println(level.priority(), LOGCAT_TAG, line) } else null,
         ) { failure -> Log.w(LOGCAT_TAG, "cannot write the log: ${failure.message}") }
-    }
+    } bind AppLog::class
+    single { LogExporter(get(), get(), get(ioDispatcher)) }
     // The process lifecycle: the live loops run only while the app is visible.
     single<Lifecycle> { ProcessLifecycleOwner.get().lifecycle }
     // One registry for the process: the session list and the hosts screen read the same loops.

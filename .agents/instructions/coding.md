@@ -95,6 +95,7 @@ prefix, never the address), session id, method name, error code (`logCode()`,
 never an exception message) and numbers. Add a field kind to `LogField` rather
 than passing free text. Read the file of an isolated run with
 `scripts/ui-agent app-file cat logs/app.log`.
+Settings > Export logs shares both files as one `.jsonl` through the `FileProvider` of `res/xml/log_export_paths.xml`; a new field kind must stay within what the screen's description of the log promises (`settings_logs_content`).
 
 ## Comments
 

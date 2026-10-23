@@ -198,7 +198,7 @@ scripts/ui-agent pohunek ARGS...
   Edits are drafts until Save; Save stores the overrides in `files/settings.json` (`app-file cat settings.json`), restarts the live
   loops and logs `settings.changed` per key. A field cannot be cleared by `ui-agent`: tap it, then send `KEYCODE_MOVE_END` and
   `KEYCODE_DEL` with `podman exec pohunek-ui-agent-slot-N adb -s SERIAL shell input keyevent ...`. `Settings.about` opens `About.list`
-  (`About.version`, `About.protocolTag`, `About.notices`, `About.back`). A saved override that no longer validates shows
+  (`About.version`, `About.protocolTag`, `About.notices`, `About.back`). `Settings.logsContent` states what the log holds and `Settings.exportLogs` copies `files/logs/app.log.1` and `app.log` into `cache/log-export/pohunek-companion-logs.jsonl` (read it with `podman exec pohunek-ui-agent-slot-N adb -s SERIAL shell run-as dev.pohunek.companion cat cache/log-export/pohunek-companion-logs.jsonl`) and opens the share sheet for that one file; `Settings.exportEmpty` and `Settings.exportError` carry the other outcomes, and the app log gets `logs.exported` (bytes) after the copy, so it is the one line the export lacks. A saved override that no longer validates shows
   `ConfigError.message` with `ConfigError.discard`; `app-file put settings.json` can plant one.
 - **Gestures and device state.** These commands work only in isolated emulator
   runs and refuse `--device phone` and `--owner-daemon` runs with a message.
