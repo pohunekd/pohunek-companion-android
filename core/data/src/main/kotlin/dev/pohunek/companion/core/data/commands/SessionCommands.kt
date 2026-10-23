@@ -2,6 +2,7 @@ package dev.pohunek.companion.core.data.commands
 
 import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.data.log.logCode
+import dev.pohunek.companion.core.domain.layout.GROUP_METADATA_KEY
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
@@ -34,6 +35,17 @@ sealed interface ResumeResult {
     data class Failed(val detail: String) : ResumeResult
 }
 
+/** How a write of the group key ended. */
+sealed interface SetGroupResult {
+    data object Done : SetGroupResult
+
+    /** The daemon refuses metadata writes to this session (external, runtime not launchable) or has no such method; see [UNWRITABLE_CODES]. */
+    data class Unwritable(val detail: String) : SetGroupResult
+
+    /** [detail] is the daemon's `msg` with its `recover` hint, or the transport failure; cleaned for display. */
+    data class Failed(val detail: String) : SetGroupResult
+}
+
 /**
  * Commands that change a session on its daemon. Each call opens a connection of its own, so a command never waits on the live loop
  * of the host. Nothing is applied locally: the change reaches the app through the daemon's session event.
@@ -51,6 +63,16 @@ class SessionCommands(
         }
 
     /**
+     * Sets `companion.group` of [sessionId] on [route] to [name], or removes the key when [name] is null. The caller checks the name with
+     * `checkGroupName` and never sends an external session, which the daemon refuses.
+     */
+    suspend fun setGroup(route: HostRoute, sessionId: String, name: String?): SetGroupResult =
+        when (val attempt = run(route, sessionId, "session.set_metadata") { it.setMetadata(sessionId, mapOf(GROUP_METADATA_KEY to name)) }) {
+            is Attempt.Ok -> SetGroupResult.Done
+            is Attempt.Err -> if (attempt.code in UNWRITABLE_CODES) SetGroupResult.Unwritable(attempt.detail) else SetGroupResult.Failed(attempt.detail)
+        }
+
+    /**
      * Resumes the ended [sessionId] on [route] with the bare id, which never approves a changed agent profile: that is answered with
      * the hint to run `pohunek session resume` on the host.
      */
@@ -63,7 +85,8 @@ class SessionCommands(
     private sealed interface Attempt<out T> {
         data class Ok<T>(val value: T) : Attempt<T>
 
-        data class Err(val detail: String) : Attempt<Nothing>
+        /** [code] is the daemon's error code, or null for a transport failure. */
+        data class Err(val detail: String, val code: String?) : Attempt<Nothing>
     }
 
     private suspend fun <T> run(route: HostRoute, sessionId: String, method: String, command: suspend (PohunekConnection) -> T): Attempt<T> {
@@ -74,7 +97,7 @@ class SessionCommands(
             Attempt.Ok(value)
         } catch (e: ProtocolClientException) {
             log.error("session.command_failed", fields + LogField.errorCode(e.logCode()))
-            Attempt.Err(e.display())
+            Attempt.Err(e.display(), (e as? ProtocolClientException.Daemon)?.error?.code)
         }
     }
 }
@@ -91,5 +114,18 @@ internal fun ProtocolClientException.display(): String = when {
     }
     else -> sanitizeText(message.orEmpty())
 }
+
+/**
+ * Refusals of `session.set_metadata` that mean this session cannot carry the key: an external session, a runtime that is not launchable
+ * on its host (`agent_kind_unsupported`, `runtime_builtin_removed`, `runtime_not_installed`, `runtime_incompatible`), or a daemon without the method.
+ */
+internal val UNWRITABLE_CODES = setOf(
+    "session_external_read_only",
+    "agent_kind_unsupported",
+    "runtime_builtin_removed",
+    "runtime_not_installed",
+    "runtime_incompatible",
+    "method_not_found",
+)
 
 private val PROFILE_APPROVAL_CODES = setOf(PROFILE_CHANGED_CODE, PROFILE_CHANGE_LOCAL_ONLY_CODE)

@@ -9,6 +9,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LayoutTest {
+    private companion object {
+        const val MAX_NAME = 64
+    }
+
     private fun key(id: String, host: String = "local") = SessionKey(host, id)
 
     private fun keys(vararg ids: String, host: String = "local") = ids.map { key(it, host) }
@@ -32,12 +36,12 @@ class LayoutTest {
             Group("work", "Work", "n"),
             Group("empty", "Empty", "t"),
         )
-        val loaded = Layout.load(Layout.FORMAT_VERSION, null, emptyMap(), emptyMap(), groups, emptyList()) as LayoutLoad.Loaded
+        val loaded = Layout.load(Layout.FORMAT_VERSION, null, emptyMap(), emptyMap(), groups, emptyList(), emptyList()) as LayoutLoad.Loaded
         return loaded.layout.reconciled("local", *ids)
     }
 
     private fun Layout.moved(id: String, group: String, placement: Placement): Layout {
-        val done = moveSession(key(id), group, placement).done()
+        val done = moveSession(key(id), group, placement, manual = true).done()
         assertTrue(done.value)
         return done.layout
     }
@@ -115,13 +119,13 @@ class LayoutTest {
     @Test
     fun `dropping a moved session where it is or on itself only pins it`() {
         val plain = arranged("a", "b", "c")
-        val onItself = plain.moveSession(key("b"), INBOX_ID, Placement.Before(key("b"))).done()
+        val onItself = plain.moveSession(key("b"), INBOX_ID, Placement.Before(key("b")), manual = true).done()
         assertTrue(onItself.value)
         assertEquals(plain.items.map { it.copy(manual = it.key.sessionId == "b") }, onItself.layout.items)
 
         val settled = plain.moved("b", INBOX_ID, Placement.After(key("a")))
         for (placement in listOf(Placement.After(key("a")), Placement.Before(key("c")), Placement.Before(key("b")))) {
-            val done = settled.moveSession(key("b"), INBOX_ID, placement).done()
+            val done = settled.moveSession(key("b"), INBOX_ID, placement, manual = true).done()
             assertFalse(done.value)
             assertEquals(settled, done.layout)
         }
@@ -131,15 +135,15 @@ class LayoutTest {
     fun `a move between neighbours with equal keys is refused`() {
         val layout = arranged("a", "b", "c")
         val tied = layout.withItems(layout.items.mapIndexed { i, item -> if (i == 1) item.copy(order = layout.items[0].order) else item })
-        assertEquals(MoveError.AmbiguousOrder(INBOX_ID), tied.moveSession(key("c"), INBOX_ID, Placement.Before(key("b"))).refusal())
+        assertEquals(MoveError.AmbiguousOrder(INBOX_ID), tied.moveSession(key("c"), INBOX_ID, Placement.Before(key("b")), manual = true).refusal())
     }
 
     @Test
     fun `a refused move leaves the layout unchanged`() {
         val layout = arranged("a", "b")
-        assertEquals(MoveError.UnknownSession("zz"), layout.moveSession(key("zz"), INBOX_ID, Placement.End).refusal())
-        assertEquals(MoveError.UnknownGroup("nope"), layout.moveSession(key("a"), "nope", Placement.End).refusal())
-        assertEquals(MoveError.AnchorNotInGroup("b"), layout.moveSession(key("a"), "work", Placement.Before(key("b"))).refusal())
+        assertEquals(MoveError.UnknownSession("zz"), layout.moveSession(key("zz"), INBOX_ID, Placement.End, manual = true).refusal())
+        assertEquals(MoveError.UnknownGroup("nope"), layout.moveSession(key("a"), "nope", Placement.End, manual = true).refusal())
+        assertEquals(MoveError.AnchorNotInGroup("b"), layout.moveSession(key("a"), "work", Placement.Before(key("b")), manual = true).refusal())
         assertEquals(arranged("a", "b"), layout)
     }
 
@@ -160,54 +164,36 @@ class LayoutTest {
     fun `Inbox cannot be renamed or deleted and an unknown group is refused`() {
         val layout = arranged("a")
         assertEquals(GroupError.InboxFixed, layout.deleteGroup(INBOX_ID).refusal())
-        assertEquals(GroupError.InboxFixed, layout.renameGroup(INBOX_ID, "Main").refusal())
+        assertEquals(GroupError.InboxFixed, layout.renameGroup(INBOX_ID, "Main", MAX_NAME).refusal())
         assertEquals(GroupError.UnknownGroup("nope"), layout.deleteGroup("nope").refusal())
-        assertEquals(GroupError.UnknownGroup("nope"), layout.renameGroup("nope", "X").refusal())
+        assertEquals(GroupError.UnknownGroup("nope"), layout.renameGroup("nope", "X", MAX_NAME).refusal())
     }
 
     @Test
     fun `group names are trimmed non-empty and unique ignoring case`() {
         val layout = arranged()
-        assertEquals(GroupError.EmptyName, layout.createGroup("  \t ").refusal())
-        assertEquals(GroupError.DuplicateName("WORK"), layout.createGroup("WORK").refusal())
-        assertEquals(GroupError.DuplicateName("inbox"), layout.createGroup(" inbox ").refusal())
-        assertEquals(GroupError.DuplicateName("work"), layout.renameGroup("empty", "work").refusal())
-        assertEquals(GroupError.EmptyName, layout.renameGroup("empty", " ").refusal())
+        assertEquals(GroupError.EmptyName, layout.createGroup("  \t ", MAX_NAME).refusal())
+        assertEquals(GroupError.DuplicateName("WORK"), layout.createGroup("WORK", MAX_NAME).refusal())
+        assertEquals(GroupError.DuplicateName("inbox"), layout.createGroup(" inbox ", MAX_NAME).refusal())
+        assertEquals(GroupError.DuplicateName("work"), layout.renameGroup("empty", "work", MAX_NAME).refusal())
+        assertEquals(GroupError.EmptyName, layout.renameGroup("empty", " ", MAX_NAME).refusal())
 
-        val created = layout.createGroup("  Review ").done()
+        val created = layout.createGroup("  Review ", MAX_NAME).done()
         assertEquals(listOf(INBOX_ID, "work", "empty", created.value), groupIds(created.layout))
         assertEquals("Review", created.layout.groups.last().name)
-        val upper = created.layout.renameGroup(created.value, "REVIEW").done()
+        val upper = created.layout.renameGroup(created.value, "REVIEW", MAX_NAME).done()
         assertTrue(upper.value)
-        assertFalse(upper.layout.renameGroup(created.value, "REVIEW").done().value)
+        assertFalse(upper.layout.renameGroup(created.value, "REVIEW", MAX_NAME).done().value)
     }
 
     @Test
     fun `new group ids are g followed by a number and skip ids in use`() {
-        val one = Layout.default().createGroup("One").done()
+        val one = Layout.default().createGroup("One", MAX_NAME).done()
         assertEquals("g1", one.value)
-        val two = one.layout.createGroup("Two").done()
+        val two = one.layout.createGroup("Two", MAX_NAME).done()
         assertEquals("g2", two.value)
         val afterDelete = two.layout.deleteGroup("g1").done().layout
-        assertEquals("g3", afterDelete.createGroup("Three").done().value)
-    }
-
-    @Test
-    fun `create and move adds one group and one manual item or changes nothing`() {
-        val layout = arranged("a", "b")
-        for (name in listOf("", "  ", "work", "INBOX")) {
-            assertTrue(name, layout.createGroupAndMove(name, key("a")) is Edit.Refused)
-        }
-        assertEquals(CreateAndMoveError.Move(MoveError.UnknownSession("zz")), layout.createGroupAndMove("Builds", key("zz")).refusal())
-        assertEquals(CreateAndMoveError.Group(GroupError.EmptyName), layout.createGroupAndMove(" ", key("a")).refusal())
-        assertEquals(CreateAndMoveError.Group(GroupError.DuplicateName("INBOX")), layout.createGroupAndMove("INBOX", key("a")).refusal())
-
-        val done = layout.createGroupAndMove(" Builds ", key("a")).done()
-        assertEquals(layout.groups.size + 1, done.layout.groups.size)
-        assertEquals(done.value, done.layout.groups.last().id)
-        val moved = done.layout.items.filter { it.group == done.value }
-        assertEquals(listOf(key("a")), moved.map { it.key })
-        assertTrue(moved.single().manual)
+        assertEquals("g3", afterDelete.createGroup("Three", MAX_NAME).done().value)
     }
 
     @Test
@@ -231,6 +217,7 @@ class LayoutTest {
                 layout.groups.map {
                     it.copy(order = if (it.id == "work") "g" else it.order)
                 },
+                emptyList(),
                 emptyList(),
             ) as LayoutLoad.Loaded
             ).layout
@@ -289,7 +276,7 @@ class LayoutTest {
         assertEquals(LayoutView.MY_GROUPS, layout.view)
         assertEquals(LayoutView.BY_PROJECT, layout.withView(LayoutView.BY_PROJECT).view)
 
-        val unknown = (Layout.load(1, "by-herd", emptyMap(), emptyMap(), layout.groups, emptyList()) as LayoutLoad.Loaded).layout
+        val unknown = (Layout.load(1, "by-herd", emptyMap(), emptyMap(), layout.groups, emptyList(), emptyList()) as LayoutLoad.Loaded).layout
         assertEquals(LayoutView.MY_GROUPS, unknown.view)
         assertEquals("by-herd", unknown.storedView)
 
@@ -310,7 +297,7 @@ class LayoutTest {
         assertEquals(StoredFilter(host = "h"), stored.withStates(LayoutView.BY_STATE, StateSelection.DEFAULT).filter(LayoutView.BY_STATE))
 
         val file = mapOf("by-state" to StoredFilter(states = listOf("working", "ended")), "by-project" to StoredFilter(states = listOf("future")))
-        val loaded = (Layout.load(1, null, file, emptyMap(), listOf(inbox), emptyList()) as LayoutLoad.Loaded).layout
+        val loaded = (Layout.load(1, null, file, emptyMap(), listOf(inbox), emptyList(), emptyList()) as LayoutLoad.Loaded).layout
         assertEquals(listOf("working", "runtime-problem", "ended"), loaded.filter(LayoutView.BY_STATE).states)
         assertEquals(StoredFilter(), loaded.filter(LayoutView.BY_PROJECT))
     }
@@ -338,18 +325,19 @@ class LayoutTest {
     }
 
     private fun loading(groups: List<Group>, items: List<Item> = emptyList(), version: Int = 1) =
-        Layout.load(version, null, emptyMap(), emptyMap(), groups, items)
+        Layout.load(version, null, emptyMap(), emptyMap(), groups, items, emptyList())
 
     private val inbox = Group(INBOX_ID, INBOX_NAME, "n")
 
     private fun Layout.withItems(items: List<Item>): Layout =
-        (Layout.load(Layout.FORMAT_VERSION, storedView, filters, collapsedSections, groups, items) as LayoutLoad.Loaded).layout
+        (Layout.load(Layout.FORMAT_VERSION, storedView, filters, collapsedSections, groups, items, migratedHosts) as LayoutLoad.Loaded).layout
 
     private fun invalid(load: LayoutLoad) = (load as LayoutLoad.Invalid).message
 
     @Test
     fun `loading rejects inconsistent data with a message`() {
-        assertTrue(invalid(loading(listOf(inbox), version = 2)).contains("unsupported format version 2"))
+        assertTrue(invalid(loading(listOf(inbox), version = 3)).contains("unsupported format version 3"))
+        assertTrue(invalid(loading(listOf(inbox), version = 0)).contains("unsupported format version 0"))
         assertTrue(invalid(loading(listOf(inbox, inbox.copy(order = "p")))).contains("empty or repeated"))
         assertTrue(invalid(loading(listOf(inbox.copy(id = "")))).contains("empty or repeated"))
         assertTrue(invalid(loading(listOf(inbox.copy(order = "na")))).contains("invalid order key"))
@@ -363,7 +351,7 @@ class LayoutTest {
     @Test
     fun `a loaded layout does not follow later changes to the lists it was built from`() {
         val items = mutableListOf<Item>()
-        val loaded = (Layout.load(1, null, emptyMap(), emptyMap(), listOf(inbox), items) as LayoutLoad.Loaded).layout
+        val loaded = (Layout.load(1, null, emptyMap(), emptyMap(), listOf(inbox), items, emptyList()) as LayoutLoad.Loaded).layout
         items += Item(key("s1"), "gone", "n")
         assertTrue(loaded.items.isEmpty())
     }

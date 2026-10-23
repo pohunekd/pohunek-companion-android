@@ -1,10 +1,12 @@
 package dev.pohunek.companion.core.data.layout
 
 import dev.pohunek.companion.core.data.log.hostKeyField
-import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
 import dev.pohunek.companion.core.domain.layout.Edit
 import dev.pohunek.companion.core.domain.layout.GroupError
 import dev.pohunek.companion.core.domain.layout.GroupFact
+import dev.pohunek.companion.core.domain.layout.GroupMember
+import dev.pohunek.companion.core.domain.layout.GroupMigration
+import dev.pohunek.companion.core.domain.layout.GroupValue
 import dev.pohunek.companion.core.domain.layout.Layout
 import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.domain.layout.MoveError
@@ -22,6 +24,7 @@ import dev.pohunek.companion.protocol.HostRoute
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -62,7 +65,19 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
     private val current = MutableStateFlow<LayoutState>(LayoutState.Loading)
     private var saved: Layout? = null
     private var writable = true
+    private val unshared = MutableStateFlow<Set<SessionKey>>(emptySet())
     val state: StateFlow<LayoutState> get() = current
+
+    /**
+     * Sessions that cannot carry `companion.group` (external, runtime not launchable, a daemon without the method) and keep a local
+     * placement. In memory only; a session leaves it when it gets a usable key or goes from its host's list.
+     */
+    val notShared: StateFlow<Set<SessionKey>> get() = unshared
+
+    /** Records that [keys] keep a local placement the daemon cannot hold. */
+    fun markNotShared(keys: Collection<SessionKey>) {
+        if (keys.isNotEmpty()) unshared.update { it + keys }
+    }
 
     /** Reads the layout file once; later calls return at once. */
     suspend fun load() {
@@ -92,6 +107,7 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
         val host = route.toString()
         change { layout ->
             val result = layout.reconcile(host, sessionIds.map { SessionKey(host, it) })
+            unshared.update { it - result.pruned.toSet() }
             if (result.added.isNotEmpty() || result.pruned.isNotEmpty()) {
                 val counts = listOf(LogField.number("added", result.added.size.toLong()), LogField.number("pruned", result.pruned.size.toLong()))
                 log.info("layout.reconciled", listOf(hostKeyField(route)) + counts)
@@ -106,6 +122,7 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
      * Saves only when something changed.
      */
     suspend fun applyGroupValues(route: HostRoute?, facts: List<GroupFact>, allHostsListed: Boolean) {
+        unshared.update { marked -> marked - facts.filter { it.value is GroupValue.Present }.mapTo(HashSet()) { it.key } }
         change { layout ->
             val result = layout.applyGroupValues(facts, allHostsListed)
             if (result.moved > 0 || result.learnedAdded > 0 || result.learnedDropped > 0) {
@@ -119,6 +136,21 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
             result.layout
         }
     }
+
+    /** The writes that migrate the manual placements of [route] into metadata; see [Layout.migrationPlan]. Null while the layout is not loaded. */
+    fun migrationPlan(route: HostRoute, facts: List<GroupFact>, maxBytes: Int): GroupMigration? =
+        (current.value as? LayoutState.Available)?.layout?.migrationPlan(route.toString(), facts, maxBytes)
+
+    /** Records [route] as migrated and saves it. */
+    suspend fun markMigrated(route: HostRoute) {
+        change { layout ->
+            layout.withMigrated(route.toString()).also { if (it != layout) log.info("layout.migrated", listOf(hostKeyField(route))) }
+        }
+    }
+
+    /** The sessions group [groupId] holds or names that a rename or delete has to write; see [Layout.groupMembers]. */
+    fun groupMembers(groupId: String, facts: List<GroupFact>): List<GroupMember> =
+        (current.value as? LayoutState.Available)?.layout?.groupMembers(groupId, facts).orEmpty()
 
     /** Selects the view the list shows; the choice is saved with the layout. */
     suspend fun selectView(view: LayoutView) {
@@ -182,23 +214,14 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
     }
 
     /** Appends a group named [name] to My groups; the value is its id. */
-    suspend fun createGroup(name: String): LayoutEdit<String, GroupError> = edit(
-        { it.createGroup(name) },
+    suspend fun createGroup(name: String, maxBytes: Int): LayoutEdit<String, GroupError> = edit(
+        { it.createGroup(name, maxBytes) },
         { id -> log.info("layout.group_created", listOf(LogField.groupId(id))) },
     )
 
-    /** Appends a group and moves [key] to its end as one change, so a refusal of either leaves the layout as it was. The value is the group's id. */
-    suspend fun createGroupAndMove(name: String, key: SessionKey): LayoutEdit<String, CreateAndMoveError> = edit(
-        { it.createGroupAndMove(name, key) },
-        { id ->
-            log.info("layout.group_created", listOf(LogField.groupId(id)))
-            log.info("layout.session_moved", listOf(LogField.groupId(id), LogField.sessionId(key.sessionId)))
-        },
-    )
-
     /** Renames a group; the value is whether the name changed. */
-    suspend fun renameGroup(id: String, name: String): LayoutEdit<Boolean, GroupError> = edit(
-        { it.renameGroup(id, name) },
+    suspend fun renameGroup(id: String, name: String, maxBytes: Int): LayoutEdit<Boolean, GroupError> = edit(
+        { it.renameGroup(id, name, maxBytes) },
         { changed -> if (changed) log.info("layout.group_renamed", listOf(LogField.groupId(id))) },
     )
 
@@ -208,9 +231,9 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
         { moved -> log.info("layout.group_deleted", listOf(LogField.groupId(id), LogField.number("sessions", moved.size.toLong()))) },
     )
 
-    /** Moves [key] to the end of [group]; the value is whether anything changed. */
-    suspend fun moveSession(key: SessionKey, group: String): LayoutEdit<Boolean, MoveError> = edit(
-        { it.moveSession(key, group, Placement.End) },
+    /** Moves [key] to the end of [group], with its manual flag set to [manual]; the value is whether anything changed. */
+    suspend fun moveSession(key: SessionKey, group: String, manual: Boolean): LayoutEdit<Boolean, MoveError> = edit(
+        { it.moveSession(key, group, Placement.End, manual) },
         { changed -> if (changed) log.info("layout.session_moved", listOf(LogField.groupId(group), LogField.sessionId(key.sessionId))) },
     )
 

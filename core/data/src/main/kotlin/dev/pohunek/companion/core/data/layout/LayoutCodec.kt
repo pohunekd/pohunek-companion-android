@@ -28,6 +28,7 @@ private data class LayoutFile(
     @SerialName("collapsed_sections") val collapsedSections: Map<String, List<String>> = emptyMap(),
     val groups: List<GroupEntry> = emptyList(),
     val items: List<ItemEntry> = emptyList(),
+    @SerialName("migrated_hosts") val migratedHosts: List<String> = emptyList(),
 )
 
 @Serializable
@@ -57,7 +58,7 @@ private data class ItemEntry(
     val manual: Boolean = false,
 )
 
-/** The JSON form of a [Layout]; the field names are those of the desktop companion's layout schema (version 1). */
+/** The JSON form of a [Layout]: the desktop companion's layout schema (version 1) plus `migrated_hosts` since version 2. */
 internal object LayoutCodec {
     private val json = Json { explicitNulls = false }
 
@@ -70,6 +71,7 @@ internal object LayoutCodec {
             collapsedSections = layout.collapsedSections.mapValues { (_, ids) -> ids.sorted() },
             groups = layout.groups.map { GroupEntry(it.id, it.name, it.order, it.collapsed, it.origin.stored()) },
             items = layout.items.map { ItemEntry(it.key.host, it.key.sessionId, it.group, it.order, it.manual) },
+            migratedHosts = layout.migratedHosts,
         ),
     )
 
@@ -101,6 +103,7 @@ internal object LayoutCodec {
             collapsedSections = file.collapsedSections.mapValues { (_, ids) -> ids.toSet() },
             groups = groups,
             items = file.items.map { Item(SessionKey(it.host, it.sessionId), it.group, it.order, it.manual) },
+            migratedHosts = file.migratedHosts,
         )
         return when (load) {
             is LayoutLoad.Loaded -> LayoutRead.Loaded(load.layout, load.repaired)

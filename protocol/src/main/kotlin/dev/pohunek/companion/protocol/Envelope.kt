@@ -97,6 +97,15 @@ object Requests {
         return Request(Wire.CLIENT_RANGE, id, "session.rename", params)
     }
 
+    /** A merge patch of the session metadata: a string sets its key and a null value removes it. */
+    fun sessionSetMetadata(id: String, sessionId: String, patch: Map<String, String?>): Request {
+        val params = buildJsonObject {
+            put("session_id", sessionId)
+            put("metadata", buildJsonObject { patch.forEach { (key, value) -> put(key, value) } })
+        }
+        return Request(Wire.CLIENT_RANGE, id, "session.set_metadata", params)
+    }
+
     /** The bare session id shape: it never accepts an agent profile change, which only the local socket may approve. */
     fun sessionResume(id: String, sessionId: String): Request = Request(Wire.CLIENT_RANGE, id, "session.resume", JsonPrimitive(sessionId))
 

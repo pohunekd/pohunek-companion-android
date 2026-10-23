@@ -135,7 +135,7 @@ as the desktop companion: `v0.35.2` today.
 - **App data** (hosts, layout and settings) is JSON written with
   kotlinx-serialization through `AtomicFile` in the app's files directory. An
   unreadable file is shown as an error and never overwritten.
-- **Layout** (`layout.json`, schema version 1 of the desktop's layout with its field names) holds the owner's groups, the
+- **Layout** (`layout.json`, schema version 2: the desktop's layout schema with its field names, plus `migrated_hosts`; a version-1 file loads as unmigrated and an older build shows a version-2 file as invalid and keeps it) holds the owner's groups, the
   placement of each session by `(route, session id)` and the collapsed state. Group membership is shared with the desktop
   companion through the session metadata key `companion.group`, whose value is the group's display name; group order, session
   order, collapse, views and filters stay on the phone and never go into metadata. A value is trimmed and is unusable (treated as
@@ -147,8 +147,7 @@ as the desktop companion: `v0.35.2` today.
   (`"origin": "learned"` in the file, absent for created groups); a learned group with no member is dropped once every host has sent a
   list, a created group stays until the owner deletes it. A session arriving in a group goes to its end. `Layout.applyGroupValues`
   does this on plain values after each reconcile, and the next `session_updated` or re-seed corrects the placement, since the
-  list queues a host's list again whenever its ids, group values or external flags change. The app does not write the key yet (#117, #118). The
-  layout lives in a process-wide `LayoutRepository`: every list a connected host sends is reconciled into it for that host
+  list queues a host's list again whenever its ids, group values or external flags change. The layout lives in a process-wide `LayoutRepository`: every list a connected host sends is reconciled into it for that host
   only (new sessions join the end of Inbox, that host's missing ones leave), and it is saved only when its content
   changed. A host that is connecting or down never prunes. A file that cannot be read or is invalid is shown as an error
   above the list and kept as it is; the app then runs with an unsaved Inbox-only layout. A chip row selects the view the list
@@ -158,7 +157,27 @@ as the desktop companion: `v0.35.2` today.
   section has any more are dropped once every host has sent a list. A By state session that waits for the owner on a host
   that is not connected is not in Needs you, so it is shown in a trailing "Waiting (host not connected)" section. The owner creates, renames and
   deletes groups (a deletion has no confirmation and moves the sessions to the end of Inbox in their order; Inbox has
-  neither) and moves a session to the end of a group from its action sheet, also into a new group; each edit is one
+  neither) and moves a session to the end of a group from its action sheet, also into a new group. Create, reorder and
+  collapse stay local. The rest write `companion.group` with `session.set_metadata` (a merge patch, one call per session, from
+  `SessionCommands.setGroup`; the daemon applies it under its sessions lock, so the last write wins per key) and change the
+  layout only once the daemon holds the value, so there is no optimistic membership change: a move writes the group's name
+  (`Inbox` for Inbox) and then places the row; a rename writes the new name to every member session (the sessions whose key
+  names the group plus the group's local placements) and renames the group here only when every write that could be made
+  succeeded; a delete writes `Inbox` to every member and removes the group here under the same condition. A member on a host
+  that is not connected is not written and counts as not updated; a failed or refused write leaves that session where it is,
+  and the owner sees one banner (`SessionList.groupNote`): how many of how many sessions were not updated, and the first
+  failure's host and reason. Repeating the rename or delete writes only to the sessions that still carry the old name; a
+  member that already got the new name shows under a learned group of that name, which the rename merges into the renamed
+  group (a created group of that name refuses it). There is no retry queue. A name is written only when it is trimmed,
+  non-empty, at most `group_name_max_bytes` UTF-8 bytes and free of control and bidirectional-format characters, and the same
+  rules refuse a group name in the dialog. A session that cannot carry the key (`external`, or refused with
+  `session_external_read_only`, a runtime that is not launchable on its host, or `method_not_found` from an older daemon)
+  gets no write (an external session is never sent one); it keeps today's local placement and is added to the in-memory
+  `LayoutRepository.notShared` set. The manual placements already in `layout.json` are migrated once per host route, after
+  that host's first full list: each manual item outside Inbox whose session is listed, not external and without any
+  `companion.group` key gets its group's name written (a present key is never overwritten, manual Inbox items need no
+  write). A refused session is marked not shared and not retried; the route goes into `migrated_hosts` only when no write
+  failed, and a failed write is tried again when the host reconnects or its list changes. Each edit is one
   `LayoutRepository` call that is applied, saved and logged by group and session id, or refused with nothing changed.
   A chip row of owner states and a search field in the top app bar narrow the list in every view (ported from desktop
   `filter.rs`): the states are stored per view in the layout file's `filters` (the default, every state but Ended, is stored

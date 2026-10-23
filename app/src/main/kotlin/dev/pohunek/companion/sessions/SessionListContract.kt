@@ -170,7 +170,15 @@ data class SessionListState(
     val movePicker: RowRef? = null,
     /** The open group name dialog. */
     val groupDraft: GroupDraft? = null,
+    /** What the last group write left undone, shown above the list until dismissed or replaced. */
+    val groupNote: GroupWriteNote? = null,
 )
+
+/**
+ * Sessions that a group write did not reach: [failed] of [total], and the first failure's host and reason. [reason] is the daemon's
+ * message and recovery hint, or null when that host was not connected. The text is composed in the view.
+ */
+data class GroupWriteNote(val failed: Int, val total: Int, val hostLabel: String, val reason: String?)
 
 /** What the group name dialog will do with the name. */
 sealed interface GroupDraftPurpose {
@@ -186,6 +194,10 @@ sealed interface GroupDraftPurpose {
 /** Why the group name dialog was refused; the texts are composed in the view. */
 sealed interface GroupNameError {
     data object Empty : GroupNameError
+
+    data object TooLong : GroupNameError
+
+    data object ControlCharacter : GroupNameError
 
     data class Duplicate(val name: String) : GroupNameError
 
@@ -329,6 +341,9 @@ sealed interface SessionListEvent {
 
     /** Closes the name dialog; ignored while its edit runs. */
     data object DismissGroupName : GroupEvent
+
+    /** Clears the message about sessions a group write did not reach. */
+    data object DismissGroupNote : GroupEvent
 
     /** Deletes the group without a confirmation; its sessions go to the end of Inbox. */
     data class DeleteGroup(val id: String) : GroupEvent

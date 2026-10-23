@@ -120,6 +120,8 @@ internal fun GroupNameDialog(draft: GroupDraft, onEvent: (SessionListEvent) -> U
 private fun GroupNameErrorText(error: GroupNameError) {
     val text = when (error) {
         GroupNameError.Empty -> stringResource(R.string.group_error_empty)
+        GroupNameError.TooLong -> stringResource(R.string.group_error_too_long)
+        GroupNameError.ControlCharacter -> stringResource(R.string.group_error_control_character)
         is GroupNameError.Duplicate -> stringResource(R.string.group_error_duplicate, error.name)
         GroupNameError.Gone -> stringResource(R.string.group_error_gone)
     }

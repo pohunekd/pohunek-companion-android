@@ -1,0 +1,37 @@
+{
+  "id": "req-2",
+  "ok": {
+    "session": {
+      "agent": "shell",
+      "agent_base": "shell",
+      "capabilities": {
+        "fork": false,
+        "resume": false
+      },
+      "cols": 80,
+      "created_at": "2026-10-23T21:55:01.201210067Z",
+      "cwd": "/work/proj-gamma",
+      "cwd_source": "launch",
+      "external": false,
+      "id": "s-01M5NC56YFAXWDG10T9W8R31BW",
+      "is_linked_worktree": false,
+      "name": "gamma-docs",
+      "pid": 531,
+      "project_id": "p-9d1199fd",
+      "rows": 24,
+      "runtime": {
+        "last_connected_at": "2026-10-23T21:55:01.306106413Z",
+        "loss_reason": "runtime_lost",
+        "runtime_generation": "1",
+        "started_at": "2026-10-23T21:55:01.306106413Z",
+        "state": "lost",
+        "worker_id": "worker-95f222db61e268bb0c83f6fee75b78d5",
+        "worker_instance_id": "runtime-82098cb19ef8780cac040657ee6468e9"
+      },
+      "state": "running",
+      "state_source": "process",
+      "updated_at": "2026-10-23T22:08:16.367617326Z"
+    }
+  },
+  "v": 4
+}

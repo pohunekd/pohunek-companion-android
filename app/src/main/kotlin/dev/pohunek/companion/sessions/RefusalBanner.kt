@@ -66,3 +66,24 @@ internal fun ResumeNoteBanner(note: ResumeNote, onDismiss: () -> Unit) {
         }
     }
 }
+
+/** What the last group write did not reach, in the error colour; the daemon's reason is untrusted text already cleaned by the command. */
+@Composable
+internal fun GroupNoteBanner(note: GroupWriteNote, onDismiss: () -> Unit) {
+    val spacing = PohunekTheme.spacing
+    val reason = note.reason ?: stringResource(R.string.group_write_not_connected)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = spacing.gutter),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.group_write_failed, note.failed, note.total, note.hostLabel, reason),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f).testTag("SessionList.groupNote"),
+        )
+        TextButton(onClick = onDismiss, modifier = Modifier.testTag("SessionList.groupNoteDismiss")) {
+            Text(stringResource(R.string.session_list_refusal_dismiss))
+        }
+    }
+}

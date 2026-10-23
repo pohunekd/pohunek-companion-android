@@ -5,6 +5,7 @@ import dev.pohunek.companion.core.domain.layout.GroupFact
 import dev.pohunek.companion.core.domain.layout.GroupOrigin
 import dev.pohunek.companion.core.domain.layout.GroupValue
 import dev.pohunek.companion.core.domain.layout.INBOX_ID
+import dev.pohunek.companion.core.domain.layout.Item
 import dev.pohunek.companion.core.domain.layout.Layout
 import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.domain.layout.Placement
@@ -16,6 +17,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LayoutCodecTest {
+    private companion object {
+        const val MAX_NAME = 64
+    }
+
     private fun loaded(text: String): LayoutRead.Loaded = decoded(text) as? LayoutRead.Loaded ?: error("unreadable: ${decoded(text)}")
 
     private fun decoded(text: String) = LayoutCodec.decode(text)
@@ -24,10 +29,12 @@ class LayoutCodecTest {
 
     private fun sample(): Layout {
         val seeded = Layout.default().reconcile("127.0.0.1:1", listOf("a", "b", "c").map { SessionKey("127.0.0.1:1", it) }).layout
-        val grouped = seeded.createGroupAndMove("Builds", SessionKey("127.0.0.1:1", "b")).layout()
+        val grouped = seeded.createGroup("Builds", MAX_NAME).layout()
         return grouped
+            .moveSession(SessionKey("127.0.0.1:1", "b"), "g1", Placement.End, manual = true).layout()
             .setGroupCollapsed(INBOX_ID, true).layout()
-            .moveSession(SessionKey("127.0.0.1:1", "c"), "g1", Placement.End).layout()
+            .moveSession(SessionKey("127.0.0.1:1", "c"), "g1", Placement.End, manual = true).layout()
+            .withMigrated("127.0.0.1:1")
             .withView(LayoutView.BY_STATE)
             .setCollapsed("working", true).layout()
             .withFilter(LayoutView.BY_STATE, StoredFilter(states = listOf("working", "runtime-problem"), projectLabel = "p", host = "127.0.0.1:1"))
@@ -44,7 +51,7 @@ class LayoutCodecTest {
     @Test
     fun `only a learned group stores its origin and a file without it reads as created`() {
         val synced = Layout.default().reconcile("h", listOf(SessionKey("h", "a"))).layout
-            .createGroup("Mine").layout()
+            .createGroup("Mine", MAX_NAME).layout()
             .applyGroupValues(listOf(GroupFact(SessionKey("h", "a"), GroupValue.Present("Night shift"), external = false)), false).layout
         val text = LayoutCodec.encode(synced)
         assertEquals(1, Regex("\"origin\":\"learned\"").findAll(text).count())
@@ -59,7 +66,8 @@ class LayoutCodecTest {
     fun `the file uses the schema field names and leaves out defaults`() {
         val text = LayoutCodec.encode(sample())
         val names = listOf(
-            "\"version\":1",
+            "\"version\":2",
+            "\"migrated_hosts\":[\"127.0.0.1:1\"]",
             "\"session_id\":\"a\"",
             "\"project_label\"",
             "\"collapsed\":true",
@@ -80,11 +88,34 @@ class LayoutCodecTest {
             "",
             "not json",
             """{"version":1,"unknown":true}""",
-            """{"version":2}""",
+            """{"version":3}""",
+            """{"version":0}""",
             """{"version":1,"groups":[$inbox,$inbox]}""",
             """{"version":1,"groups":[$inbox],"items":[{"host":"h","session_id":"s","group":"nope","order":"n"}]}""",
         )
         for (text in invalid) assertTrue(text, decoded(text) is LayoutRead.Unreadable)
+    }
+
+    @Test
+    fun `a version 1 file loads with no migrated host and is written back as version 2`() {
+        val read = loaded(
+            """{"version":1,"groups":[{"id":"g1","name":"Work","order":"n","collapsed":true}],""" +
+                """"items":[{"host":"h","session_id":"s","group":"g1","order":"n","manual":true}]}""",
+        )
+        assertTrue(read.layout.migratedHosts.isEmpty())
+        assertEquals(listOf(Item(SessionKey("h", "s"), "g1", "n", manual = true)), read.layout.items)
+        val text = LayoutCodec.encode(read.layout)
+        assertTrue("\"version\":2" in text)
+        assertFalse("migrated_hosts\":[\"" in text)
+        assertEquals(read.layout, loaded(text).layout)
+    }
+
+    @Test
+    fun `migrated hosts are stored once each`() {
+        val layout = Layout.default().withMigrated("h1").withMigrated("h2").withMigrated("h1")
+        assertEquals(listOf("h1", "h2"), layout.migratedHosts)
+        val read = loaded(LayoutCodec.encode(layout)).layout
+        assertEquals(listOf("h1", "h2"), read.migratedHosts)
     }
 
     @Test

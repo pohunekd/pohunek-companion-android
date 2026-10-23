@@ -88,6 +88,15 @@ sealed interface GroupPlacement {
 /** What one session says about its group, as read from its metadata. [external] sessions cannot carry the key. */
 data class GroupFact(val key: SessionKey, val value: GroupValue, val external: Boolean)
 
+/** One `companion.group` value to write to a session. */
+data class GroupWrite(val key: SessionKey, val name: String)
+
+/** What moving a host's manual placements into metadata comes to: the [writes] to make and the sessions whose group name cannot be written. */
+data class GroupMigration(val writes: List<GroupWrite>, val unshared: List<SessionKey>)
+
+/** A session a group rename or delete has to write; an [external] one is never sent a write. */
+data class GroupMember(val key: SessionKey, val external: Boolean)
+
 /** What applying group values changed: sessions moved to another group, and learned groups added and dropped. */
 data class GroupSync(val layout: Layout, val moved: Int, val learnedAdded: Int, val learnedDropped: Int)
 

@@ -18,7 +18,7 @@ class GroupValuesTest {
 
     private fun Layout.withSessions(host: String, vararg ids: String) = reconcile(host, ids.map { key(it, host) }).layout
 
-    private fun Layout.withGroup(name: String) = (createGroup(name) as Edit.Done).layout
+    private fun Layout.withGroup(name: String) = (createGroup(name, 64) as Edit.Done).layout
 
     private fun Layout.sessionsIn(group: String) = groupItems(group).map { it.key }
 
@@ -48,7 +48,7 @@ class GroupValuesTest {
     @Test
     fun `Inbox in any case places the session in Inbox`() {
         val layout = Layout.default().withGroup("Work").withSessions(a, "s1")
-        val inWork = layout.moveSession(key("s1"), "g1", Placement.End).let { (it as Edit.Done).layout }
+        val inWork = layout.moveSession(key("s1"), "g1", Placement.End, manual = true).let { (it as Edit.Done).layout }
         val sync = inWork.applyGroupValues(listOf(fact("s1", "iNbOx")), allHostsListed = true)
         assertEquals(listOf(key("s1")), sync.layout.sessionsIn(INBOX_ID))
         assertEquals(1, sync.layout.groups.count { it.name.equals("inbox", ignoreCase = true) })
@@ -91,7 +91,7 @@ class GroupValuesTest {
     @Test
     fun `the key clears the manual flag and a cleared key returns the session to Inbox`() {
         val layout = Layout.default().withGroup("A").withGroup("B").withSessions(a, "s1")
-        val local = (layout.moveSession(key("s1"), "g1", Placement.End) as Edit.Done).layout
+        val local = (layout.moveSession(key("s1"), "g1", Placement.End, manual = true) as Edit.Done).layout
         assertTrue(local.items.single().manual)
 
         val keyed = local.applyGroupValues(listOf(fact("s1", "B")), allHostsListed = true)
@@ -106,7 +106,7 @@ class GroupValuesTest {
     @Test
     fun `a local move without a key stays put`() {
         val layout = Layout.default().withGroup("A").withSessions(a, "s1")
-        val local = (layout.moveSession(key("s1"), "g1", Placement.End) as Edit.Done).layout
+        val local = (layout.moveSession(key("s1"), "g1", Placement.End, manual = true) as Edit.Done).layout
         val sync = local.applyGroupValues(listOf(fact("s1", null)), allHostsListed = true)
         assertSame(local, sync.layout)
     }

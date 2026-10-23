@@ -20,17 +20,23 @@ import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.data.newsession.PendingPlacementBook
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
-import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
+import dev.pohunek.companion.core.domain.layout.Edit
+import dev.pohunek.companion.core.domain.layout.GROUP_METADATA_KEY
 import dev.pohunek.companion.core.domain.layout.GroupError
 import dev.pohunek.companion.core.domain.layout.GroupFact
+import dev.pohunek.companion.core.domain.layout.GroupMember
+import dev.pohunek.companion.core.domain.layout.GroupNameCheck
 import dev.pohunek.companion.core.domain.layout.GroupValue
 import dev.pohunek.companion.core.domain.layout.HostEntry
 import dev.pohunek.companion.core.domain.layout.HostReach
+import dev.pohunek.companion.core.domain.layout.INBOX_ID
+import dev.pohunek.companion.core.domain.layout.INBOX_NAME
 import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.SessionFilter
 import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.WorkItem
+import dev.pohunek.companion.core.domain.layout.checkGroupName
 import dev.pohunek.companion.core.domain.layout.groupFact
 import dev.pohunek.companion.core.domain.layout.hostOptions
 import dev.pohunek.companion.core.domain.layout.projectChips
@@ -43,6 +49,7 @@ import dev.pohunek.companion.core.domain.log.warn
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.HostSessions
 import dev.pohunek.companion.core.domain.sessions.HostedSession
+import dev.pohunek.companion.core.domain.sessions.OwnerSession
 import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.domain.sessions.SessionActionOutcome
@@ -96,6 +103,17 @@ class SessionListViewModel(
     /** True once every configured host has sent a list; learned groups are dropped only then. */
     private var allHostsListed = false
 
+    private val editor = GroupEditor(layouts, GroupWrites(commands, log), registry, log) { note -> updateState { it.copy(groupNote = note) } }
+
+    /** Hosts whose migration was started for the current connection and list; a changed list or a new connection arms it again. */
+    private val migrationArmed = HashSet<HostRoute>()
+
+    /** Hosts whose armed seed arrived while their migration ran. */
+    private val migrationRearm = HashSet<HostRoute>()
+
+    /** Hosts with a migration running, so that two never write the same sessions. */
+    private val migrating = HashSet<HostRoute>()
+
     /** Lists to reconcile in the order the hosts sent them; one consumer applies them, so an older list never lands after a newer one. */
     private val seeds = Channel<Seed>(Channel.UNLIMITED)
 
@@ -104,6 +122,9 @@ class SessionListViewModel(
 
         /** Every host has now listed, which may leave learned groups without a member. */
         data object Sweep : Seed
+
+        /** [route] is connected with [facts] as its list and has not been migrated; its manual placements are written once the list is applied. */
+        class Migrate(val route: HostRoute, val facts: List<GroupFact>) : Seed
     }
 
     private data class ListInputs(
@@ -126,7 +147,8 @@ class SessionListViewModel(
                     firstHostRequested = true
                     sendEffect(SessionListEffect.OpenHosts)
                 }
-                queueSeeds(configured, feeds, input.limits.groupNameMaxBytes)
+                editor.configure(input.limits.groupNameMaxBytes, (configured as? HostsState.Loaded)?.hosts.orEmpty())
+                queueSeeds(configured, feeds, layout, input.limits.groupNameMaxBytes)
                 updateState { listed(it, configured, feeds, layout, input.limits.rowBadgeMaxChars, input.limits.sectionTitleMaxChars) }
                 pruneCollapsed(configured, feeds, input.limits.sectionTitleMaxChars)
             }
@@ -145,7 +167,7 @@ class SessionListViewModel(
         val settlement = placements.take(available.layout.items.mapTo(HashSet()) { it.key })
         for (key in settlement.expired) log.warn("new_session.placement_expired", listOf(LogField.sessionId(key.sessionId)))
         for (placement in settlement.apply) {
-            if (layouts.moveSession(placement.key, placement.group) !is LayoutEdit.Applied) {
+            if (layouts.moveSession(placement.key, placement.group, manual = true) !is LayoutEdit.Applied) {
                 log.warn("new_session.placement_dropped", listOf(LogField.groupId(placement.group), LogField.sessionId(placement.key.sessionId)))
             }
         }
@@ -158,6 +180,24 @@ class SessionListViewModel(
                 layouts.applyGroupValues(seed.route, seed.facts, allHostsListed)
             }
             Seed.Sweep -> layouts.applyGroupValues(null, emptyList(), allHostsListed)
+            is Seed.Migrate -> startMigration(seed.route, seed.facts)
+        }
+    }
+
+    /** Runs beside the seed consumer, so that slow writes never hold back the lists that follow. */
+    private fun startMigration(route: HostRoute, facts: List<GroupFact>) {
+        if (!migrating.add(route)) {
+            // The list that armed this seed is newer than the running migration's; arming again once it ends lets that list retry a failure.
+            migrationRearm.add(route)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                editor.migrate(route, facts)
+            } finally {
+                migrating.remove(route)
+                if (migrationRearm.remove(route)) migrationArmed.remove(route)
+            }
         }
     }
 
@@ -230,6 +270,7 @@ class SessionListViewModel(
             }
             SessionListEvent.SubmitGroupName -> submitGroupName()
             SessionListEvent.DismissGroupName -> updateState { state -> state.copy(groupDraft = state.groupDraft?.takeIf { it.busy }) }
+            SessionListEvent.DismissGroupNote -> updateState { it.copy(groupNote = null) }
             is SessionListEvent.DeleteGroup -> deleteGroup(event.id)
         }
     }
@@ -243,29 +284,31 @@ class SessionListViewModel(
         val draft = currentState.groupDraft?.takeUnless { it.busy } ?: return
         updateState { it.copy(groupDraft = draft.copy(busy = true, error = null)) }
         viewModelScope.launch {
-            val error = when (val purpose = draft.purpose) {
-                GroupDraftPurpose.New -> layouts.createGroup(draft.text).refusal(GroupError::toNameError)
-                is GroupDraftPurpose.Rename -> layouts.renameGroup(purpose.groupId, draft.text).refusal(GroupError::toNameError)
-                is GroupDraftPurpose.NewAndMove ->
-                    layouts.createGroupAndMove(draft.text, purpose.ref.layoutKey).refusal(CreateAndMoveError::toNameError)
-            }
+            val error = submitDraft(draft)
             updateState { state ->
                 state.copy(groupDraft = if (error == null) null else state.groupDraft?.copy(busy = false, error = error))
             }
         }
     }
 
+    /** The refusal to show in the dialog, or null when the edit was applied. */
+    private suspend fun submitDraft(draft: GroupDraft): GroupNameError? = when (val purpose = draft.purpose) {
+        GroupDraftPurpose.New -> editor.createGroup(draft.text)
+        is GroupDraftPurpose.Rename -> editor.rename(purpose.groupId, draft.text)
+        is GroupDraftPurpose.NewAndMove -> editor.createAndPlace(purpose.ref, draft.text)
+    }
+
     private fun deleteGroup(id: String) {
         updateState { it.copy(groupMenu = null) }
         viewModelScope.launch {
-            if (layouts.deleteGroup(id) !is LayoutEdit.Applied) sendEffect(SessionListEffect.LayoutEditRefused)
+            if (!editor.delete(id)) sendEffect(SessionListEffect.LayoutEditRefused)
         }
     }
 
     private fun moveToGroup(ref: RowRef, groupId: String) {
         updateState { it.copy(movePicker = null) }
         viewModelScope.launch {
-            if (layouts.moveSession(ref.layoutKey, groupId) !is LayoutEdit.Applied) sendEffect(SessionListEffect.LayoutEditRefused)
+            if (!editor.place(ref, groupId)) sendEffect(SessionListEffect.LayoutEditRefused)
         }
     }
 
@@ -285,24 +328,43 @@ class SessionListViewModel(
      * A host that is connecting or down keeps its last list, which must not prune anything, so it is skipped; a list that arrives
      * while the host is connected is the seed.
      */
-    private fun queueSeeds(configured: HostsState, feeds: Map<HostRoute, HostFeed>, groupNameMaxBytes: Int) {
+    private fun queueSeeds(configured: HostsState, feeds: Map<HostRoute, HostFeed>, layout: LayoutState, groupNameMaxBytes: Int) {
         reconciled.keys.retainAll(feeds.keys)
+        migrationArmed.retainAll(feeds.keys)
         val hostList = (configured as? HostsState.Loaded)?.hosts
         val listed = hostList != null && hostList.none { feeds[it.route]?.sessions == null }
         val sweep = listed && !allHostsListed
         allHostsListed = listed
         var queued = false
         for ((route, feed) in feeds) {
-            val sessions = feed.takeIf { it.connection == HostConnection.Connected }?.sessions ?: continue
-            val facts = sessions.map { it.info.groupFact(route.toString(), groupNameMaxBytes) }
-            val previous = reconciled.put(route, facts)
-            if (previous != facts) {
-                logRejectedGroupValues(route, facts, previous.orEmpty().associateBy { it.key })
-                seeds.trySend(Seed.HostList(route, facts))
-                queued = true
-            }
+            val sessions = feed.takeIf { it.connection == HostConnection.Connected }?.sessions
+            if (sessions == null) migrationArmed.remove(route) else queued = queueList(route, sessions, groupNameMaxBytes) || queued
         }
         if (sweep && !queued) seeds.trySend(Seed.Sweep)
+        armMigrations(layout, feeds)
+    }
+
+    /** Queues the list of [route] when it differs from the one last queued, which also arms its migration again. The value is whether it was queued. */
+    private fun queueList(route: HostRoute, sessions: List<OwnerSession>, groupNameMaxBytes: Int): Boolean {
+        val facts = sessions.map { it.info.groupFact(route.toString(), groupNameMaxBytes) }
+        val previous = reconciled.put(route, facts)
+        if (previous == facts) return false
+        logRejectedGroupValues(route, facts, previous.orEmpty().associateBy { it.key })
+        seeds.trySend(Seed.HostList(route, facts))
+        migrationArmed.remove(route)
+        return true
+    }
+
+    /**
+     * Queues the migration of each connected host that is not migrated yet, once per connection and list. It is queued behind the list
+     * it was armed with, so the placements it reads are the ones that list left.
+     */
+    private fun armMigrations(layout: LayoutState, feeds: Map<HostRoute, HostFeed>) {
+        val migrated = (layout as? LayoutState.Available)?.layout?.migratedHosts ?: return
+        for ((route, facts) in reconciled) {
+            val connected = feeds[route]?.let { it.connection == HostConnection.Connected && it.sessions != null } == true
+            if (connected && route.toString() !in migrated && migrationArmed.add(route)) seeds.trySend(Seed.Migrate(route, facts))
+        }
     }
 
     /** One warn line per session whose unusable group value is new; the value itself is never logged. */
