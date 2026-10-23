@@ -52,6 +52,15 @@ object Requests {
         return Request(Wire.CLIENT_RANGE, id, "session.resize", params)
     }
 
+    /** `name` is omitted to clear the owner name, so that the session shows its id again. */
+    fun sessionRename(id: String, sessionId: String, name: String?): Request {
+        val params = buildJsonObject {
+            put("session_id", sessionId)
+            if (name != null) put("name", name)
+        }
+        return Request(Wire.CLIENT_RANGE, id, "session.rename", params)
+    }
+
     /** Turns the connection into the daemon's event stream; the `ok` result is `{"subscribed":true}`. */
     fun subscribe(id: String): Request = Request(Wire.CLIENT_RANGE, id, "subscribe", JsonNull)
 

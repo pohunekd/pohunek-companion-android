@@ -92,6 +92,10 @@ class PohunekConnection private constructor(
     suspend fun resize(sessionId: String, dimensions: TerminalDimensions): SessionInfo =
         call { Requests.sessionResize(it, sessionId, dimensions) }.decodeResult(SessionResizeResult.serializer()).session
 
+    /** Sets the owner name of [sessionId]; a null [name] clears it. The daemon trims and validates the name. */
+    suspend fun rename(sessionId: String, name: String?): SessionInfo =
+        call { Requests.sessionRename(it, sessionId, name) }.decodeResult(SessionRenameResult.serializer()).session
+
     suspend fun detach(streamId: String): SessionDetachResult =
         call { Requests.sessionDetach(it, streamId) }.decodeResult(SessionDetachResult.serializer())
 

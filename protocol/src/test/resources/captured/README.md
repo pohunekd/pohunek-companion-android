@@ -18,6 +18,10 @@ Captured as received (keys sorted, pretty-printed):
   `kind: agent_blocked` with `limit: 2`, the second page with the first one's `next_cursor`
   (request ids rewritten to `req-1` and `req-2`; the second page holds the records the daemon's own
   projector created for its blocked sessions).
+- `session-rename-response.json`, `session-rename-clear-response.json`: the `session.rename` responses
+  that set `renamed-agent` and that clear the name (no `name` in the result);
+  `session-rename-control-char-error.json`: the `daemon/bad_request` refusal of a name with a control
+  character (request ids rewritten to `req-1` to `req-3`, working directories to `/work/...`).
 - `session-list-response.json`: the `session.list` response with the four fixed
   synthetic sessions and one created later; `alpha-agent` carries
   `runtime.state` `lost` with `loss_reason`, as left by a daemon restart.

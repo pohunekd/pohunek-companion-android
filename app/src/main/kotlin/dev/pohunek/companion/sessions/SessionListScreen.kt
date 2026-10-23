@@ -127,11 +127,18 @@ private fun SessionListContent(
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
                 state.statuses.forEach { HostStatusLine(it) }
                 SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())
-                val sheetRow = state.actionSheet?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
-                if (sheetRow != null) RowActionSheet(sheetRow, onEvent)
+                RowWindows(state, onEvent)
             }
         }
     }
+}
+
+/** The windows opened from a row: its action sheet and the rename dialog. */
+@Composable
+private fun RowWindows(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
+    val sheetRow = state.actionSheet?.let { ref -> (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref } }
+    if (sheetRow != null) RowActionSheet(sheetRow, onEvent)
+    state.rename?.let { RenameDialog(it, onEvent) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
