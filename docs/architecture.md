@@ -46,8 +46,8 @@ as the desktop companion: `v0.35.2` today.
 - Liveness (departs from the desktop on purpose): the desktop keeps its store
   when a periodic re-seed fails and has no heartbeat, which on a phone leaves a
   frozen list that looks live. Here a failed re-seed, or a `daemon.health` probe
-  (own connection, every `liveness_interval_ms`, bounded by
-  `liveness_timeout_ms`) that fails, ends the connection and the loop reconnects
+  (own connection, every `attach_liveness_interval_ms`, bounded by
+  `attach_liveness_timeout_ms`) that fails, ends the connection and the loop reconnects
   with backoff. The probe detects a dead network path; it does not look at the
   subscription socket itself.
 - Lifecycle (until M4's foreground service): the live loops run only while the
@@ -59,7 +59,12 @@ as the desktop companion: `v0.35.2` today.
   TCP connection sends `{"attach":"<id>"}\n` and from then on carries raw PTY
   bytes: the snapshot repaint arrives first, and the bytes are never assumed to
   be UTF-8. `session.resize` and `session.detach` go over the control
-  connection, not the attach connection.
+  connection, not the attach connection. The attach is idle most of the time, so
+  a connection that died without FIN or RST would show a frozen screen: while
+  attached, a `daemon.health` probe on the control connection runs every
+  `attach_liveness_interval_ms` and must answer within `attach_liveness_timeout_ms`, else the
+  attach fails with a typed liveness error (at most the sum of both after the
+  connection died).
 - Wire fixtures come from two sources: Pohunek `sdk/ts/protocol/fixtures` at the
   pinned tag (`protocol/src/test/resources/fixtures/`), and, where that
   directory has no fixture for a method or event the app uses, captures from

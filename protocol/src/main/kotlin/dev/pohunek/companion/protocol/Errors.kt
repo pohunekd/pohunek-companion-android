@@ -61,6 +61,10 @@ sealed class ProtocolClientException(message: String, cause: Throwable? = null) 
     /** No response within the request timeout; the request may have been applied. */
     class RequestTimeout(val timeoutMillis: Long) : ProtocolClientException("no response within $timeoutMillis ms; the request may have been applied")
 
+    /** An open connection did not answer a liveness probe in time: it is presumed dead although no FIN or RST arrived. */
+    class LivenessTimeout(val timeoutMillis: Long) :
+        ProtocolClientException("the daemon did not answer a liveness check within $timeoutMillis ms")
+
     /** The connection broke or ended before a complete response arrived. */
     class ConnectionLost(detail: String, cause: Throwable? = null) : ProtocolClientException("connection lost: $detail", cause)
 

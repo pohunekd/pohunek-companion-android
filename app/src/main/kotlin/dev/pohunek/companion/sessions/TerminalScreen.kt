@@ -74,7 +74,7 @@ private fun BoxScope.AttachedTerminal(config: AppConfig, route: HostRoute, sessi
         val controller = TerminalController()
         val koin = KoinPlatform.getKoin()
         val attachment = TerminalAttachment(
-            route, sessionId, controller, config.client, config.attachPolicy,
+            route, sessionId, controller, config.client, config.attachPolicy, config.attachLiveness,
             koin.get<CoroutineDispatcher>(ioDispatcher), koin.get<CoroutineDispatcher>(mainDispatcher), koin.get(),
         )
         TerminalSession(controller, attachment)
