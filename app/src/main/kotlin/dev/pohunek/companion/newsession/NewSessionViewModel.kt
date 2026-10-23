@@ -4,10 +4,14 @@ import androidx.lifecycle.viewModelScope
 import dev.pohunek.companion.config.AppConfig
 import dev.pohunek.companion.core.data.hosts.HostOffers
 import dev.pohunek.companion.core.data.hosts.KnownHosts
+import dev.pohunek.companion.core.data.layout.LayoutRepository
+import dev.pohunek.companion.core.data.layout.LayoutState
 import dev.pohunek.companion.core.data.newsession.ChoicesUpdate
 import dev.pohunek.companion.core.data.newsession.NewSessions
-import dev.pohunek.companion.core.data.newsession.PendingPlacementBook
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
+import dev.pohunek.companion.core.domain.layout.GroupNameCheck
+import dev.pohunek.companion.core.domain.layout.INBOX_ID
+import dev.pohunek.companion.core.domain.layout.checkGroupName
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.warn
@@ -15,7 +19,6 @@ import dev.pohunek.companion.core.domain.newsession.CreateOutcome
 import dev.pohunek.companion.core.domain.newsession.NewSessionForm
 import dev.pohunek.companion.core.domain.newsession.sessionNewParams
 import dev.pohunek.companion.core.domain.newsession.settleSelection
-import dev.pohunek.companion.core.domain.sessions.SessionKey
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.navigation.NewSessionDestination
 import dev.pohunek.companion.protocol.HostRoute
@@ -32,7 +35,7 @@ import kotlinx.coroutines.launch
 class NewSessionViewModel(
     private val hosts: KnownHosts,
     private val newSessions: NewSessions,
-    private val placements: PendingPlacementBook,
+    private val layouts: LayoutRepository,
     private val log: AppLog,
     private val config: () -> AppConfig,
     private val requested: NewSessionDestination,
@@ -136,10 +139,15 @@ class NewSessionViewModel(
         val state = currentState
         val route = state.form.host
         val settings = config()
-        val params = sessionNewParams(state.form, settings.newSession.cols, settings.newSession.rows)
-        if (state.blocker != null || route == null || params == null) return
+        val cols = settings.newSession.cols
+        val rows = settings.newSession.rows
+        if (state.blocker != null || route == null || sessionNewParams(state.form, cols, rows) == null) return
         updateState { it.copy(activity = it.activity.copy(inFlight = true), notice = null) }
-        viewModelScope.launch { finish(route, newSessions.create(route, params)) }
+        viewModelScope.launch {
+            val group = groupNameFor(layouts, log, requested.group, settings.display.groupNameMaxBytes)
+            val params = checkNotNull(sessionNewParams(state.form, cols, rows, group)) { "the same form passed the guard in create()" }
+            finish(route, newSessions.create(route, params))
+        }
     }
 
     private fun finish(route: HostRoute, outcome: CreateOutcome) {
@@ -154,7 +162,6 @@ class NewSessionViewModel(
 
     private fun created(route: HostRoute, outcome: CreateOutcome.Created) {
         val session = outcome.result.session
-        requested.group?.let { placements.record(SessionKey(route.toString(), session.id), it) }
         if (!outcome.promptDelivered) return settle(CreateNotice.PromptUnconfirmed, unconfirmed = true)
         updateState { it.copy(activity = it.activity.copy(inFlight = false)) }
         // A session that is not running yet cannot be attached; the list shows it as it starts.
@@ -167,5 +174,22 @@ class NewSessionViewModel(
 
     private fun settle(notice: CreateNotice, unconfirmed: Boolean) {
         updateState { it.copy(activity = it.activity.copy(inFlight = false, unconfirmed = it.activity.unconfirmed || unconfirmed), notice = notice) }
+    }
+}
+
+/**
+ * The name of the owner group the form was opened from, which the session is created in. Inbox, a group deleted since, and a name
+ * that is not a valid `companion.group` value send none, so the session starts unplaced.
+ */
+private suspend fun groupNameFor(layouts: LayoutRepository, log: AppLog, groupId: String?, maxBytes: Int): String? {
+    val id = groupId?.takeIf { it != INBOX_ID } ?: return null
+    layouts.load()
+    val name = (layouts.state.value as? LayoutState.Available)?.layout?.groups?.firstOrNull { it.id == id }?.name ?: return null
+    return when (val check = checkGroupName(name, maxBytes)) {
+        is GroupNameCheck.Valid -> check.name
+        is GroupNameCheck.Invalid -> {
+            log.warn("new_session.group_skipped", listOf(LogField.errorCode(check.problem.code)))
+            null
+        }
     }
 }

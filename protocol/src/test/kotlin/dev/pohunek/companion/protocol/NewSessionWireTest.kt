@@ -30,6 +30,14 @@ class NewSessionWireTest {
     }
 
     @Test
+    fun `metadata is sent as an object only when set`() {
+        val params = SessionNewParams("claude", cols = 80, rows = 24, project = "p-1")
+        assertTrue("metadata" !in Requests.sessionNew("req-1", params).toLine())
+        val grouped = params.copy(metadata = mapOf("companion.group" to "Later"))
+        assertTrue(Requests.sessionNew("req-1", grouped).toLine().contains("\"metadata\":{\"companion.group\":\"Later\"}"))
+    }
+
+    @Test
     fun `project actions decode every provider and keep an unknown one as text`() {
         val actions = decode("project-actions-response").decodeResult(ProjectActionsResult.serializer()).actions
         assertEquals(listOf("fix-bug", "from-linear", "ghost-agent", "with-vars"), actions.map { it.name })

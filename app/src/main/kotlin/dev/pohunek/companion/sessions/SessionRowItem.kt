@@ -54,6 +54,7 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
                 if (work.isNotEmpty()) {
                     Text(work.joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.rowWork"))
                 }
+                if (row.notShared) NotSharedLabel()
                 row.runtimeDetail?.let { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.runtimeDetail")) }
                 if (row.link == HostLink.Down) {
                     Text(
@@ -82,6 +83,19 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
             )
             .semantics(mergeDescendants = true) {}
             .testTag("SessionList.row"),
+    )
+}
+
+/** Says that the session's group is kept only on this phone; TalkBack reads the longer description instead of the label. */
+@Composable
+private fun NotSharedLabel() {
+    val description = stringResource(R.string.session_row_not_shared_description)
+    Text(
+        stringResource(R.string.session_row_not_shared),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        modifier = Modifier.semantics { contentDescription = description }.testTag("SessionList.notShared"),
     )
 }
 

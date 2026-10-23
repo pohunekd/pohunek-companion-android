@@ -2,6 +2,7 @@
 // Repository: https://github.com/pohunekd/pohunek-companion, MIT, Copyright (c) 2026 pohunekd. See THIRD_PARTY_NOTICES.md.
 package dev.pohunek.companion.core.domain.newsession
 
+import dev.pohunek.companion.core.domain.layout.GROUP_METADATA_KEY
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.protocol.AgentRuntime
 import dev.pohunek.companion.protocol.HostRoute
@@ -176,10 +177,14 @@ fun settleSelection(form: NewSessionForm, choices: NewSessionChoices): NewSessio
     agent = form.agent?.takeIf(choices::launchable) ?: choices.agents.firstOrNull { it.launchable }?.name,
 )
 
-/** The request for a form that passed [createBlocker]; name, prompt, branch and base branch are trimmed and sent only when not blank. */
-fun sessionNewParams(form: NewSessionForm, cols: Int, rows: Int): SessionNewParams? {
+/**
+ * The request for a form that passed [createBlocker]; name, prompt, branch and base branch are trimmed and sent only when not blank.
+ * A non-null [groupName] is written as the session's `companion.group`, so the session is created in that group.
+ */
+fun sessionNewParams(form: NewSessionForm, cols: Int, rows: Int, groupName: String? = null): SessionNewParams? {
     val project = form.project ?: return null
     val agent = form.agent ?: return null
     val (branch, baseBranch) = branchOverrides(form)
-    return SessionNewParams(agent, cols, rows, project, form.name.trimmedOrNull(), form.prompt.trimmedOrNull(), branch, baseBranch)
+    val metadata = groupName?.let { mapOf(GROUP_METADATA_KEY to it) }
+    return SessionNewParams(agent, cols, rows, project, form.name.trimmedOrNull(), form.prompt.trimmedOrNull(), branch, baseBranch, metadata)
 }

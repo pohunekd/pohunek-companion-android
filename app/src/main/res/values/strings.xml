@@ -68,6 +68,8 @@
     <string name="owner_state_ended">Ended</string>
     <string name="owner_state_no_agent_state">No agent state</string>
     <string name="row_more_actions">Session actions</string>
+    <string name="session_row_not_shared">Only on this phone</string>
+    <string name="session_row_not_shared_description">This session\'s group is kept only on this phone</string>
     <string name="row_action_open_terminal">Open terminal</string>
     <string name="row_action_open_link">Open link</string>
     <string name="row_action_details">Details</string>

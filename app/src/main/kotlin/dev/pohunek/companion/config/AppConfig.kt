@@ -26,8 +26,6 @@ class NewSessionSettings(
     val client: ClientConfig,
     val cols: Int,
     val rows: Int,
-    /** How long a placement recorded for a new session waits for the session to appear. */
-    val pendingPlacementMaxAge: Duration,
     /** Initial state of the form's "Open after creating" switch. */
     val attachAfterCreate: Boolean,
 )
@@ -59,7 +57,6 @@ class AppConfig private constructor(
                     ClientConfig(connectTimeout = client.connectTimeout, requestTimeout = value(Tunable.CREATE_TIMEOUT_MS).milliseconds),
                     value(Tunable.NEW_SESSION_COLS).toInt(),
                     value(Tunable.NEW_SESSION_ROWS).toInt(),
-                    value(Tunable.PENDING_PLACEMENT_MAX_AGE_SECS).seconds,
                     attachAfterCreate,
                 ),
                 AttachSettings(

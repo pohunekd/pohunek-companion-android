@@ -51,6 +51,8 @@ data class SessionRow(
     val canRemove: Boolean,
     /** What the daemon's snapshot says about resuming the session; acting on it needs a connected host. */
     val resume: ResumeOffer,
+    /** True when the group of this session is kept only on this phone: it is external, or the daemon cannot hold the key for it. */
+    val notShared: Boolean,
 ) {
     val reachable: Boolean get() = link == HostLink.Connected
 
