@@ -37,10 +37,10 @@ import dev.pohunek.companion.core.domain.layout.Group
 import dev.pohunek.companion.core.domain.layout.GroupSection
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** The menu of an owner group: Rename and Delete. The sheet is a window of its own, so it exposes its test tags itself. */
+/** The menu of an owner group: Rename, Move up, Move down and Delete. The sheet is a window of its own, so it exposes its test tags itself. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun GroupMenuSheet(section: GroupSection<SessionRow>, onEvent: (SessionListEvent) -> Unit) {
+internal fun GroupMenuSheet(section: GroupSection<SessionRow>, step: StepOffer, onEvent: (SessionListEvent) -> Unit) {
     ModalBottomSheet(
         onDismissRequest = { onEvent(SessionListEvent.DismissGroupMenu) },
         modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("GroupMenu"),
@@ -49,6 +49,14 @@ internal fun GroupMenuSheet(section: GroupSection<SessionRow>, onEvent: (Session
             SheetTitle(section.name, "GroupMenu.title")
             HorizontalDivider()
             SheetItem(stringResource(R.string.group_action_rename), "GroupMenu.rename") { onEvent(SessionListEvent.OpenRenameGroup(section.id)) }
+            if (step.up) {
+                SheetItem(stringResource(R.string.action_move_up), "GroupMenu.moveUp") { onEvent(SessionListEvent.StepGroup(section.id, StepDirection.Up)) }
+            }
+            if (step.down) {
+                SheetItem(stringResource(R.string.action_move_down), "GroupMenu.moveDown") {
+                    onEvent(SessionListEvent.StepGroup(section.id, StepDirection.Down))
+                }
+            }
             SheetItem(stringResource(R.string.group_action_delete), "GroupMenu.delete") { onEvent(SessionListEvent.DeleteGroup(section.id)) }
         }
     }

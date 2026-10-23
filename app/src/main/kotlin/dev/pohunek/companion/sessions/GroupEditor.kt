@@ -13,8 +13,11 @@ import dev.pohunek.companion.core.domain.layout.GROUP_METADATA_KEY
 import dev.pohunek.companion.core.domain.layout.GroupError
 import dev.pohunek.companion.core.domain.layout.GroupFact
 import dev.pohunek.companion.core.domain.layout.GroupNameCheck
+import dev.pohunek.companion.core.domain.layout.GroupPlacement
 import dev.pohunek.companion.core.domain.layout.INBOX_ID
 import dev.pohunek.companion.core.domain.layout.INBOX_NAME
+import dev.pohunek.companion.core.domain.layout.MoveError
+import dev.pohunek.companion.core.domain.layout.Placement
 import dev.pohunek.companion.core.domain.layout.checkGroupName
 import dev.pohunek.companion.core.domain.layout.groupFact
 import dev.pohunek.companion.core.domain.log.AppLog
@@ -49,11 +52,30 @@ internal class GroupEditor(
     }
 
     /**
-     * Writes the group's name to the session and moves the row once the daemon holds it: the key is then the record and the local
-     * flag stays clear. A session that cannot carry the key keeps a local placement and is marked not shared; a failed write moves
-     * nothing and is reported. The value is false when the group or the session is gone.
+     * Writes the group's name to the session and moves the row to the end of the group once the daemon holds it: the key is then the
+     * record and the local flag stays clear. A session that cannot carry the key keeps a local placement and is marked not shared; a
+     * failed write moves nothing and is reported. The value is false when the group or the session is gone.
      */
-    suspend fun place(ref: RowRef, groupId: String): Boolean {
+    suspend fun place(ref: RowRef, groupId: String): Boolean = placeWritten(ref, groupId, Placement.End)
+
+    /**
+     * Drops the session at [placement] in group [groupId]. Within its own group the order is local, so nothing is written and the
+     * session keeps its manual flag; into another group it is [place] with the placement. An anchor that left the group meanwhile
+     * puts the session at the group's end. The value is false when the group or the session is gone.
+     */
+    suspend fun drop(ref: RowRef, groupId: String, placement: Placement): Boolean {
+        val item = layout()?.items?.firstOrNull { it.key == ref.layoutKey }
+        return when {
+            item == null -> false
+            item.group != groupId -> placeWritten(ref, groupId, placement)
+            else -> moveOrEnd(ref, groupId, placement, manual = item.manual)
+        }
+    }
+
+    /** Moves group [id] to [placement]; the value is false when the group or its anchor is gone. */
+    suspend fun dropGroup(id: String, placement: GroupPlacement): Boolean = layouts.moveGroup(id, placement) is LayoutEdit.Applied
+
+    private suspend fun placeWritten(ref: RowRef, groupId: String, placement: Placement): Boolean {
         val limit = maxBytes
         val group = layout()?.groups?.firstOrNull { it.id == groupId }
         val target = writeTarget(ref.route, ref.sessionId)
@@ -65,7 +87,13 @@ internal class GroupEditor(
         }
         val local = outcome == WriteOutcome.Unwritable
         if (local) layouts.markNotShared(listOf(ref.layoutKey))
-        return layouts.moveSession(ref.layoutKey, groupId, manual = local) is LayoutEdit.Applied
+        return moveOrEnd(ref, groupId, placement, manual = local)
+    }
+
+    private suspend fun moveOrEnd(ref: RowRef, groupId: String, placement: Placement, manual: Boolean): Boolean {
+        val first = layouts.moveSession(ref.layoutKey, groupId, manual, placement)
+        val anchorGone = first is LayoutEdit.Refused && first.error is MoveError.AnchorNotInGroup
+        return (if (anchorGone) layouts.moveSession(ref.layoutKey, groupId, manual) else first) is LayoutEdit.Applied
     }
 
     /** Appends an empty group; nothing is written, since membership is written when a session joins. */

@@ -38,9 +38,13 @@ import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.WorkItem
 import dev.pohunek.companion.core.domain.layout.checkGroupName
 import dev.pohunek.companion.core.domain.layout.groupFact
+import dev.pohunek.companion.core.domain.layout.groupStepDown
+import dev.pohunek.companion.core.domain.layout.groupStepUp
 import dev.pohunek.companion.core.domain.layout.hostOptions
 import dev.pohunek.companion.core.domain.layout.projectChips
 import dev.pohunek.companion.core.domain.layout.stateChips
+import dev.pohunek.companion.core.domain.layout.stepDown
+import dev.pohunek.companion.core.domain.layout.stepUp
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
@@ -237,6 +241,10 @@ class SessionListViewModel(
             is SessionListEvent.OpenMoveToGroup -> updateState { it.copy(actionSheet = null, movePicker = event.ref) }
             SessionListEvent.DismissMoveToGroup -> updateState { it.copy(movePicker = null) }
             is SessionListEvent.MoveToGroup -> moveToGroup(event.ref, event.groupId)
+            is SessionListEvent.DropSession -> editing { editor.drop(event.ref, event.groupId, event.placement) }
+            is SessionListEvent.DropGroup -> editing { editor.dropGroup(event.id, event.placement) }
+            is SessionListEvent.StepSession -> stepSession(event.ref, event.direction)
+            is SessionListEvent.StepGroup -> stepGroup(event.id, event.direction)
         }
     }
 
@@ -286,6 +294,25 @@ class SessionListViewModel(
         viewModelScope.launch {
             if (!editor.delete(id)) sendEffect(SessionListEffect.LayoutEditRefused)
         }
+    }
+
+    /** Runs a layout edit; the owner is told when it found its group or session gone. */
+    private fun editing(edit: suspend () -> Boolean) {
+        viewModelScope.launch { if (!edit()) sendEffect(SessionListEffect.LayoutEditRefused) }
+    }
+
+    private fun stepSession(ref: RowRef, direction: StepDirection) {
+        updateState { it.copy(actionSheet = null) }
+        val shown = currentState.shownGroups.keyed()
+        val step = if (direction == StepDirection.Up) stepUp(shown, ref.layoutKey) else stepDown(shown, ref.layoutKey)
+        if (step == null) sendEffect(SessionListEffect.LayoutEditRefused) else editing { editor.drop(ref, step.groupId, step.placement) }
+    }
+
+    private fun stepGroup(id: String, direction: StepDirection) {
+        updateState { it.copy(groupMenu = null) }
+        val ids = currentState.shownGroups.map { it.id }
+        val placement = if (direction == StepDirection.Up) groupStepUp(ids, id) else groupStepDown(ids, id)
+        if (placement == null) sendEffect(SessionListEffect.LayoutEditRefused) else editing { editor.dropGroup(id, placement) }
     }
 
     private fun moveToGroup(ref: RowRef, groupId: String) {

@@ -63,12 +63,13 @@ private fun LayoutView.labelRes(): Int = when (this) {
  * than Inbox has a menu; the sections of a derived view are [editable] only in My groups, so they have none.
  */
 @Composable
-internal fun GroupHeader(section: GroupSection<SessionRow>, editable: Boolean, onEvent: (SessionListEvent) -> Unit) {
+internal fun GroupHeader(section: GroupSection<SessionRow>, editable: Boolean, lifted: Boolean, onEvent: (SessionListEvent) -> Unit) {
     val spacing = PohunekTheme.spacing
     val state = stringResource(if (section.collapsed) R.string.group_collapsed else R.string.group_expanded)
     Row(
         Modifier
             .fillMaxWidth()
+            .draggedLook(lifted)
             .clickable(onClickLabel = stringResource(if (section.collapsed) R.string.group_expand else R.string.group_collapse)) {
                 onEvent(SessionListEvent.SetSectionCollapsed(section.id, !section.collapsed))
             }

@@ -57,6 +57,8 @@
     <string name="group_error_gone">The group or the session is gone</string>
     <string name="group_edit_refused">The group or the session is gone; nothing was changed</string>
     <string name="row_action_move">Move to group...</string>
+    <string name="action_move_up">Move up</string>
+    <string name="action_move_down">Move down</string>
     <string name="move_title">Move %1$s</string>
     <string name="move_new_group">New group...</string>
     <string name="layout_unreadable">The layout file cannot be read and is kept as it is (%1$s). Sessions are shown in Inbox and changes are not saved.</string>

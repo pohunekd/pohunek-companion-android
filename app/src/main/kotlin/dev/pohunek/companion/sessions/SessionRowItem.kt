@@ -34,10 +34,13 @@ import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** Tap opens the terminal; the trailing icon and a long press open the row's action sheet, which a row of a host that is not connected lacks. */
+/**
+ * Tap opens the terminal; the trailing icon opens the row's action sheet, which a row of a host that is not connected lacks, and so
+ * does a long press unless the row is [draggable], when the list's drag takes the long press.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> Unit) {
+internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> Unit, draggable: Boolean = false, lifted: Boolean = false) {
     val color = ownerStateColor(row.ownerState)
     val label = ownerStateLabel(row.ownerState)
     ListItem(
@@ -76,9 +79,10 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
         },
         modifier = Modifier
             .alpha(if (row.reachable) 1f else PohunekTheme.DIMMED_ALPHA)
+            .draggedLook(lifted)
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = if (row.hasActions) onMore else null,
+                onLongClick = if (row.hasActions && !draggable) onMore else null,
                 onLongClickLabel = stringResource(R.string.row_more_actions),
             )
             .semantics(mergeDescendants = true) {}

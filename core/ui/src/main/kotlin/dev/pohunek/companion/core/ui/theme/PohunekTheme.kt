@@ -93,6 +93,18 @@ object PohunekTheme {
 
     /** Opacity of content that may be out of date, such as session rows while the host is unreachable. */
     const val DIMMED_ALPHA: Float = 0.5f
+
+    /** Drag to reorder: height of the lifted card that follows the finger and thickness of the drop line. */
+    val dragGhostHeight: Dp = 48.dp
+    val dropLineThickness: Dp = 3.dp
+
+    /** Drag to reorder: how close to the top or bottom edge of the list the finger scrolls it, and the fastest scroll (per second) at the edge. */
+    val dragEdgeZone: Dp = 72.dp
+    val dragScrollSpeed: Dp = 600.dp
+
+    /** Opacity of the row or header being dragged, which stays in place until the drop, and of the tint over a header that receives a drop. */
+    const val DRAG_SOURCE_ALPHA: Float = 0.4f
+    const val DROP_HEADER_ALPHA: Float = 0.2f
 }
 
 /** Material 3 theme that follows the system light/dark setting unless [darkTheme] is given. */
