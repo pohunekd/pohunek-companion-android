@@ -1,88 +1,77 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Tunables of the app, read once at start-up into AppConfig. A value that is not valid shows a configuration
-  error screen that names the key. Every key is documented here, next to its value.
+  Tunables of the app. Each key is an integer with its default and a `<key>_help` string that says what it does; the Settings screen
+  shows both. A value must be a whole number from the key's minimum up to 2147483647 and some keys are ordered against another (the
+  rules are in core/domain config/Tunables.kt, which also lists the keys). A default that breaks a rule shows a configuration error
+  screen that names the key; the owner's overrides are stored apart from this file.
 -->
 <resources>
-    <!-- Milliseconds to wait for a TCP connection to a daemon to open: an integer greater than 0. -->
     <integer name="connect_timeout_ms">5000</integer>
-    <!-- Milliseconds to wait for the response to one request on an open connection: an integer greater than 0. -->
+    <string name="connect_timeout_ms_help">How long to wait for a TCP connection to a daemon to open.</string>
+
     <integer name="request_timeout_ms">5000</integer>
-    <!--
-      Milliseconds to wait for the response to a session stop or remove: an integer greater than 0. A removal ends the session's
-      processes and deletes its worktree checkout, which takes longer than a list request; the dialog reports a timeout as an unknown outcome.
-    -->
+    <string name="request_timeout_ms_help">How long to wait for the response to one request on an open connection.</string>
+
     <integer name="session_action_timeout_ms">60000</integer>
-    <!-- How many times a failed attach is tried from session.attach, the first try included: an integer of at least 1. -->
+    <string name="session_action_timeout_ms_help">How long to wait for the response to a session stop or remove. A removal ends the session\'s processes and deletes its worktree checkout, which takes longer than a list request; the dialog reports a timeout as an unknown outcome.</string>
+
     <integer name="attach_attempts">2</integer>
-    <!-- Milliseconds between two attach tries: an integer greater than 0. -->
+    <string name="attach_attempts_help">How many times a failed attach is tried, the first try included. Applies to the next terminal you open.</string>
+
     <integer name="attach_retry_delay_ms">500</integer>
-    <!-- Seconds between two periodic re-seeds (session.list) that correct what the event stream missed: an integer greater than 0. -->
+    <string name="attach_retry_delay_ms_help">How long to wait between two attach tries. Applies to the next terminal you open.</string>
+
     <integer name="reseed_interval_secs">60</integer>
-    <!--
-      Seconds between two rounds of host discovery: every connected configured host is asked for the daemons on its overlay (host.discover)
-      when it connects and then this often: an integer greater than 0.
-    -->
+    <string name="reseed_interval_secs_help">How often the session list is read again from each daemon to correct what the event stream missed.</string>
+
     <integer name="discover_interval_secs">60</integer>
-    <!--
-      Seconds the exchange of one host.discover may take once connected (connecting is bounded by connect_timeout_ms); the daemon probes its peers before it answers, which takes longer than a list
-      request: an integer greater than 0.
-    -->
+    <string name="discover_interval_secs_help">How often each connected host is asked for the daemons on its overlay (host discovery); it is also asked when it connects.</string>
+
     <integer name="discover_timeout_secs">20</integer>
-    <!-- Milliseconds before the first reconnect to a daemon; the wait doubles per consecutive failure: an integer greater than 0. -->
+    <string name="discover_timeout_secs_help">How long one host discovery exchange may take once connected. The daemon probes its peers before it answers, which takes longer than a list request.</string>
+
     <integer name="reconnect_initial_ms">500</integer>
-    <!--
-      Longest wait in milliseconds between two reconnects, and how long a connection must hold before the failure count resets:
-      an integer of at least reconnect_initial_ms.
-    -->
+    <string name="reconnect_initial_ms_help">How long to wait before the first reconnect to a daemon; the wait doubles per consecutive failure. It may not exceed the longest wait.</string>
+
     <integer name="reconnect_max_ms">30000</integer>
-    <!-- Milliseconds between two daemon.health probes that detect a silently dead connection: an integer greater than 0. -->
+    <string name="reconnect_max_ms_help">The longest wait between two reconnects, and how long a connection must hold before the failure count resets. It may not be below the first wait.</string>
+
     <integer name="liveness_interval_ms">10000</integer>
-    <!--
-      Milliseconds one probe, connecting included, may take before the connection is declared dead and re-established: an integer
-      greater than 0. A dead connection is noticed within liveness_interval_ms + liveness_timeout_ms.
-    -->
+    <string name="liveness_interval_ms_help">How often a health probe detects a silently dead connection to a daemon. A dead connection is noticed within this plus the probe timeout.</string>
+
     <integer name="liveness_timeout_ms">5000</integer>
-    <!--
-      Milliseconds between two liveness checks of an attached terminal (a daemon.health round trip on the attach control connection): an
-      integer greater than 0. A connection that died without a FIN or RST is reported at most attach_liveness_interval_ms + attach_liveness_timeout_ms
-      after it died.
-    -->
+    <string name="liveness_timeout_ms_help">How long one health probe, connecting included, may take before the connection is declared dead and re-established.</string>
+
     <integer name="attach_liveness_interval_ms">5000</integer>
-    <!-- Milliseconds a liveness check may take before the attach fails with a liveness error: an integer greater than 0. -->
+    <string name="attach_liveness_interval_ms_help">How often an attached terminal checks that its connection is alive. Applies to the next terminal you open.</string>
+
     <integer name="attach_liveness_timeout_ms">3000</integer>
-    <!-- Milliseconds before the first re-attach of an open terminal whose attachment broke; the wait doubles per consecutive failure: an integer greater than 0. -->
+    <string name="attach_liveness_timeout_ms_help">How long a liveness check of an attached terminal may take before the attach fails. Applies to the next terminal you open.</string>
+
     <integer name="reattach_initial_ms">500</integer>
-    <!--
-      Longest wait in milliseconds between two re-attaches, and how long an attach must hold before the failure count resets:
-      an integer of at least reattach_initial_ms.
-    -->
+    <string name="reattach_initial_ms_help">How long to wait before an open terminal whose attachment broke attaches again; the wait doubles per consecutive failure. It may not exceed the longest wait. Applies to the next terminal you open.</string>
+
     <integer name="reattach_max_ms">10000</integer>
-    <!--
-      Milliseconds an open terminal may stay without an attachment before it stops retrying and shows a final error (a session the
-      daemon reports ended or removed stops it at once): an integer greater than 0.
-    -->
+    <string name="reattach_max_ms_help">The longest wait between two re-attaches, and how long an attach must hold before the failure count resets. It may not be below the first wait. Applies to the next terminal you open.</string>
+
     <integer name="reattach_give_up_ms">600000</integer>
-    <!--
-      Seconds a session must stay idle, with no running subagent or background task, before it is shown as Idle instead of Working:
-      an integer greater than 0.
-    -->
+    <string name="reattach_give_up_ms_help">How long an open terminal may stay without an attachment before it stops retrying and shows a final error. A session the daemon reports ended or removed stops it at once. Applies to the next terminal you open.</string>
+
     <integer name="idle_threshold_secs">300</integer>
-    <!-- Longest badge text (Work link or role) a session row shows before it is cut with an ellipsis: an integer greater than 0. -->
+    <string name="idle_threshold_secs_help">How long a session must stay idle, with no running subagent or background task, before it is shown as Idle instead of Working.</string>
+
     <integer name="row_badge_max_chars">32</integer>
-    <!--
-      Longest value the session details screen shows before its middle is replaced by an ellipsis; copying always takes the full value:
-      an integer greater than 0.
-    -->
+    <string name="row_badge_max_chars_help">The longest badge text (Work link or role) a session row shows before it is cut with an ellipsis.</string>
+
     <integer name="detail_value_max_chars">48</integer>
-    <!--
-      Records requested per notification.list page when the attention notifications are seeded; the page is halved while the daemon
-      reports it as too large, and a page of one that is still too large fails the seed: an integer of at least 1.
-    -->
+    <string name="detail_value_max_chars_help">The longest value the session details screen shows before its middle is replaced by an ellipsis. Copying always takes the full value.</string>
+
     <integer name="notification_page_size">200</integer>
-    <!--
-      Size limit in bytes of one log file (files/logs/app.log and the one rotated file app.log.1, so the log never takes more than twice
-      this): an integer of at least 4096.
-    -->
+    <string name="notification_page_size_help">How many records are requested per page when the attention notifications are read. The page is halved while the daemon reports it as too large, and a page of one that is still too large fails the read.</string>
+
     <integer name="log_max_bytes">1048576</integer>
+    <string name="log_max_bytes_help">The size limit of one log file. The log keeps the active file and one rotated file, so it never takes more than twice this.</string>
+
+    <!-- The Pohunek release whose protocol the app is written for (docs/architecture.md); shown on the About screen. -->
+    <string name="pohunek_protocol_tag" translatable="false">v0.35.2</string>
 </resources>

@@ -67,8 +67,8 @@ private data class Answer(val records: List<HostRecord>?, val failure: String?)
  * omits a peer marks it as left. Each question has a connection of its own, so discovery never delays a live loop.
  */
 class HostDiscovery(
-    private val client: ClientConfig,
-    private val config: DiscoveryConfig,
+    private val client: () -> ClientConfig,
+    private val config: () -> DiscoveryConfig,
     private val ioDispatcher: CoroutineDispatcher,
     private val log: AppLog,
 ) {
@@ -86,7 +86,7 @@ class HostDiscovery(
         connected.distinctUntilChanged().collectLatest { routes ->
             while (true) {
                 ask(routes)
-                delay(config.interval)
+                delay(config().interval)
             }
         }
         error("the connected hosts flow never completes")
@@ -109,7 +109,8 @@ class HostDiscovery(
     }
 
     private suspend fun askOne(route: HostRoute): Result = try {
-        val records = PohunekConnection.open(route, client, ioDispatcher).use { it.discoverHosts(config.timeout) }
+        val round = config()
+        val records = PohunekConnection.open(route, client(), ioDispatcher).use { it.discoverHosts(round.timeout) }
         loggedCauses.remove(route)
         Result.Listed(records)
     } catch (e: ProtocolClientException) {

@@ -16,12 +16,12 @@ import dev.pohunek.companion.protocol.SessionRemoveResult
 import kotlinx.coroutines.CoroutineDispatcher
 
 /**
- * Sends one stop or remove to a daemon over a connection of its own, whose request timeout is [config]'s: a removal waits for the
+ * Sends one stop or remove to a daemon over a connection of its own, whose request timeout is that of [config]'s current value: a removal waits for the
  * daemon to end processes and delete a checkout, which takes far longer than a list request. Every failure is returned as an
  * outcome; only cancellation is rethrown.
  */
 class SessionActionRunner(
-    private val config: ClientConfig,
+    private val config: () -> ClientConfig,
     private val ioDispatcher: CoroutineDispatcher,
     private val log: AppLog,
 ) {
@@ -29,7 +29,7 @@ class SessionActionRunner(
         val fields = listOf(hostKeyField(route), LogField.sessionId(sessionId), LogField.method(action.method))
         log.info("session.action", fields)
         return try {
-            PohunekConnection.open(route, config, ioDispatcher).use { connection ->
+            PohunekConnection.open(route, config(), ioDispatcher).use { connection ->
                 when (action) {
                     SessionAction.Stop -> {
                         connection.stop(sessionId)

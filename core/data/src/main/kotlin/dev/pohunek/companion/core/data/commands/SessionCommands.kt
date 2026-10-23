@@ -39,7 +39,7 @@ sealed interface ResumeResult {
  * of the host. Nothing is applied locally: the change reaches the app through the daemon's session event.
  */
 class SessionCommands(
-    private val client: ClientConfig,
+    private val client: () -> ClientConfig,
     private val ioDispatcher: CoroutineDispatcher,
     private val log: AppLog,
 ) {
@@ -69,7 +69,7 @@ class SessionCommands(
     private suspend fun <T> run(route: HostRoute, sessionId: String, method: String, command: suspend (PohunekConnection) -> T): Attempt<T> {
         val fields = listOf(hostKeyField(route), LogField.sessionId(sessionId), LogField.method(method))
         return try {
-            val value = PohunekConnection.open(route, client, ioDispatcher).use { command(it) }
+            val value = PohunekConnection.open(route, client(), ioDispatcher).use { command(it) }
             log.info("session.command", fields)
             Attempt.Ok(value)
         } catch (e: ProtocolClientException) {

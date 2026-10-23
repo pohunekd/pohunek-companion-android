@@ -6,8 +6,8 @@ import android.util.AtomicFile
 import android.util.Log
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
-import dev.pohunek.companion.config.AppConfig
-import dev.pohunek.companion.config.AppConfigResult
+import dev.pohunek.companion.config.RuntimeConfig
+import dev.pohunek.companion.config.SETTINGS_FILE
 import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.discovery.HostDiscovery
@@ -21,6 +21,7 @@ import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.log.JsonLineLog
 import dev.pohunek.companion.core.data.log.LogMirror
 import dev.pohunek.companion.core.data.log.RotatingLogFile
+import dev.pohunek.companion.core.data.settings.SettingsStore
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogLevel
 import kotlinx.coroutines.CoroutineDispatcher
@@ -37,7 +38,7 @@ val ioDispatcher = named("io")
 /** Qualifier of the dispatcher that runs UI-thread work. */
 val mainDispatcher = named("main")
 
-/** App data lives in this file of the app's private files directory. */
+/** The hosts live in this file of the app's private files directory. */
 private const val HOSTS_FILE = "hosts.json"
 private const val LAYOUT_FILE = "layout.json"
 
@@ -55,12 +56,15 @@ val appModule = module {
     single { HostsRepository(get(), get()) }
     single { LayoutStore(AtomicFile(File(get<Context>().filesDir, LAYOUT_FILE)), get(ioDispatcher)) }
     single { LayoutRepository(get(), get()) }
+    single { SettingsStore(AtomicFile(File(get<Context>().filesDir, SETTINGS_FILE)), get(ioDispatcher)) }
+    // One source for the tunables: consumers read the value in force whenever they use it.
+    single { RuntimeConfig(get<Context>().resources, get()) }
     single<AppLog> {
         val context = get<Context>()
-        val config = validConfig(context)
+        val runtime = get<RuntimeConfig>()
         val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         JsonLineLog(
-            RotatingLogFile(File(context.filesDir, LOG_DIRECTORY), LOG_FILE, config.logMaxBytes),
+            RotatingLogFile(File(context.filesDir, LOG_DIRECTORY), LOG_FILE) { runtime.current().logMaxBytes },
             get(),
             if (debuggable) LogMirror { level, _, line -> Log.println(level.priority(), LOGCAT_TAG, line) } else null,
         ) { failure -> Log.w(LOGCAT_TAG, "cannot write the log: ${failure.message}") }
@@ -69,21 +73,24 @@ val appModule = module {
     single<Lifecycle> { ProcessLifecycleOwner.get().lifecycle }
     // One registry for the process: the session list and the hosts screen read the same loops.
     single {
-        val config = validConfig(get())
-        HostRegistry(HostLiveFactory(config.client, config.live, get(ioDispatcher), TimeSource.Monotonic, get()))
+        val runtime = get<RuntimeConfig>()
+        HostRegistry(HostLiveFactory({ runtime.current().client }, { runtime.current().live }, get(ioDispatcher), TimeSource.Monotonic, get()))
     }
     // One discovery for the process: the hosts screen shows what the session list's foreground period found.
     single {
-        val config = validConfig(get())
-        HostDiscovery(config.client, config.discovery, get(ioDispatcher), get())
+        val runtime = get<RuntimeConfig>()
+        HostDiscovery({ runtime.current().client }, { runtime.current().discovery }, get(ioDispatcher), get())
     }
     single { KnownHosts(get(), get(), get()) }
-    single { SessionCommands(validConfig(get()).client, get(ioDispatcher), get()) }
-    single { SessionActionRunner(validConfig(get()).actionClient, get(ioDispatcher), get()) }
+    single {
+        val runtime = get<RuntimeConfig>()
+        SessionCommands({ runtime.current().client }, get(ioDispatcher), get())
+    }
+    single {
+        val runtime = get<RuntimeConfig>()
+        SessionActionRunner({ runtime.current().actionClient }, get(ioDispatcher), get())
+    }
 }
-
-private fun validConfig(context: Context): AppConfig = (AppConfig.load(context.resources) as? AppConfigResult.Valid)?.config
-    ?: error("this is requested only after the configuration was accepted")
 
 private fun LogLevel.priority(): Int = when (this) {
     LogLevel.Debug -> Log.DEBUG

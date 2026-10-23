@@ -39,6 +39,9 @@ class LogField private constructor(val name: String, val value: LogValue) {
         /** The state before the change an event records, next to [state]. */
         fun previousState(name: String): LogField = text("previous_state", name)
 
+        /** The key of a tunable, such as `idle_threshold_secs`; the keys are a closed set fixed in code. */
+        fun tunable(key: String): LogField = text("tunable", key)
+
         /** A counter, size or duration; [name] is a fixed identifier chosen in code. */
         fun number(name: String, value: Long): LogField = LogField(name, LogValue.Number(value))
 
