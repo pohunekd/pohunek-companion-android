@@ -7,7 +7,7 @@ import dev.pohunek.companion.protocol.RuntimeState
 import dev.pohunek.companion.protocol.SessionInfo
 import java.time.OffsetDateTime
 
-/** The sessions of one host split for display: those that need the owner in wait order, and the rest in their given order. */
+/** The sessions of one host split for display: those that need the owner in wait order, and all the others, in the order given. */
 data class NeedsYouListing(val needsYou: List<OwnerSession>, val others: List<OwnerSession>)
 
 /**
@@ -29,8 +29,8 @@ internal val needsOwnerOrder: Comparator<OwnerSession> =
         .thenBy { sessionDisplayName(it.info) }
         .thenBy { it.info.id }
 
-/** The session's name, or its id when it has none. */
-fun sessionDisplayName(info: SessionInfo): String = info.name?.trim()?.ifEmpty { null } ?: info.id
+/** The session's sanitized name, or its id when it has none. */
+fun sessionDisplayName(info: SessionInfo): String = info.name?.let(::sanitizeText)?.ifEmpty { null } ?: info.id
 
 /**
  * `<state>: <loss_reason>` for a `conflict` or `incompatible` runtime, just the state without a reason, and null for any other runtime.
@@ -48,15 +48,18 @@ fun runtimeDetail(info: SessionInfo): String? {
 }
 
 /** Collapses whitespace runs to one space and drops control and format characters, so metadata cannot reshape the row it is shown in. */
-internal fun sanitizeText(value: String): String {
+fun sanitizeText(value: String): String {
     val out = StringBuilder(value.length)
     value.forEach { c ->
         when {
-            c.isWhitespace() -> if (out.isNotEmpty() && out.last() != ' ') out.append(' ')
+            c.isWhitespace() || c == NEXT_LINE -> if (out.isNotEmpty() && out.last() != ' ') out.append(' ')
             !c.isISOControl() && !isFormatChar(c) -> out.append(c)
         }
     }
     return out.trimEnd().toString()
 }
+
+/** Rust's `char::is_whitespace`, which the desktop sanitizer uses, counts it; Kotlin's does not. */
+private const val NEXT_LINE = '\u0085'
 
 private fun isFormatChar(c: Char): Boolean = c == '؜' || c in '​'..'‏' || c in '‪'..'‮' || c in '⁠'..'⁩' || c == '﻿'

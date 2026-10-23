@@ -13,6 +13,7 @@ import dev.pohunek.companion.core.data.live.LiveUpdate
 import dev.pohunek.companion.core.domain.sessions.OwnerSession
 import dev.pohunek.companion.core.domain.sessions.partitionNeedsYou
 import dev.pohunek.companion.core.domain.sessions.runtimeDetail
+import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.core.domain.sessions.sessionDisplayName
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.protocol.HostRoute
@@ -157,7 +158,7 @@ class SessionListViewModel(
 private fun OwnerSession.toRow() = SessionRow(
     id = info.id,
     title = sessionDisplayName(info),
-    agent = info.agent,
+    agent = sanitizeText(info.agent),
     ownerState = ownerState,
     runtimeDetail = runtimeDetail(info),
     attachRefusal = AttachRefusal.forSession(info.external, info.state),
@@ -171,8 +172,10 @@ private fun SessionListState.relist(): SessionListState {
 }
 
 private fun SessionListState.apply(update: LiveUpdate): SessionListState = when (update) {
+    // Needs you stays empty until the first list of this connection arrives, so the list from before the outage is not counted.
     LiveUpdate.Connected -> copy(connection = ListConnection.Connected, refreshing = false)
-    is LiveUpdate.Sessions -> copy(sessions = update.sessions)
-    LiveUpdate.Reseeded -> copy(refreshing = false)
-    is LiveUpdate.Reconnecting -> copy(connection = ListConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false)
-}.relist()
+    is LiveUpdate.Sessions -> copy(sessions = update.sessions).relist()
+    LiveUpdate.Reseeded -> copy(refreshing = false).relist()
+    is LiveUpdate.Reconnecting ->
+        copy(connection = ListConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false).relist()
+}
