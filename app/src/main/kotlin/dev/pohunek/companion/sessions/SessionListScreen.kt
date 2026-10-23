@@ -89,7 +89,7 @@ private fun SessionRows(state: SessionListState, onRefresh: () -> Unit, modifier
                     Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_loading), "SessionList.loading") }
                 }
                 rows.isEmpty() -> item { Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_empty), "SessionList.empty") } }
-                else -> items(rows, key = { it.id }) { row ->
+                else -> items(rows) { row ->
                     SessionRowItem(row)
                     HorizontalDivider()
                 }

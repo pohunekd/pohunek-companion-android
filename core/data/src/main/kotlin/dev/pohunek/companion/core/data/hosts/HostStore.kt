@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import java.io.File
 import java.io.IOException
 
 /** A daemon the owner added by address; [label] is an optional display name. */
@@ -45,7 +46,8 @@ class HostStore(private val file: AtomicFile, private val ioDispatcher: Coroutin
     }
 
     private fun read(): HostsLoad {
-        if (!file.baseFile.exists()) return HostsLoad.Loaded(null)
+        // AtomicFile.readFully falls back to the backup left by an interrupted write.
+        if (!file.baseFile.exists() && !File(file.baseFile.path + BACKUP_SUFFIX).exists()) return HostsLoad.Loaded(null)
         return try {
             decode(JSON.decodeFromString(HostsFile.serializer(), file.readFully().decodeToString()))
         } catch (e: IOException) {
@@ -81,6 +83,9 @@ class HostStore(private val file: AtomicFile, private val ioDispatcher: Coroutin
     private companion object {
         /** Format of the hosts file, not a tunable. */
         const val FORMAT_VERSION = 1
+
+        /** Suffix of the backup file android.util.AtomicFile keeps while writing. */
+        const val BACKUP_SUFFIX = ".bak"
 
         val JSON = Json { explicitNulls = false }
     }
