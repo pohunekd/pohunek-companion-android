@@ -34,7 +34,8 @@ fun AppNavHost(
                 },
             )
             SessionListScreen(viewModel, onOpenTerminal = { route, sessionId ->
-                navController.navigate(TerminalDestination(route.toString(), sessionId))
+                // Single-top: a double tap on a row must not stack two terminals.
+                navController.navigate(TerminalDestination(route.toString(), sessionId)) { launchSingleTop = true }
             })
         }
         composable<TerminalDestination> { entry ->
