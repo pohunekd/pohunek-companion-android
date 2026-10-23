@@ -1,8 +1,12 @@
 package dev.pohunek.companion.core.data.layout
 
 import dev.pohunek.companion.core.data.log.hostKeyField
+import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
 import dev.pohunek.companion.core.domain.layout.Edit
+import dev.pohunek.companion.core.domain.layout.GroupError
 import dev.pohunek.companion.core.domain.layout.Layout
+import dev.pohunek.companion.core.domain.layout.MoveError
+import dev.pohunek.companion.core.domain.layout.Placement
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
@@ -33,7 +37,20 @@ sealed interface LayoutState {
     data class Available(val layout: Layout, val issue: LayoutIssue?) : LayoutState
 }
 
+/** What an owner edit of the layout came to. */
+sealed interface LayoutEdit<out V, out E> {
+    /** The layout in use holds the change; [LayoutState.Available.issue] says whether it could be saved. */
+    data class Applied<out V>(val value: V) : LayoutEdit<V, Nothing>
+
+    /** The layout was left as it was. */
+    data class Refused<out E>(val error: E) : LayoutEdit<Nothing, E>
+
+    /** The layout file has not been read yet, so there is nothing to edit. */
+    data object Unavailable : LayoutEdit<Nothing, Nothing>
+}
+
 /** The one owner of the layout: edits are applied to the layout in use, saved when the content changed, and then published in [state]. */
+@Suppress("TooManyFunctions") // One owner of the layout: each owner edit is one entry point that shares the lock and the save.
 class LayoutRepository(private val store: LayoutStore, private val log: AppLog) {
     private val mutex = Mutex()
     private val current = MutableStateFlow<LayoutState>(LayoutState.Loading)
@@ -86,6 +103,55 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
                     if (edit.value) log.info("layout.group_collapsed", listOf(LogField.groupId(id), LogField.number("collapsed", if (collapsed) 1 else 0)))
                     edit.layout
                 }
+            }
+        }
+    }
+
+    /** Appends a group named [name] to My groups; the value is its id. */
+    suspend fun createGroup(name: String): LayoutEdit<String, GroupError> = edit(
+        { it.createGroup(name) },
+        { id -> log.info("layout.group_created", listOf(LogField.groupId(id))) },
+    )
+
+    /** Appends a group and moves [key] to its end as one change, so a refusal of either leaves the layout as it was. The value is the group's id. */
+    suspend fun createGroupAndMove(name: String, key: SessionKey): LayoutEdit<String, CreateAndMoveError> = edit(
+        { it.createGroupAndMove(name, key) },
+        { id ->
+            log.info("layout.group_created", listOf(LogField.groupId(id)))
+            log.info("layout.session_moved", listOf(LogField.groupId(id), LogField.sessionId(key.sessionId)))
+        },
+    )
+
+    /** Renames a group; the value is whether the name changed. */
+    suspend fun renameGroup(id: String, name: String): LayoutEdit<Boolean, GroupError> = edit(
+        { it.renameGroup(id, name) },
+        { changed -> if (changed) log.info("layout.group_renamed", listOf(LogField.groupId(id))) },
+    )
+
+    /** Deletes a group; its sessions go to the end of Inbox in their order. The value is the sessions that moved. */
+    suspend fun deleteGroup(id: String): LayoutEdit<List<SessionKey>, GroupError> = edit(
+        { it.deleteGroup(id) },
+        { moved -> log.info("layout.group_deleted", listOf(LogField.groupId(id), LogField.number("sessions", moved.size.toLong()))) },
+    )
+
+    /** Moves [key] to the end of [group]; the value is whether anything changed. */
+    suspend fun moveSession(key: SessionKey, group: String): LayoutEdit<Boolean, MoveError> = edit(
+        { it.moveSession(key, group, Placement.End) },
+        { changed -> if (changed) log.info("layout.session_moved", listOf(LogField.groupId(group), LogField.sessionId(key.sessionId))) },
+    )
+
+    /** Applies one owner edit under the lock; [logged] runs once the layout in use holds a change. */
+    private suspend fun <V, E> edit(apply: (Layout) -> Edit<V, E>, logged: (V) -> Unit): LayoutEdit<V, E> = mutex.withLock {
+        val available = current.value as? LayoutState.Available ?: return LayoutEdit.Unavailable
+        when (val result = apply(available.layout)) {
+            is Edit.Refused -> LayoutEdit.Refused(result.error)
+            is Edit.Done -> {
+                if (result.layout != available.layout) {
+                    current.value = available.copy(layout = result.layout)
+                    persist(result.layout)
+                }
+                logged(result.value)
+                LayoutEdit.Applied(result.value)
             }
         }
     }

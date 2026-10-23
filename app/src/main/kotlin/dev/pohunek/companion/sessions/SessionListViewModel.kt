@@ -9,6 +9,7 @@ import dev.pohunek.companion.core.data.commands.ResumeResult
 import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.hosts.HostsState
 import dev.pohunek.companion.core.data.hosts.KnownHosts
+import dev.pohunek.companion.core.data.layout.LayoutEdit
 import dev.pohunek.companion.core.data.layout.LayoutRepository
 import dev.pohunek.companion.core.data.layout.LayoutState
 import dev.pohunek.companion.core.data.live.HostConnection
@@ -17,6 +18,8 @@ import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
+import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
+import dev.pohunek.companion.core.domain.layout.GroupError
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
@@ -130,6 +133,62 @@ class SessionListViewModel(
     private fun onLayoutEvent(event: SessionListEvent.LayoutEvent) {
         when (event) {
             is SessionListEvent.SetGroupCollapsed -> viewModelScope.launch { layouts.setGroupCollapsed(event.id, event.collapsed) }
+            is SessionListEvent.GroupEvent -> onGroupEvent(event)
+            is SessionListEvent.OpenMoveToGroup -> updateState { it.copy(actionSheet = null, movePicker = event.ref) }
+            SessionListEvent.DismissMoveToGroup -> updateState { it.copy(movePicker = null) }
+            is SessionListEvent.MoveToGroup -> moveToGroup(event.ref, event.groupId)
+        }
+    }
+
+    private fun onGroupEvent(event: SessionListEvent.GroupEvent) {
+        when (event) {
+            is SessionListEvent.OpenGroupMenu -> updateState { it.copy(groupMenu = event.id) }
+            SessionListEvent.DismissGroupMenu -> updateState { it.copy(groupMenu = null) }
+            SessionListEvent.OpenNewGroup -> openGroupDraft(GroupDraftPurpose.New, "")
+            is SessionListEvent.OpenRenameGroup -> currentState.groups.firstOrNull { it.id == event.groupId }
+                ?.let { openGroupDraft(GroupDraftPurpose.Rename(it.id), it.name) }
+            is SessionListEvent.OpenNewGroupFor -> openGroupDraft(GroupDraftPurpose.NewAndMove(event.ref), "")
+            is SessionListEvent.EditGroupName -> updateState { state ->
+                state.copy(groupDraft = state.groupDraft?.let { if (it.busy) it else it.copy(text = event.text, error = null) })
+            }
+            SessionListEvent.SubmitGroupName -> submitGroupName()
+            SessionListEvent.DismissGroupName -> updateState { state -> state.copy(groupDraft = state.groupDraft?.takeIf { it.busy }) }
+            is SessionListEvent.DeleteGroup -> deleteGroup(event.id)
+        }
+    }
+
+    private fun openGroupDraft(purpose: GroupDraftPurpose, text: String) {
+        updateState { it.copy(groupMenu = null, actionSheet = null, movePicker = null, groupDraft = GroupDraft(purpose, text)) }
+    }
+
+    /** The dialog stays open on a refusal, with the reason in place; it cannot be dismissed while the edit runs. */
+    private fun submitGroupName() {
+        val draft = currentState.groupDraft?.takeUnless { it.busy } ?: return
+        updateState { it.copy(groupDraft = draft.copy(busy = true, error = null)) }
+        viewModelScope.launch {
+            val error = when (val purpose = draft.purpose) {
+                GroupDraftPurpose.New -> layouts.createGroup(draft.text).refusal(GroupError::toNameError)
+                is GroupDraftPurpose.Rename -> layouts.renameGroup(purpose.groupId, draft.text).refusal(GroupError::toNameError)
+                is GroupDraftPurpose.NewAndMove ->
+                    layouts.createGroupAndMove(draft.text, purpose.ref.layoutKey).refusal(CreateAndMoveError::toNameError)
+            }
+            updateState { state ->
+                state.copy(groupDraft = if (error == null) null else state.groupDraft?.copy(busy = false, error = error))
+            }
+        }
+    }
+
+    private fun deleteGroup(id: String) {
+        updateState { it.copy(groupMenu = null) }
+        viewModelScope.launch {
+            if (layouts.deleteGroup(id) !is LayoutEdit.Applied) sendEffect(SessionListEffect.LayoutEditRefused)
+        }
+    }
+
+    private fun moveToGroup(ref: RowRef, groupId: String) {
+        updateState { it.copy(movePicker = null) }
+        viewModelScope.launch {
+            if (layouts.moveSession(ref.layoutKey, groupId) !is LayoutEdit.Applied) sendEffect(SessionListEffect.LayoutEditRefused)
         }
     }
 
@@ -333,6 +392,10 @@ private fun listed(
     } == true
     return state.copy(
         actionSheet = state.actionSheet.takeIf { sheetOpen },
+        movePicker = state.movePicker.takeIf { picker ->
+            (listing.needsYou + listing.others).any { it.reachable && RowRef(it.route, it.session.info.id) == picker }
+        },
+        groupMenu = state.groupMenu.takeIf { menu -> available?.layout?.groups?.any { it.id == menu } == true },
         rename = state.rename.stillListed(listing.needsYou + listing.others),
         multipleHosts = hostList.size > 1,
         hostsRead = configured !is HostsState.Loading,
