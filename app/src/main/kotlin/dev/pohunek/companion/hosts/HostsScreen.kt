@@ -107,7 +107,7 @@ private fun HostList(state: HostsScreenState, onEvent: (HostsEvent) -> Unit, mod
 
 /** The discovery errors of the configured hosts, then the hosts discovery found; none of these rows is tappable. */
 private fun LazyListScope.discoveryItems(state: HostsScreenState) {
-    items(state.discoveryErrors, key = { "error:${it.hostLabel}" }) { error ->
+    items(state.discoveryErrors, key = { "error:${it.route}" }) { error ->
         Text(
             stringResource(R.string.hosts_discovery_failed, error.hostLabel, error.detail),
             color = MaterialTheme.colorScheme.error,
@@ -135,7 +135,7 @@ private fun LazyListScope.discoveryItems(state: HostsScreenState) {
         )
         HorizontalDivider()
     }
-    items(state.incompatible, key = { "incompatible:${it.label}:${it.protocolVersion}" }) { peer ->
+    items(state.incompatible, key = { "incompatible:${it.key}" }) { peer ->
         ListItem(
             headlineContent = { Text(peer.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             supportingContent = {

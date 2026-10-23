@@ -37,7 +37,7 @@ import kotlin.time.Duration
 class DiscoveryConfig(
     /** Interval between two rounds of `host.discover` on every connected configured host. */
     val interval: Duration,
-    /** Time one `host.discover` may take, connecting included; the daemon probes its peers before it answers. */
+    /** Time the exchange of one `host.discover` may take once connected; the daemon probes its peers before it answers. */
     val timeout: Duration,
 ) {
     init {
@@ -125,10 +125,15 @@ class HostDiscovery(
         val plan = planDiscovery(records, hosts)
         val failures = asked.mapNotNull { route -> found.getValue(route).failure?.let { DiscoveryFailure(route, it) } }
         val previous = current.value
-        // Until one question has been answered the earlier peers stay as they are.
+        // Until one question has been answered the earlier peers stay as they are; with no configured host nothing is followed.
         val answered = asked.any { found.getValue(it).records != null }
-        val peers = if (answered) trackPeers(previous.peers, plan, hosts) else previous.peers
-        val next = DiscoveryState(peers, if (answered) plan.incompatible else previous.incompatible, failures)
+        val peers = when {
+            hosts.isEmpty() -> emptyList()
+            answered -> trackPeers(previous.peers, plan, hosts)
+            else -> previous.peers
+        }
+        val incompatible = if (hosts.isEmpty()) emptyList() else if (answered) plan.incompatible else previous.incompatible
+        val next = DiscoveryState(peers, incompatible, failures)
         current.value = next
         if (next.peers.map { it.host.key to it.present } != previous.peers.map { it.host.key to it.present }) {
             log.info(

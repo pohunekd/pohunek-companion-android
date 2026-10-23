@@ -52,13 +52,13 @@ private data class HostRecordWire(
     @SerialName("daemon_protocol_version") val daemonProtocolVersion: Int? = null,
 )
 
-/** Decodes a record; a port outside 1 to 65535 or a missing field of a known classification is a decode error, never a default. */
+/** Decodes a record; a port outside 0 to 65535 or a missing field of a known classification is a decode error, never a default. */
 object HostRecordSerializer : KSerializer<HostRecord> {
     override val descriptor: SerialDescriptor = SerialDescriptor("dev.pohunek.companion.protocol.HostRecord", HostRecordWire.serializer().descriptor)
 
     override fun deserialize(decoder: Decoder): HostRecord {
         val wire = decoder.decodeSerializableValue(HostRecordWire.serializer())
-        if (wire.port !in 1..MAX_PORT) throw SerializationException("port ${wire.port} is outside 1 to 65535")
+        if (wire.port !in 0..MAX_PORT) throw SerializationException("port ${wire.port} is outside 0 to 65535")
         val hostClass = when (wire.classification) {
             "reachable_daemon" -> HostClass.ReachableDaemon(wire.daemonVersion ?: throw SerializationException("reachable_daemon without daemon_version"))
             "version_mismatch" -> HostClass.VersionMismatch(

@@ -33,8 +33,8 @@ class DiscoveryTest {
     fun `a peer without an overlay, an identity or a usable address is not followed`() {
         val noIdentity = record("a").copy(peerId = null, fqdn = null)
         val noOverlay = record("b").copy(overlay = "")
-        val addresses = listOf(null, "", "air.example.net", "100.92.30", "100.92.30.256", "100.92.030.4", "fe80::1%eth0", "not:ip", "1.2.3.4:80")
-        val records = listOf(noIdentity, noOverlay) + addresses.map { record("c").copy(address = it) } + record("d", port = 18722)
+        val addresses = listOf(null, "", "air.example.net", "100.92.30", "100.92.30.256", "100.92.030.4", "fe80::1%eth0", "not:ip", "1.2.3.4:80", ".:", ".1:2")
+        val records = listOf(noIdentity, noOverlay) + addresses.map { record("c").copy(address = it) } + record("z", port = 0) + record("d", port = 18722)
         assertEquals(listOf("netbird:key-d"), planDiscovery(records, emptyList()).connect.map { it.key })
     }
 

@@ -11,10 +11,10 @@ data class HostItem(val host: ConfiguredHost, val label: String, val connection:
 data class DiscoveredItem(val label: String, val route: String, val present: Boolean, val connection: HostConnection?)
 
 /** A peer whose daemon speaks a protocol version this app cannot use. */
-data class IncompatibleItem(val label: String, val protocolVersion: Int)
+data class IncompatibleItem(val key: String, val label: String, val protocolVersion: Int)
 
 /** Asking the configured host [hostLabel] for its peers failed with [detail]. */
-data class DiscoveryErrorItem(val hostLabel: String, val detail: String)
+data class DiscoveryErrorItem(val route: String, val hostLabel: String, val detail: String)
 
 /** The host form; [editing] is the route of the host being changed, null when adding. [error] is why the last save was refused. */
 data class HostForm(

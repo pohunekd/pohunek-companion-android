@@ -25,7 +25,7 @@
     -->
     <integer name="discover_interval_secs">60</integer>
     <!--
-      Seconds one host.discover may take, connecting included; the daemon probes its peers before it answers, which takes longer than a list
+      Seconds the exchange of one host.discover may take once connected (connecting is bounded by connect_timeout_ms); the daemon probes its peers before it answers, which takes longer than a list
       request: an integer greater than 0.
     -->
     <integer name="discover_timeout_secs">20</integer>

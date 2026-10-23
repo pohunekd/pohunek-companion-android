@@ -41,7 +41,7 @@ class HostDiscoverWireTest {
     @Test
     fun `a classification without its detail or a port out of range is malformed`() {
         val body = """{"name":"a","port":%d,"overlay":"netbird","classification":"%s"}"""
-        for ((port, classification) in listOf(18722 to "reachable_daemon", 18722 to "version_mismatch", 0 to "candidate", 65536 to "candidate")) {
+        for ((port, classification) in listOf(18722 to "reachable_daemon", 18722 to "version_mismatch", -1 to "candidate", 65536 to "candidate")) {
             val line = """{"v":4,"id":"req-1","ok":[${body.format(port, classification)}]}"""
             assertThrows(ProtocolClientException.MalformedResponse::class.java) { ResponseDecoder().decode(line, "req-1").decodeResult(records) }
         }

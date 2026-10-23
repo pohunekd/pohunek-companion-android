@@ -42,10 +42,10 @@ class HostsViewModel(
                         discovered = found.peers.map { peer ->
                             DiscoveredItem(sanitizeText(peer.host.label), peer.host.route.toString(), peer.present, feeds[peer.host.route]?.connection)
                         },
-                        incompatible = found.incompatible.map { IncompatibleItem(it.label, it.protocolVersion) },
+                        incompatible = found.incompatible.map { IncompatibleItem(it.key, it.label, it.protocolVersion) },
                         discoveryErrors = found.failures.map { failure ->
                             val asked = configuredHosts.firstOrNull { it.route == failure.host }
-                            DiscoveryErrorItem(asked?.let(::hostDisplayLabel) ?: sanitizeText(failure.host.toString()), failure.detail)
+                            DiscoveryErrorItem(failure.host.toString(), asked?.let(::hostDisplayLabel) ?: sanitizeText(failure.host.toString()), failure.detail)
                         },
                         form = it.form ?: if (needsForm) HostForm() else null,
                     )

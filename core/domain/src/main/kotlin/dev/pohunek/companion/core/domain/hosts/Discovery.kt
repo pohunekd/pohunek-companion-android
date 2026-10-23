@@ -100,6 +100,7 @@ private fun namesRecord(host: ConfiguredHost, record: HostRecord, key: String): 
 }
 
 private fun followableRoute(record: HostRecord): HostRoute? {
+    if (record.port == 0) return null
     val address = record.address?.takeIf(::isIpLiteral) ?: return null
     return HostRoute(address, record.port)
 }
@@ -110,9 +111,11 @@ private const val IPV4_MAX_DIGITS = 3
 
 /** True for an IPv4 or IPv6 literal. Nothing is resolved: a peer controls this text, and a host name must never reach DNS. */
 internal fun isIpLiteral(text: String): Boolean = when {
-    ':' in text -> text.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' || it == ':' || it == '.' } && parsesAsIpv6(text)
+    ':' in text -> (text[0] == ':' || text[0].isHexDigit()) && text.all { it.isHexDigit() || it == ':' || it == '.' } && parsesAsIpv6(text)
     else -> isIpv4(text)
 }
+
+private fun Char.isHexDigit() = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
 
 private fun isIpv4(text: String): Boolean {
     val parts = text.split('.')
