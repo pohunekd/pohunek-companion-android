@@ -263,6 +263,25 @@ class LayoutTest {
     }
 
     @Test
+    fun `present shows rows without a placement at the end of Inbox in list order`() {
+        val layout = arranged("a", "b", "c").moved("c", "work", Placement.End)
+        val sections = layout.present(listOf("x", "c", "b", "y", "a")) { key(it) }
+        assertEquals(listOf(listOf("a", "b", "x", "y"), listOf("c"), emptyList()), sections.map { it.rows })
+        assertEquals(layout.arrange(listOf("c", "b", "a")) { key(it) }, layout.present(listOf("c", "b", "a")) { key(it) })
+    }
+
+    @Test
+    fun `a group collapses in every view and leaves the derived sections alone`() {
+        val derived = arranged().withView(LayoutView.BY_PROJECT)
+        val collapsed = derived.setGroupCollapsed("work", true).done()
+        assertTrue(collapsed.value)
+        assertTrue(collapsed.layout.groups.single { it.id == "work" }.collapsed)
+        assertTrue(collapsed.layout.collapsedSections.isEmpty())
+        assertEquals(LayoutView.BY_PROJECT, collapsed.layout.view)
+        assertEquals(GroupError.UnknownGroup("nope"), derived.setGroupCollapsed("nope", true).refusal())
+    }
+
+    @Test
     fun `view and filters fall back and persist per view`() {
         val layout = Layout.default()
         assertEquals(LayoutView.MY_GROUPS, layout.view)

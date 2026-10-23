@@ -1,11 +1,14 @@
 package dev.pohunek.companion.sessions
 
+import dev.pohunek.companion.core.data.layout.LayoutIssue
 import dev.pohunek.companion.core.data.live.HostConnection
+import dev.pohunek.companion.core.domain.layout.GroupSection
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.domain.sessions.ResumeOffer
 import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.domain.sessions.SessionDetails
+import dev.pohunek.companion.core.domain.sessions.SessionKey
 import dev.pohunek.companion.protocol.HostRoute
 
 /** One session as the list shows it; every text is untrusted metadata and is rendered as plain text only. */
@@ -41,6 +44,9 @@ data class SessionRow(
     val reachable: Boolean get() = link == HostLink.Connected
 
     val ref: RowRef get() = RowRef(route, sessionId)
+
+    /** The session's identity in the layout. */
+    val layoutKey: SessionKey get() = SessionKey(route.toString(), sessionId)
 
     /** Row actions need the daemon, so a row of a host that is not connected offers none. */
     val hasActions: Boolean get() =
@@ -87,8 +93,12 @@ data class SessionListState(
     val multipleHosts: Boolean = false,
     /** Sessions that need the owner on a connected host, longest waiting first. */
     val needsYou: List<SessionRow> = emptyList(),
-    /** The other sessions, or null until a list is shown: no host has sent one, or the first one is still expected. */
+    /** The other sessions in list order, or null until a list is shown: no host has sent one, or the first one is still expected. */
     val rows: List<SessionRow>? = null,
+    /** [rows] arranged in the owner's groups, Inbox first by default; the rows of a collapsed group are listed but not shown. */
+    val groups: List<GroupSection<SessionRow>> = emptyList(),
+    /** Why the layout file is not, or not fully, saved; the list is shown regardless. */
+    val layoutIssue: LayoutIssue? = null,
     /** One entry per host that is not connected, in host order. */
     val statuses: List<HostStatus> = emptyList(),
     /** True from a requested re-seed until every host finished it or failed. */
@@ -168,18 +178,27 @@ sealed interface SessionListEvent {
 
     data class OpenLink(val ref: RowRef) : SessionListEvent
 
-    /** Opens the confirmation of [action], which is [SessionAction.Stop] or [SessionAction.Remove]; nothing is sent yet. */
-    data class RequestAction(val ref: RowRef, val action: SessionAction) : SessionListEvent
+    /** The events of the stop and remove confirmation. */
+    sealed interface ActionEvent : SessionListEvent
 
-    data object ConfirmAction : SessionListEvent
+    /** Opens the confirmation of [action], which is [SessionAction.Stop] or [SessionAction.Remove]; nothing is sent yet. */
+    data class RequestAction(val ref: RowRef, val action: SessionAction) : ActionEvent
+
+    data object ConfirmAction : ActionEvent
 
     /** Closes the confirmation, whether it asked, failed or reported; ignored while the call runs. */
-    data object DismissAction : SessionListEvent
+    data object DismissAction : ActionEvent
 
     /** No app handled the link intent. */
     data object LinkNotHandled : SessionListEvent
 
     data object DismissRefusal : SessionListEvent
+
+    /** The events that change the owner's layout. */
+    sealed interface LayoutEvent : SessionListEvent
+
+    /** Collapses or expands an owner group; the state is saved with the layout. */
+    data class SetGroupCollapsed(val id: String, val collapsed: Boolean) : LayoutEvent
 }
 
 sealed interface SessionListEffect {

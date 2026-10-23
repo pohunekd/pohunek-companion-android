@@ -14,6 +14,8 @@ import dev.pohunek.companion.core.data.discovery.HostDiscovery
 import dev.pohunek.companion.core.data.hosts.HostStore
 import dev.pohunek.companion.core.data.hosts.HostsRepository
 import dev.pohunek.companion.core.data.hosts.KnownHosts
+import dev.pohunek.companion.core.data.layout.LayoutRepository
+import dev.pohunek.companion.core.data.layout.LayoutStore
 import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.log.JsonLineLog
@@ -37,6 +39,7 @@ val mainDispatcher = named("main")
 
 /** App data lives in this file of the app's private files directory. */
 private const val HOSTS_FILE = "hosts.json"
+private const val LAYOUT_FILE = "layout.json"
 
 /** The structured log lives in this directory and file of the app's private files directory. */
 private const val LOG_DIRECTORY = "logs"
@@ -50,6 +53,8 @@ val appModule = module {
     single { HostStore(AtomicFile(File(get<Context>().filesDir, HOSTS_FILE)), get(ioDispatcher)) }
     single<Clock> { Clock.systemUTC() }
     single { HostsRepository(get(), get()) }
+    single { LayoutStore(AtomicFile(File(get<Context>().filesDir, LAYOUT_FILE)), get(ioDispatcher)) }
+    single { LayoutRepository(get(), get()) }
     single<AppLog> {
         val context = get<Context>()
         val config = validConfig(context)
