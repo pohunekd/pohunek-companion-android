@@ -9,10 +9,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.remember
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import dev.pohunek.companion.config.AppConfig
+import dev.pohunek.companion.config.AppConfigResult
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.navigation.AppNavHost
 
@@ -29,7 +32,10 @@ class MainActivity : ComponentActivity() {
                         .background(MaterialTheme.colorScheme.background)
                         .semantics { testTagsAsResourceId = true },
                 ) {
-                    AppNavHost()
+                    when (val loaded = remember { AppConfig.load(resources) }) {
+                        is AppConfigResult.Valid -> AppNavHost(loaded.config)
+                        is AppConfigResult.Invalid -> ConfigErrorScreen(loaded)
+                    }
                 }
             }
         }

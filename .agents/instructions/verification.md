@@ -94,8 +94,8 @@ scripts/ui-agent screen | session-screen ID [--size]
 - **Start.** `start` boots the emulator from a quick-boot snapshot (created once
   per AVD in the `pohunek-companion-android-avd` volume, keyed by system image,
   emulator build, cores, RAM, and screen), starts the daemon and sessions while
-  `assembleDebug` runs, installs the APK, and launches `launch_activity` (the
-  attach debug screen, which also links to the terminal demo). `--sessions N` adds N generated sessions to the four
+  `assembleDebug` runs, installs the APK, and launches `launch_activity` (`MainActivity`, the
+  session list). `--sessions N` adds N generated sessions to the four
   fixed ones; `--showcase` replaces them with a realistic dataset of synthetic
   `claude` and `codex` profiles that run a harmless shell program. `type` cannot
   enter a literal `%s` (`input text` turns it into a space).
@@ -120,7 +120,21 @@ scripts/ui-agent screen | session-screen ID [--size]
   `host-stop` and `host-start` stop and restart the daemon with the same
   directories. `health` sends one `daemon.health` line from the device with
   toybox `nc` through the reversed port and prints the reply.
-- **Attach debug screen.** The debug build opens `AttachDebugActivity`: tap
+- **Session list.** `MainActivity` opens the host form on a fresh install: tap
+  `HostForm.route`, `type 127.0.0.1:PORT` (PORT from `status`), optionally tap
+  `HostForm.label` and type a name, then `click HostForm.save`. `HostForm.error`
+  carries a refused route; `HostForm.cancel` and `HostForm.clear` (remove the
+  host) appear once a host is saved. The list shows `SessionList.row` nodes,
+  `SessionList.refresh` reloads, `SessionList.editHost` opens the form,
+  `SessionList.error`, `SessionList.empty` and `SessionList.loading` carry the
+  other states, and `ConfigError.message` replaces the app when a value in
+  `app/src/main/res/values/config.xml` is invalid. The saved host survives
+  `restart`. `ui-agent` has no way to clear a text field yet: delete characters
+  with `podman exec pohunek-ui-agent-slot-N adb -s SERIAL shell input keyevent
+  KEYCODE_DEL` (SERIAL from `status`).
+- **Attach debug screen.** Open it in a debug build with `podman exec
+  pohunek-ui-agent-slot-N adb -s SERIAL shell am start -n
+  dev.pohunek.companion/.debug.AttachDebugActivity` (SERIAL from `status`). Tap
   `AttachDebug.route`, `type 127.0.0.1:PORT` (PORT from `status`), `click
   AttachDebug.list`, then `click AttachDebug.session N` to attach the Nth
   session; `AttachDebug.status` and `AttachDebug.error` carry the attach state

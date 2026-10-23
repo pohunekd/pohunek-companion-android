@@ -39,9 +39,10 @@ boot_timeout_secs = 300
 emulator_screen = "720x1600x320"
 
 # The app under test: package and the activity `start` launches (relative to the
-# package). The attach debug screen lists the sessions of a daemon and attaches the terminal; it links to the terminal demo screen.
+# package). The debug build also has .debug.AttachDebugActivity (lists the sessions of a daemon and attaches the terminal; it links to the
+# terminal demo screen), which is opened with `am start` (see verification.md).
 app_package = "dev.pohunek.companion"
-launch_activity = ".debug.AttachDebugActivity"
+launch_activity = ".MainActivity"
 
 # Seconds `scripts/ui-agent start` waits for the device and the daemon (first
 # use includes creating the AVD and its snapshot): a positive integer.

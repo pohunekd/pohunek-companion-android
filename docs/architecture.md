@@ -50,6 +50,16 @@ as the desktop companion: `v0.35.2` today.
   connection, not the attach connection.
 - Wire fixtures come from Pohunek `sdk/ts/protocol/fixtures` at the pinned tag.
 
+## App data and configuration
+
+- **Tunables** live in `app/src/main/res/values/config.xml`, each key documented
+  next to its value, and are read once at start-up into a validated `AppConfig`;
+  an invalid value shows a configuration error screen that names the key. Later
+  issues add their keys to the same file.
+- **App data** (hosts now; layout and settings later) is JSON written with
+  kotlinx-serialization through `AtomicFile` in the app's files directory. An
+  unreadable file is shown as an error and never overwritten.
+
 ## Security boundary
 
 The security boundary is the NetBird overlay. The daemon has no authentication
