@@ -198,6 +198,7 @@ class LayoutTest {
         }
         assertEquals(CreateAndMoveError.Move(MoveError.UnknownSession("zz")), layout.createGroupAndMove("Builds", key("zz")).refusal())
         assertEquals(CreateAndMoveError.Group(GroupError.EmptyName), layout.createGroupAndMove(" ", key("a")).refusal())
+        assertEquals(CreateAndMoveError.Group(GroupError.DuplicateName("INBOX")), layout.createGroupAndMove("INBOX", key("a")).refusal())
 
         val done = layout.createGroupAndMove(" Builds ", key("a")).done()
         assertEquals(layout.groups.size + 1, done.layout.groups.size)
@@ -221,6 +222,17 @@ class LayoutTest {
         assertEquals(layout.groups.filter { it.id != "empty" }, moved.layout.groups.filter { it.id != "empty" })
         assertEquals(GroupError.UnknownGroup("nope"), layout.moveGroup("work", GroupPlacement.Before("nope")).refusal())
         assertEquals(GroupError.UnknownGroup("nope"), layout.moveGroup("nope", GroupPlacement.Before("work")).refusal())
+
+        val tied = (
+            Layout.load(
+                1, null, emptyMap(), emptyMap(),
+                layout.groups.map {
+                    it.copy(order = if (it.id == "work") "g" else it.order)
+                },
+                emptyList(),
+            ) as LayoutLoad.Loaded
+            ).layout
+        assertEquals(GroupError.AmbiguousOrder, tied.moveGroup("empty", GroupPlacement.After(INBOX_ID)).refusal())
     }
 
     @Test
@@ -288,6 +300,14 @@ class LayoutTest {
         assertTrue(invalid(loading(listOf(inbox), listOf(item.copy(group = "nope")))).contains("unknown group"))
         assertTrue(invalid(loading(listOf(inbox), listOf(item.copy(order = "A")))).contains("invalid order key"))
         assertTrue(invalid(loading(listOf(inbox), listOf(item, item.copy(order = "p")))).contains("listed twice"))
+    }
+
+    @Test
+    fun `a loaded layout does not follow later changes to the lists it was built from`() {
+        val items = mutableListOf<Item>()
+        val loaded = (Layout.load(1, null, emptyMap(), emptyMap(), listOf(inbox), items) as LayoutLoad.Loaded).layout
+        items += Item(key("s1"), "gone", "n")
+        assertTrue(loaded.items.isEmpty())
     }
 
     @Test

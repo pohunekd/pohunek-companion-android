@@ -235,7 +235,10 @@ data class Layout private constructor(
             if (problem != null) return LayoutLoad.Invalid(problem)
             val repaired = groups.none { it.id == INBOX_ID }
             val all = if (repaired) listOf(inboxGroup(SortKey.between(null, groups.minOfOrNull { it.order }))) + groups else groups
-            return LayoutLoad.Loaded(Layout(view, filters, collapsedSections, all, items), repaired)
+            return LayoutLoad.Loaded(
+                Layout(view, filters.toMap(), collapsedSections.mapValues { it.value.toSet() }, all.toList(), items.toList()),
+                repaired,
+            )
         }
 
         private fun validate(version: Int, groups: List<Group>, items: List<Item>): String? {
