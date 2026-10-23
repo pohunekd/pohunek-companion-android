@@ -51,7 +51,7 @@ if (releaseSigned && !file(signing.getValue(signingKeystoreFile).orEmpty()).isFi
 //   versionCode = X * 10_000_000 + Y * 100_000 + Z * 1_000 + (N for -pre.N, else 999)
 // so every pre-release of a version sorts below the version itself and any higher version sorts above both.
 // Y and Z must be below 100, N from 1 to 998 and X at most 209, which keeps the code under Android's 2_100_000_000.
-val releaseTagPattern = Regex("""v(\d+)\.(\d+)\.(\d+)(?:-pre\.(\d+))?""")
+val releaseTagPattern = Regex("""v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-pre\.([1-9]\d*))?""")
 val finalReleaseStage = 999L
 val maxVersionCode = 2_100_000_000L
 val releaseTag = providers.gradleProperty("releaseTag").orNull

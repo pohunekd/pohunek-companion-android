@@ -35,8 +35,9 @@ Run these yourself; no agent runs them or sees the values.
    password secrets below.
 
    ```bash
+   mkdir -p ~/keys
    keytool -genkeypair -keystore ~/keys/pohunek-companion-release.jks -storetype PKCS12 \
-     -alias pohunek-companion -keyalg RSA -keysize 4096 -validity 10950
+     -alias pohunek-companion -keyalg RSA -keysize 4096 -validity 10958
    ```
 
 2. Back the file and the password up somewhere that survives this machine.
@@ -64,8 +65,9 @@ and `git push origin v0.1.0-pre.1`. The workflow checks the tag, the commit and
 the secrets, builds, verifies the signature (v2 or newer, one signer) and the
 version, and creates the release with the APK, its checksum, the certificate
 SHA-256 and the commit. A run that fails before the publish job leaves no release; one that fails
-afterwards may leave a draft. Delete the draft and the tag, fix the cause and push
-the tag again.
+afterwards may leave a draft. Fix the cause, delete the draft (if any) and the
+remote tag (`git push --delete origin <tag>`), and push the tag again; pushing an
+existing tag does nothing.
 
 ## Local signed build
 
