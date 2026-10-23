@@ -96,26 +96,7 @@ private fun SessionListContent(
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.app_name), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                actions = {
-                    if (listShown) {
-                        TextButton(onClick = { onEvent(SessionListEvent.Refresh) }, modifier = Modifier.testTag("SessionList.refresh")) {
-                            Text(stringResource(R.string.session_list_refresh))
-                        }
-                    }
-                    if (state.hostsRead && state.storageError == null) {
-                        TextButton(onClick = onOpenHosts, modifier = Modifier.testTag("SessionList.hosts")) {
-                            Text(stringResource(R.string.session_list_hosts))
-                        }
-                    }
-                    TextButton(onClick = onOpenSettings, modifier = Modifier.testTag("SessionList.settings")) {
-                        Text(stringResource(R.string.session_list_settings))
-                    }
-                },
-            )
-        },
+        topBar = { SessionListTopBar(state, listShown, onEvent, onOpenHosts, onOpenSettings) },
     ) { padding ->
         val body = Modifier.padding(padding).fillMaxSize()
         when {
@@ -137,6 +118,7 @@ private fun SessionListContent(
                 state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
                 state.statuses.forEach { HostStatusLine(it) }
                 ViewChips(state.view, onEvent)
+                StateChips(state.stateChips, state.states, onEvent)
                 SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())
                 RowWindows(state, onEvent)
             }
@@ -169,12 +151,14 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
                 }
                 rows.isEmpty() && state.needsYou.isEmpty() ->
                     item { Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_empty), "SessionList.empty") } }
+                state.noMatch ->
+                    item { Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_no_match), "SessionList.noMatch") } }
                 else -> {
-                    if (state.needsYou.isNotEmpty()) {
+                    if (state.shownNeedsYou.isNotEmpty()) {
                         item { SectionHeader(stringResource(R.string.session_list_needs_you), "SessionList.needsYou") }
-                        items(state.needsYou, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
+                        items(state.shownNeedsYou, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
                     }
-                    for (section in state.groups) {
+                    for (section in state.shownGroups) {
                         item(key = "group:${section.id}") { GroupHeader(section, state.view.isEditable, onEvent) }
                         if (!section.collapsed) items(section.rows, key = { it.listKey }) { row -> RowWithDivider(row, onEvent) }
                     }

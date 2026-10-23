@@ -21,7 +21,10 @@ import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.layout.CreateAndMoveError
 import dev.pohunek.companion.core.domain.layout.GroupError
 import dev.pohunek.companion.core.domain.layout.LayoutView
+import dev.pohunek.companion.core.domain.layout.SessionFilter
+import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.WorkItem
+import dev.pohunek.companion.core.domain.layout.stateChips
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.error
@@ -128,7 +131,16 @@ class SessionListViewModel(
             is SessionListEvent.ActionEvent -> onActionEvent(event)
             SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
+            is SessionListEvent.SearchEvent -> onSearchEvent(event)
             is SessionListEvent.LayoutEvent -> onLayoutEvent(event)
+        }
+    }
+
+    private fun onSearchEvent(event: SessionListEvent.SearchEvent) {
+        when (event) {
+            SessionListEvent.OpenSearch -> updateState { it.copy(search = it.search ?: "") }
+            is SessionListEvent.EditSearch -> updateState { it.copy(search = event.text).filtered() }
+            SessionListEvent.CloseSearch -> updateState { it.copy(search = null).filtered() }
         }
     }
 
@@ -143,6 +155,7 @@ class SessionListViewModel(
     private fun onLayoutEvent(event: SessionListEvent.LayoutEvent) {
         when (event) {
             is SessionListEvent.SetSectionCollapsed -> viewModelScope.launch { layouts.setCollapsed(event.id, event.collapsed) }
+            is SessionListEvent.ToggleState -> viewModelScope.launch { layouts.toggleState(event.state) }
             is SessionListEvent.SelectView -> viewModelScope.launch { layouts.selectView(event.view) }
             is SessionListEvent.GroupEvent -> onGroupEvent(event)
             is SessionListEvent.OpenMoveToGroup -> updateState { it.copy(actionSheet = null, movePicker = event.ref) }
@@ -413,6 +426,7 @@ private fun listed(
     val sheetOpen = state.actionSheet?.let { ref ->
         (listing.needsYou + listing.others).any { it.reachable && RowRef(it.route, it.session.info.id) == ref }
     } == true
+    val view = available?.layout?.view ?: LayoutView.MY_GROUPS
     return state.copy(
         actionSheet = state.actionSheet.takeIf { sheetOpen },
         movePicker = state.movePicker.takeIf { picker ->
@@ -427,7 +441,9 @@ private fun listed(
         needsYou = listing.needsYou.map { it.toRow(badgeMaxChars) },
         // The list waits for the layout, so that it never shows once flat and then arranged.
         rows = if (awaiting || available == null) null else others,
-        view = available?.layout?.view ?: LayoutView.MY_GROUPS,
+        view = view,
+        states = available?.layout?.states(view) ?: StateSelection.DEFAULT,
+        stateChips = stateChips((listing.needsYou + listing.others).mapTo(HashSet()) { it.session.ownerState }),
         groups = available?.layout?.presentView(others, SessionRow::layoutKey, sectionTitleMaxChars, SessionRow::facts).orEmpty(),
         layoutIssue = available?.issue,
         statuses = statuses,
@@ -437,6 +453,19 @@ private fun listed(
         refusal = state.refusal.takeUnless {
             it == AttachRefusal.HostUnreachable && entries.none { e -> e.host.route == state.refusalHost && e.link == HostLink.Down }
         },
+    ).filtered()
+}
+
+/** The lists the screen shows: [SessionListState.needsYou] and [SessionListState.groups] narrowed by the state selection and the search. */
+private fun SessionListState.filtered(): SessionListState {
+    val filter = SessionFilter(search.orEmpty(), states)
+    val needs = filter.filterRows(needsYou, SessionRow::filterFacts)
+    val sections = filter.filterSections(groups, SessionRow::filterFacts)
+    val listed = needsYou.isNotEmpty() || rows.orEmpty().isNotEmpty()
+    return copy(
+        shownNeedsYou = needs,
+        shownGroups = sections,
+        noMatch = filter.isActive && listed && needs.isEmpty() && sections.all { it.rows.isEmpty() },
     )
 }
 

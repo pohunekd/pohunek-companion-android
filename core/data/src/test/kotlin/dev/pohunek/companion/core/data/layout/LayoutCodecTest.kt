@@ -27,7 +27,7 @@ class LayoutCodecTest {
             .moveSession(SessionKey("127.0.0.1:1", "c"), "g1", Placement.End).layout()
             .withView(LayoutView.BY_STATE)
             .setCollapsed("working", true).layout()
-            .withFilter(LayoutView.BY_STATE, StoredFilter(states = listOf("working"), projectLabel = "p", host = "127.0.0.1:1"))
+            .withFilter(LayoutView.BY_STATE, StoredFilter(states = listOf("working", "runtime-problem"), projectLabel = "p", host = "127.0.0.1:1"))
     }
 
     @Test

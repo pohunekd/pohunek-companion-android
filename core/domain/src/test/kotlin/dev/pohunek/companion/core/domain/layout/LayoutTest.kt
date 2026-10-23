@@ -1,5 +1,6 @@
 package dev.pohunek.companion.core.domain.layout
 
+import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.domain.sessions.SessionKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -296,6 +297,21 @@ class LayoutTest {
         assertEquals(filter, filtered.filter(LayoutView.BY_STATE))
         assertEquals(StoredFilter(), filtered.filter(LayoutView.BY_PROJECT))
         assertTrue(filtered.withFilter(LayoutView.BY_STATE, StoredFilter()).filters.isEmpty())
+    }
+
+    @Test
+    fun `a state selection is stored per view keeping the rest of the filter and Problem is re-added on load`() {
+        val withEnded = StateSelection.DEFAULT.toggled(OwnerState.Ended)
+        val stored = Layout.default().withFilter(LayoutView.BY_STATE, StoredFilter(host = "h")).withStates(LayoutView.BY_STATE, withEnded)
+        assertEquals("h", stored.filter(LayoutView.BY_STATE).host)
+        assertEquals(withEnded, stored.states(LayoutView.BY_STATE))
+        assertEquals(StateSelection.DEFAULT, stored.states(LayoutView.BY_PROJECT))
+        assertEquals(StoredFilter(host = "h"), stored.withStates(LayoutView.BY_STATE, StateSelection.DEFAULT).filter(LayoutView.BY_STATE))
+
+        val file = mapOf("by-state" to StoredFilter(states = listOf("working", "ended")), "by-project" to StoredFilter(states = listOf("future")))
+        val loaded = (Layout.load(1, null, file, emptyMap(), listOf(inbox), emptyList()) as LayoutLoad.Loaded).layout
+        assertEquals(listOf("working", "runtime-problem", "ended"), loaded.filter(LayoutView.BY_STATE).states)
+        assertEquals(StoredFilter(), loaded.filter(LayoutView.BY_PROJECT))
     }
 
     private fun loading(groups: List<Group>, items: List<Item> = emptyList(), version: Int = 1) =
