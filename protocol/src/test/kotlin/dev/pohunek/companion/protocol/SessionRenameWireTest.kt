@@ -6,20 +6,19 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class SessionRenameWireTest {
+    private fun capturedLine(name: String): String =
+        (Fixtures::class.java.getResourceAsStream("/captured/$name.jsonl") ?: error("missing captured line $name")).use {
+            it.readBytes().toString(Charsets.UTF_8).trim()
+        }
+
     @Test
-    fun `rename request carries the name`() {
-        assertEquals(
-            """{"v":{"minimum":4,"maximum":4},"id":"android-1","method":"session.rename","params":{"session_id":"s-1","name":"alpha"}}""",
-            Requests.sessionRename("android-1", "s-1", "alpha").toLine(),
-        )
+    fun `rename request is the line the daemon accepted`() {
+        assertEquals(capturedLine("session-rename-request"), Requests.sessionRename("req-1", "s-1", "renamed-agent").toLine())
     }
 
     @Test
-    fun `clearing the name omits it`() {
-        assertEquals(
-            """{"v":{"minimum":4,"maximum":4},"id":"android-2","method":"session.rename","params":{"session_id":"s-1"}}""",
-            Requests.sessionRename("android-2", "s-1", null).toLine(),
-        )
+    fun `clearing the name omits it as in the line the daemon accepted`() {
+        assertEquals(capturedLine("session-rename-clear-request"), Requests.sessionRename("req-2", "s-1", null).toLine())
     }
 
     @Test

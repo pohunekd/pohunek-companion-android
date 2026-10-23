@@ -82,7 +82,7 @@ class SessionListViewModel(
                 state.copy(rename = state.rename?.let { if (it.busy) it else it.copy(text = event.text, error = null) })
             }
             SessionListEvent.SubmitRename -> submitRename()
-            SessionListEvent.DismissRename -> updateState { it.copy(rename = null) }
+            SessionListEvent.DismissRename -> updateState { state -> state.copy(rename = state.rename?.takeIf { it.busy }) }
             is SessionListEvent.OpenLink -> openLink(event.ref)
             SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
@@ -128,11 +128,14 @@ class SessionListViewModel(
             updateState { it.copy(actionSheet = null) }
             return
         }
-        val prefill = name?.takeIf { sanitizeText(it).isNotEmpty() }.orEmpty()
+        val prefill = name?.let(::sanitizeText).orEmpty()
         updateState { it.copy(actionSheet = null, rename = RenameDraft(ref, prefill, if (state.multipleHosts) row.hostLabel else null)) }
     }
 
-    /** The row changes when the daemon's session event arrives; a blank text clears the name. */
+    /**
+     * The row changes when the daemon's session event arrives; a blank text clears the name. The dialog cannot be dismissed while the
+     * request runs, so the reply always belongs to the dialog that sent it.
+     */
     private fun submitRename() {
         val draft = currentState.rename?.takeUnless { it.busy } ?: return
         updateState { it.copy(rename = draft.copy(busy = true, error = null)) }

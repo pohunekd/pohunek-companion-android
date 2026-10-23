@@ -59,7 +59,7 @@ internal fun RenameDialog(draft: RenameDraft, onEvent: (SessionListEvent) -> Uni
             }
         },
         dismissButton = {
-            TextButton(onClick = { onEvent(SessionListEvent.DismissRename) }, modifier = Modifier.testTag("RenameDialog.cancel")) {
+            TextButton(onClick = { onEvent(SessionListEvent.DismissRename) }, enabled = !draft.busy, modifier = Modifier.testTag("RenameDialog.cancel")) {
                 Text(stringResource(R.string.rename_cancel))
             }
         },
