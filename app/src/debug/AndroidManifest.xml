@@ -13,6 +13,11 @@
             android:name=".debug.GestureDemoActivity"
             android:exported="true"
             android:label="@string/gesture_demo_title" />
+        <!-- Preview of the stop and remove confirmation steps the isolated daemon cannot produce. -->
+        <activity
+            android:name=".debug.ActionDialogDemoActivity"
+            android:exported="true"
+            android:label="@string/action_dialog_demo_title" />
         <!-- Only the adb shell holds android.permission.DUMP, so only the host can trigger a clipboard dump. -->
         <receiver
             android:name=".debug.ClipboardDumpReceiver"

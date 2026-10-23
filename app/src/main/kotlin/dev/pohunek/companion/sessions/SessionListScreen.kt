@@ -75,6 +75,7 @@ fun SessionListScreen(
     } else {
         SessionListContent(state, viewModel::onEvent, onOpenHosts, snackbar, listState, modifier)
     }
+    state.actionDialog?.let { ActionDialog(it, viewModel::onEvent) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

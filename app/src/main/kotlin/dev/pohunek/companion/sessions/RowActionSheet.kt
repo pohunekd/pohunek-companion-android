@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextOverflow
 import dev.pohunek.companion.R
+import dev.pohunek.companion.core.domain.sessions.SessionAction
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
 /** The actions of one row; an action the row cannot offer is absent. The sheet is a window of its own, so it exposes its test tags itself. */
@@ -45,6 +46,14 @@ internal fun RowActionSheet(row: SessionRow, onEvent: (SessionListEvent) -> Unit
             }
             if (row.hasLink) {
                 SheetAction(stringResource(R.string.row_action_open_link), "RowSheet.openLink") { onEvent(SessionListEvent.OpenLink(row.ref)) }
+            }
+            if (row.canStop) {
+                SheetAction(stringResource(R.string.row_action_stop), "RowSheet.stop") { onEvent(SessionListEvent.RequestAction(row.ref, SessionAction.Stop)) }
+            }
+            if (row.canRemove) {
+                SheetAction(stringResource(R.string.row_action_remove), "RowSheet.remove") {
+                    onEvent(SessionListEvent.RequestAction(row.ref, SessionAction.Remove))
+                }
             }
         }
     }

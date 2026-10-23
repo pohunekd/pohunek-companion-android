@@ -27,6 +27,11 @@ Captured as received (keys sorted, pretty-printed):
   synthetic sessions and one created later; `alpha-agent` carries
   `runtime.state` `lost` with `loss_reason`, as left by a daemon restart.
 
+- `session-stop-response.json`, `session-stop-ended-response.json` (stop of a session that had ended: `stopped:false`),
+  `session-remove-response.json` (a live session: `stopped:true`), `session-remove-ended-response.json`,
+  `session-remove-not-found-response.json` (the error of a repeated removal): the response lines to raw `session.stop` and
+  `session.remove` requests (bare session id as `params`) on the daemon socket, as received.
+
 Built from captured payloads, because the isolated daemon cannot be made to
 emit them (`--dev-subprocess` has no agent with a native session, and the
 restart-time events fire before a subscriber can connect):
@@ -41,6 +46,11 @@ restart-time events fire before a subscriber can connect):
 - `subagent_state.json`, `background_state.json`: shapes of the table in `docs/public-api.md` and
   the `SubagentInfo` / `SessionBackground` types of the pinned tag; the showcase sessions run a
   plain shell, so no subagent or background task ever reports.
+- `session-remove-accepted-processes-response.json`, `session-remove-ambiguous-response.json`: the `session.remove_accepting_unconfirmed`
+  result with `accepted_unconfirmed_processes` (shape of `UnconfirmedProcess` at the pinned tag, `start_identity` a decimal string, one
+  `command` omitted as documented) and the `runtime/runtime_supervision_ambiguous` error of `session.remove`. The isolated daemon has no
+  process with an unreadable environment, so it never produces either; the error's `msg` and `recover` are written for the test, the code
+  and class are the documented ones. The captured `session-remove-response.json` of the same method is the shape without the list.
 - `notification-list-too-large-response.json`: the `runtime/notification_list_too_large` error
   envelope. The code and class are the documented ones; the `msg` and `recover` text are written
   for the test, because the isolated daemon never produces a result that does not fit one line.

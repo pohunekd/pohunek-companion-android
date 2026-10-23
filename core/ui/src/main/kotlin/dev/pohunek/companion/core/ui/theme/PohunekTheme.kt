@@ -77,6 +77,10 @@ object PohunekTheme {
     /** Widest a host chip on a session row grows before its label is cut. */
     val hostChipMaxWidth: Dp = 120.dp
 
+    /** Diameter and stroke width of a progress indicator inside a button. */
+    val progressSize: Dp = 18.dp
+    val progressStroke: Dp = 2.dp
+
     /** Opacity of content that may be out of date, such as session rows while the host is unreachable. */
     const val DIMMED_ALPHA: Float = 0.5f
 }

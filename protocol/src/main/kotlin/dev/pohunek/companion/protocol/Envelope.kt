@@ -18,6 +18,7 @@ data class Request(val v: ProtocolVersionRange, val id: String, val method: Stri
     fun toLine(): String = Wire.json.encodeToString(serializer(), this)
 }
 
+@Suppress("TooManyFunctions") // One request builder per daemon method.
 object Requests {
     fun health(id: String): Request = Request(Wire.CLIENT_RANGE, id, "daemon.health", JsonNull)
 
@@ -66,6 +67,16 @@ object Requests {
 
     fun sessionDetach(id: String, streamId: String): Request =
         Request(Wire.CLIENT_RANGE, id, "session.detach", buildJsonObject { put("stream_id", streamId) })
+
+    /** `session.stop` takes the bare session id as its params. */
+    fun sessionStop(id: String, sessionId: String): Request = Request(Wire.CLIENT_RANGE, id, "session.stop", JsonPrimitive(sessionId))
+
+    /** `session.remove` takes the bare session id as its params. */
+    fun sessionRemove(id: String, sessionId: String): Request = Request(Wire.CLIENT_RANGE, id, "session.remove", JsonPrimitive(sessionId))
+
+    /** The consent variant of `session.remove`; it takes the bare session id too and consent covers this one call only. */
+    fun sessionRemoveAcceptingUnconfirmed(id: String, sessionId: String): Request =
+        Request(Wire.CLIENT_RANGE, id, "session.remove_accepting_unconfirmed", JsonPrimitive(sessionId))
 }
 
 /**

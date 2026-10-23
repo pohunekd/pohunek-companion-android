@@ -3,6 +3,7 @@ package dev.pohunek.companion.sessions
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
+import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.commands.CommandResult
 import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.hosts.HostsRepository
@@ -10,6 +11,7 @@ import dev.pohunek.companion.core.data.hosts.HostsState
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostFeed
 import dev.pohunek.companion.core.data.live.HostRegistry
+import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.log.AppLog
@@ -19,9 +21,18 @@ import dev.pohunek.companion.core.domain.log.info
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.HostSessions
 import dev.pohunek.companion.core.domain.sessions.HostedSession
+import dev.pohunek.companion.core.domain.sessions.SessionAction
+import dev.pohunek.companion.core.domain.sessions.SessionActionOutcome
+import dev.pohunek.companion.core.domain.sessions.UNCONFIRMED_PROCESSES_CODE
+import dev.pohunek.companion.core.domain.sessions.actionFailureText
+import dev.pohunek.companion.core.domain.sessions.actionSubject
 import dev.pohunek.companion.core.domain.sessions.clipDisplay
+import dev.pohunek.companion.core.domain.sessions.hasConflictingRuntime
+import dev.pohunek.companion.core.domain.sessions.offersRemove
+import dev.pohunek.companion.core.domain.sessions.offersStop
 import dev.pohunek.companion.core.domain.sessions.openableWorkLink
 import dev.pohunek.companion.core.domain.sessions.partitionNeedsYou
+import dev.pohunek.companion.core.domain.sessions.removalNotice
 import dev.pohunek.companion.core.domain.sessions.runtimeDetail
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.core.domain.sessions.sessionDetails
@@ -46,6 +57,7 @@ class SessionListViewModel(
     private val hosts: HostsRepository,
     private val registry: HostRegistry,
     private val commands: SessionCommands,
+    private val actions: SessionActionRunner,
     private val processLifecycle: Lifecycle,
     private val log: AppLog,
     private val badgeMaxChars: Int,
@@ -79,6 +91,9 @@ class SessionListViewModel(
             SessionListEvent.DismissActions, SessionListEvent.CloseDetails -> updateState { it.copy(actionSheet = null, details = null) }
             is SessionListEvent.RenameEvent -> onRenameEvent(event)
             is SessionListEvent.OpenLink -> openLink(event.ref)
+            is SessionListEvent.RequestAction -> requestAction(event.ref, event.action)
+            SessionListEvent.ConfirmAction -> confirmAction()
+            SessionListEvent.DismissAction -> dismissAction()
             SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
         }
@@ -158,11 +173,61 @@ class SessionListViewModel(
         }
     }
 
+    /** Opens the confirmation from the session as the daemon last reported it; nothing is sent before the owner confirms. */
+    private fun requestAction(ref: RowRef, action: SessionAction) {
+        updateState { it.copy(actionSheet = null) }
+        if (currentState.actionDialog != null) return
+        val dialog = actionDialogFor(ref, action) ?: return
+        log.info("session.action_requested", listOf(hostKeyField(ref.route), LogField.sessionId(ref.sessionId), LogField.method(action.method)))
+        updateState { it.copy(actionDialog = dialog) }
+    }
+
+    /** The dialog for [action] on [ref], or null when the host is not connected, the session or its row is gone, or the action is not offered. */
+    private fun actionDialogFor(ref: RowRef, action: SessionAction): ActionDialog? {
+        val feed = registry.state.value[ref.route]?.takeIf { it.connection is HostConnection.Connected }
+        val info = feed?.sessions?.firstOrNull { it.info.id == ref.sessionId }?.info
+        val row = (currentState.needsYou + currentState.rows.orEmpty()).firstOrNull { it.ref == ref }
+        val offered = when (action) {
+            SessionAction.Stop -> info != null && offersStop(info)
+            SessionAction.Remove -> info != null && offersRemove(info)
+            SessionAction.RemoveAnyway -> false
+        }
+        return if (info != null && row != null && offered) ActionDialog(ref, row.title, row.hostLabel, action, hasConflictingRuntime(info)) else null
+    }
+
+    private fun confirmAction() {
+        val dialog = currentState.actionDialog?.takeIf { !it.busy && it.notice == null } ?: return
+        updateState { it.copy(actionDialog = dialog.copy(busy = true, error = null)) }
+        viewModelScope.launch {
+            val outcome = actions.run(dialog.ref.route, dialog.ref.sessionId, dialog.action)
+            updateState { it.copy(actionDialog = afterAction(dialog, outcome)) }
+        }
+    }
+
+    private fun dismissAction() {
+        val dialog = currentState.actionDialog?.takeIf { !it.busy } ?: return
+        val fields = listOf(hostKeyField(dialog.ref.route), LogField.sessionId(dialog.ref.sessionId), LogField.method(dialog.action.method))
+        log.info("session.action_dismissed", fields)
+        updateState { it.copy(actionDialog = null) }
+    }
+
     private fun refresh() {
         if (currentState.refreshing) return
         updateState { it.copy(refusal = null) }
         registry.requestReseed()
     }
+}
+
+/**
+ * The dialog once the call ended: closed on success unless the removal left something to report, turned into the consent step when the
+ * daemon could not confirm the runtime's processes ended, and otherwise showing the failure in place.
+ */
+internal fun afterAction(dialog: ActionDialog, outcome: SessionActionOutcome): ActionDialog? {
+    val subject = actionSubject(dialog.ref.sessionId, dialog.hostLabel)
+    if (outcome is SessionActionOutcome.Done) return removalNotice(subject, outcome)?.let { dialog.copy(busy = false, error = null, notice = it) }
+    val failure = actionFailureText(dialog.action, subject, outcome)
+    val needsConsent = dialog.action == SessionAction.Remove && outcome is SessionActionOutcome.Refused && outcome.code == UNCONFIRMED_PROCESSES_CODE
+    return dialog.copy(busy = false, error = failure, action = if (needsConsent) SessionAction.RemoveAnyway else dialog.action)
 }
 
 private fun listed(state: SessionListState, configured: HostsState, feeds: Map<HostRoute, HostFeed>, badgeMaxChars: Int): SessionListState {
@@ -240,5 +305,7 @@ private fun HostedSession.toRow(badgeMaxChars: Int): SessionRow {
         link = link,
         attachRefusal = if (link == HostLink.Down) AttachRefusal.HostUnreachable else AttachRefusal.forSession(info.external, info.state),
         canRename = reachable && info.external != true,
+        canStop = reachable && offersStop(info),
+        canRemove = reachable && offersRemove(info),
     )
 }

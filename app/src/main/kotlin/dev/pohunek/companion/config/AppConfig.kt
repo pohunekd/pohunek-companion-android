@@ -15,6 +15,8 @@ import kotlin.time.Duration.Companion.seconds
 /** Validated tunables from `res/values/config.xml`. */
 class AppConfig private constructor(
     val client: ClientConfig,
+    /** [client] with the longer request timeout of a session stop or remove. */
+    val actionClient: ClientConfig,
     val attachSettings: AttachSettings,
     val live: LiveConfig,
     val logMaxBytes: Long,
@@ -27,9 +29,14 @@ class AppConfig private constructor(
                 connectTimeout = positive(resources, "connect_timeout_ms", R.integer.connect_timeout_ms).milliseconds,
                 requestTimeout = positive(resources, "request_timeout_ms", R.integer.request_timeout_ms).milliseconds,
             )
+            val actionClient = ClientConfig(
+                connectTimeout = client.connectTimeout,
+                requestTimeout = positive(resources, "session_action_timeout_ms", R.integer.session_action_timeout_ms).milliseconds,
+            )
             AppConfigResult.Valid(
                 AppConfig(
                     client,
+                    actionClient,
                     attachSettings(resources, client),
                     liveConfig(resources),
                     atLeast(resources, "log_max_bytes", R.integer.log_max_bytes, MIN_LOG_MAX_BYTES),

@@ -82,6 +82,11 @@ as the desktop companion: `v0.35.2` today.
   running, external, or its runtime lost (`session.resume` is the recovery for
   those), when the route or protocol version is unusable, or after
   `reattach_give_up_ms` without an attachment.
+- Session actions: Stop and Remove each open a connection of their own (`session.stop`, `session.remove`, and
+  `session.remove_accepting_unconfirmed` only after the owner confirmed that one call), whose request timeout is
+  `session_action_timeout_ms`; a removal waits for the daemon to end processes and delete a checkout. Offers follow the desktop's
+  `offer_stop` and `offer_remove`. Nothing is updated optimistically: the row changes when the daemon's `session_stopped` or
+  `session_removed` event arrives. A timeout or a connection that broke after the request left is reported as an unknown outcome.
 - Wire fixtures come from two sources: Pohunek `sdk/ts/protocol/fixtures` at the
   pinned tag (`protocol/src/test/resources/fixtures/`), and, where that
   directory has no fixture for a method or event the app uses, captures from

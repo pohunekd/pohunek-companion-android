@@ -8,6 +8,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import dev.pohunek.companion.config.AppConfig
 import dev.pohunek.companion.config.AppConfigResult
+import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.hosts.HostStore
 import dev.pohunek.companion.core.data.hosts.HostsRepository
@@ -65,6 +66,7 @@ val appModule = module {
         HostRegistry(HostLiveFactory(config.client, config.live, get(ioDispatcher), TimeSource.Monotonic, get()))
     }
     single { SessionCommands(validConfig(get()).client, get(ioDispatcher), get()) }
+    single { SessionActionRunner(validConfig(get()).actionClient, get(ioDispatcher), get()) }
 }
 
 private fun validConfig(context: Context): AppConfig = (AppConfig.load(context.resources) as? AppConfigResult.Valid)?.config
