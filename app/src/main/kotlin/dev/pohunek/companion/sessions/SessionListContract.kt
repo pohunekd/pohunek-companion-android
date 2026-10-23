@@ -28,13 +28,15 @@ data class SessionRow(
     val link: HostLink,
     /** Null when a terminal can be attached to the session. */
     val attachRefusal: AttachRefusal?,
+    /** True when the daemon accepts a new name: the host is connected and the session is not external. */
+    val canRename: Boolean,
 ) {
     val reachable: Boolean get() = link == HostLink.Connected
 
     val ref: RowRef get() = RowRef(route, sessionId)
 
     /** Row actions need the daemon, so a row of a host that is not connected offers none. */
-    val hasActions: Boolean get() = reachable && (attachRefusal == null || hasLink)
+    val hasActions: Boolean get() = reachable && (attachRefusal == null || hasLink || canRename)
 
     /** Unique across hosts and a plain string, so that the list can save its state by it. */
     val listKey: String get() = "$route|$sessionId"
@@ -56,6 +58,8 @@ data class SessionListState(
     val storageError: String? = null,
     /** True when at least one host is configured. */
     val hasHosts: Boolean = false,
+    /** True with two or more hosts, when a message names the host its session lives on. */
+    val multipleHosts: Boolean = false,
     /** Sessions that need the owner on a connected host, longest waiting first. */
     val needsYou: List<SessionRow> = emptyList(),
     /** The other sessions, or null until a list is shown: no host has sent one, or the first one is still expected. */
@@ -72,6 +76,19 @@ data class SessionListState(
     val actionSheet: RowRef? = null,
     /** The open details screen, which follows the session live; null while the list is shown. */
     val details: DetailsView? = null,
+    /** The open rename dialog; it closes with the session that leaves the list. */
+    val rename: RenameDraft? = null,
+)
+
+/** The rename dialog: the text being edited, the request in flight and why the last one failed. */
+data class RenameDraft(
+    val ref: RowRef,
+    val text: String,
+    /** The host's label when the message must name it. */
+    val hostLabel: String?,
+    val busy: Boolean = false,
+    /** The daemon's message and recovery hint, or the transport failure. */
+    val error: String? = null,
 )
 
 sealed interface SessionListEvent {
@@ -86,6 +103,17 @@ sealed interface SessionListEvent {
     data class OpenDetails(val ref: RowRef) : SessionListEvent
 
     data object CloseDetails : SessionListEvent
+
+    /** The events of the rename dialog. */
+    sealed interface RenameEvent : SessionListEvent
+
+    data class OpenRename(val ref: RowRef) : RenameEvent
+
+    data class EditRename(val text: String) : RenameEvent
+
+    data object SubmitRename : RenameEvent
+
+    data object DismissRename : RenameEvent
 
     data class OpenLink(val ref: RowRef) : SessionListEvent
 

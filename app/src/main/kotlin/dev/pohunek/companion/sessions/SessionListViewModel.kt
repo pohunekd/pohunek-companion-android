@@ -3,6 +3,8 @@ package dev.pohunek.companion.sessions
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
+import dev.pohunek.companion.core.data.commands.CommandResult
+import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.hosts.HostsRepository
 import dev.pohunek.companion.core.data.hosts.HostsState
 import dev.pohunek.companion.core.data.live.HostConnection
@@ -43,6 +45,7 @@ import kotlinx.coroutines.launch
 class SessionListViewModel(
     private val hosts: HostsRepository,
     private val registry: HostRegistry,
+    private val commands: SessionCommands,
     private val processLifecycle: Lifecycle,
     private val log: AppLog,
     private val badgeMaxChars: Int,
@@ -74,6 +77,7 @@ class SessionListViewModel(
             is SessionListEvent.OpenDetails -> openDetails(event.ref)
             // At most one of the sheet and the details is open, so both events close whichever is.
             SessionListEvent.DismissActions, SessionListEvent.CloseDetails -> updateState { it.copy(actionSheet = null, details = null) }
+            is SessionListEvent.RenameEvent -> onRenameEvent(event)
             is SessionListEvent.OpenLink -> openLink(event.ref)
             SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
@@ -110,6 +114,50 @@ class SessionListViewModel(
         sendEffect(SessionListEffect.OpenLink(url))
     }
 
+    private fun onRenameEvent(event: SessionListEvent.RenameEvent) {
+        when (event) {
+            is SessionListEvent.OpenRename -> openRename(event.ref)
+            is SessionListEvent.EditRename -> updateState { state ->
+                state.copy(rename = state.rename?.let { if (it.busy) it else it.copy(text = event.text, error = null) })
+            }
+            SessionListEvent.SubmitRename -> submitRename()
+            SessionListEvent.DismissRename -> updateState { state -> state.copy(rename = state.rename?.takeIf { it.busy }) }
+        }
+    }
+
+    /** The dialog starts from the name as the daemon holds it now, empty for a session that shows its id. */
+    private fun openRename(ref: RowRef) {
+        val state = currentState
+        val row = (state.needsYou + state.rows.orEmpty()).firstOrNull { it.ref == ref }
+        val name = registry.state.value[ref.route]?.sessions?.firstOrNull { it.info.id == ref.sessionId }?.info?.name
+        if (row == null || !row.canRename) {
+            updateState { it.copy(actionSheet = null) }
+            return
+        }
+        val prefill = name?.let(::sanitizeText).orEmpty()
+        updateState { it.copy(actionSheet = null, rename = RenameDraft(ref, prefill, if (state.multipleHosts) row.hostLabel else null)) }
+    }
+
+    /**
+     * The row changes when the daemon's session event arrives; a blank text clears the name. The dialog cannot be dismissed while the
+     * request runs, so the reply always belongs to the dialog that sent it.
+     */
+    private fun submitRename() {
+        val draft = currentState.rename?.takeUnless { it.busy } ?: return
+        updateState { it.copy(rename = draft.copy(busy = true, error = null)) }
+        viewModelScope.launch {
+            val result = commands.rename(draft.ref.route, draft.ref.sessionId, draft.text.trim().ifEmpty { null })
+            updateState { state ->
+                val open = state.rename?.takeIf { it.ref == draft.ref }
+                when {
+                    open == null -> state
+                    result is CommandResult.Failed -> state.copy(rename = open.copy(busy = false, error = result.detail))
+                    else -> state.copy(rename = null)
+                }
+            }
+        }
+    }
+
     private fun refresh() {
         if (currentState.refreshing) return
         updateState { it.copy(refusal = null) }
@@ -134,6 +182,8 @@ private fun listed(state: SessionListState, configured: HostsState, feeds: Map<H
     } == true
     return state.copy(
         actionSheet = state.actionSheet.takeIf { sheetOpen },
+        rename = state.rename.stillListed(listing.needsYou + listing.others),
+        multipleHosts = hostList.size > 1,
         hostsRead = configured !is HostsState.Loading,
         storageError = (configured as? HostsState.Unreadable)?.reason,
         hasHosts = hostList.isNotEmpty(),
@@ -162,6 +212,10 @@ private fun refreshedDetails(open: DetailsView, shown: List<HostedSession>, feed
     }
 }
 
+/** The dialog closes with the session that left the list; a host that went down keeps it, so the owner's text survives. */
+private fun RenameDraft?.stillListed(sessions: List<HostedSession>): RenameDraft? =
+    takeIf { draft -> draft != null && sessions.any { RowRef(it.route, it.session.info.id) == draft.ref } }
+
 private fun HostFeed?.link(): HostLink = when (this?.connection) {
     HostConnection.Connected -> HostLink.Connected
     is HostConnection.Reconnecting -> HostLink.Down
@@ -185,5 +239,6 @@ private fun HostedSession.toRow(badgeMaxChars: Int): SessionRow {
         hostLabel = hostLabel,
         link = link,
         attachRefusal = if (link == HostLink.Down) AttachRefusal.HostUnreachable else AttachRefusal.forSession(info.external, info.state),
+        canRename = reachable && info.external != true,
     )
 }

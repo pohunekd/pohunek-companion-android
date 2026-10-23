@@ -27,3 +27,7 @@ data class SessionDetachResult(val detached: Boolean, val error: ProtocolError? 
 /** Result of `session.resize`: the session summary after the resize. */
 @Serializable
 data class SessionResizeResult(val session: SessionInfo)
+
+/** Result of `session.rename`: the session summary after the rename. */
+@Serializable
+data class SessionRenameResult(val session: SessionInfo)

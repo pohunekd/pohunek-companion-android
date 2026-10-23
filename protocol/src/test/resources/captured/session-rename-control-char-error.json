@@ -1,0 +1,9 @@
+{
+  "err": {
+    "class": "daemon",
+    "code": "bad_request",
+    "msg": "session name must not contain control characters"
+  },
+  "id": "req-3",
+  "v": 4
+}

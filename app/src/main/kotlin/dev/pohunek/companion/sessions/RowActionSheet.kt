@@ -40,6 +40,9 @@ internal fun RowActionSheet(row: SessionRow, onEvent: (SessionListEvent) -> Unit
                 SheetAction(stringResource(R.string.row_action_open_terminal), "RowSheet.openTerminal") { onEvent(SessionListEvent.OpenSession(row.ref)) }
             }
             SheetAction(stringResource(R.string.row_action_details), "RowSheet.details") { onEvent(SessionListEvent.OpenDetails(row.ref)) }
+            if (row.canRename) {
+                SheetAction(stringResource(R.string.row_action_rename), "RowSheet.rename") { onEvent(SessionListEvent.OpenRename(row.ref)) }
+            }
             if (row.hasLink) {
                 SheetAction(stringResource(R.string.row_action_open_link), "RowSheet.openLink") { onEvent(SessionListEvent.OpenLink(row.ref)) }
             }

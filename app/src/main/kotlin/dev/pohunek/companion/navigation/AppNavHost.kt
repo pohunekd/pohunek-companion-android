@@ -31,7 +31,7 @@ fun AppNavHost(
             val koin = remember { KoinPlatform.getKoin() }
             val viewModel: SessionListViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { SessionListViewModel(koin.get(), koin.get(), koin.get(), koin.get(), config.rowBadgeMaxChars) }
+                    initializer { SessionListViewModel(koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), config.rowBadgeMaxChars) }
                 },
             )
             SessionListScreen(
