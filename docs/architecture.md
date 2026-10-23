@@ -98,6 +98,13 @@ as the desktop companion: `v0.35.2` today.
   "New session here" is recorded in memory (`PendingPlacementBook`, expiring after `pending_placement_max_age_secs`) and the session
   list moves it to that row's group as a manual placement once the layout holds it. #118 changes this: a session started from a
   group other than Inbox will carry `companion.group` in its `session.new` metadata instead.
+  Templates are the selected project's actions with provider `none` (`project.actions`, read when the host and project are known, over a
+  connection of its own); choosing one reads its recipe (`project.action`) and fills agent and prompt, and its `branch` and `base_branch`
+  go into the request. A prompt containing `${` (only static templates are supported), a recipe that cannot be read, or an agent the host
+  cannot launch leaves the form on Blank with the reason shown. A Blank session may carry a branch and a base branch (Advanced); a branch
+  or base branch is blocked when `host.inspect` reports no `git_available` or no `worktree_supported`, and a base branch without a branch
+  is blocked because the daemon refuses it (`session.new base_branch requires branch`). The daemon's errors for a bad branch (`invalid_branch`,
+  `worktree_*`, `not_a_git_repo`) are not documented as raised before anything is recorded, so they stay unconfirmed outcomes.
 - Wire fixtures come from two sources: Pohunek `sdk/ts/protocol/fixtures` at the
   pinned tag (`protocol/src/test/resources/fixtures/`), and, where that
   directory has no fixture for a method or event the app uses, captures from

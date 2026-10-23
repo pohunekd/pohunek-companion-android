@@ -84,6 +84,12 @@ class PohunekConnection private constructor(
 
     suspend fun listProjects(): List<ProjectInfo> = call { Requests.projectList(it) }.decodeResult(ListSerializer(ProjectInfo.serializer()))
 
+    suspend fun listProjectActions(reference: String): List<ActionSummary> =
+        call { Requests.projectActions(it, reference) }.decodeResult(ProjectActionsResult.serializer()).actions
+
+    suspend fun projectAction(reference: String, name: String): ProjectActionResult =
+        call { Requests.projectAction(it, reference, name) }.decodeResult(ProjectActionResult.serializer())
+
     suspend fun inspectHost(): HostCapabilities = call { Requests.hostInspect(it) }.decodeResult(HostCapabilities.serializer())
 
     /** Starts a session. The request has no idempotency key, so a caller must never send it twice for one launch. */

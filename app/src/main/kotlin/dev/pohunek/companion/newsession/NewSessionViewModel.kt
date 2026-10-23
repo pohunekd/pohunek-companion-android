@@ -48,6 +48,8 @@ class NewSessionViewModel(
     /** Counts host selections; an answer carries the count it was asked under and is applied only while it is current. */
     private var generation = 0
 
+    private val templates = TemplateReader(viewModelScope, newSessions, { currentState }, ::updateState)
+
     init {
         viewModelScope.launch {
             hosts.load()
@@ -61,10 +63,13 @@ class NewSessionViewModel(
         when (event) {
             is NewSessionEvent.SelectHost -> if (!busy && event.route != currentState.form.host) selectHost(event.route)
             NewSessionEvent.Reload -> currentState.form.host?.takeIf { !busy }?.let(::selectHost)
-            is NewSessionEvent.SelectProject -> edit { it.copy(project = event.id) }
-            is NewSessionEvent.SelectAgent -> edit { it.copy(agent = event.name) }
-            is NewSessionEvent.EditName -> edit { it.copy(name = event.text) }
-            is NewSessionEvent.EditPrompt -> edit { it.copy(prompt = event.text) }
+            is NewSessionEvent.SelectProject -> {
+                edit { it.copy(project = event.id) }
+                templates.sync()
+            }
+            is NewSessionEvent.SelectTemplate -> if (!busy) templates.select(event.name)
+            is NewSessionEvent.FormEdit -> edit(event::applyTo)
+            NewSessionEvent.ToggleAdvanced -> updateState { it.copy(advancedOpen = !it.advancedOpen) }
             is NewSessionEvent.EditProjectQuery -> updateState { it.copy(projectQuery = event.text) }
             is NewSessionEvent.SetAttachAfterCreate -> updateState { it.copy(attachAfterCreate = event.attach) }
             NewSessionEvent.Create -> create()
@@ -93,6 +98,7 @@ class NewSessionViewModel(
 
     private fun selectHost(route: HostRoute) {
         loadJob?.cancel()
+        templates.hostChanged()
         val token = ++generation
         updateState {
             it.copy(
@@ -123,6 +129,7 @@ class NewSessionViewModel(
                 is ChoicesUpdate.Failed -> state.copy(activity = state.activity.copy(loading = false, loadError = update.detail))
             }
         }
+        if (token == generation) templates.sync()
     }
 
     private fun create() {

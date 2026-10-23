@@ -19,8 +19,16 @@ data class AgentChoice(val name: String, val unlaunchable: String?) {
     val launchable: Boolean get() = unlaunchable == null
 }
 
-/** What the host offers: every project, and every agent with launchable ones first. */
-data class NewSessionChoices(val projects: List<ProjectChoice>, val agents: List<AgentChoice>) {
+/**
+ * What the host offers: every project, every agent with launchable ones first, and whether it can run a session in a worktree
+ * ([gitAvailable] and [worktreeSupported] come from `host.inspect`).
+ */
+data class NewSessionChoices(
+    val projects: List<ProjectChoice>,
+    val agents: List<AgentChoice>,
+    val gitAvailable: Boolean,
+    val worktreeSupported: Boolean,
+) {
     val hasLaunchableAgent: Boolean get() = agents.any { it.launchable }
 
     fun launchable(name: String): Boolean = agents.any { it.name == name && it.launchable }
@@ -41,7 +49,7 @@ private fun unlaunchableReason(runtime: AgentRuntime): String? = when {
     else -> null
 }
 
-/** The form as the owner filled it in; [name] and [prompt] are the raw texts. */
+/** The form as the owner filled it in; [name], [prompt], [branch] and [baseBranch] are the raw texts. */
 data class NewSessionForm(
     val host: HostRoute? = null,
     /** A project id of [NewSessionChoices.projects]. */
@@ -49,6 +57,16 @@ data class NewSessionForm(
     val agent: String? = null,
     val name: String = "",
     val prompt: String = "",
+    /** The chosen template's name; null means Blank. */
+    val template: String? = null,
+    /** The recipe of [template]; null for Blank and while it is still being read. */
+    val recipe: Recipe? = null,
+    /** A template was chosen and its recipe has not arrived yet. */
+    val templateLoading: Boolean = false,
+    /** Branch of a Blank session's worktree; unused while a template is chosen. */
+    val branch: String = "",
+    /** Base branch of a Blank session's worktree; unused while a template is chosen. */
+    val baseBranch: String = "",
 )
 
 /** What the form is doing besides collecting input. */
@@ -89,6 +107,24 @@ sealed interface CreateBlocker {
     data class AgentNotLaunchable(val agent: String) : CreateBlocker
 }
 
+/** Why the launch recipe, a template or a branch, cannot be used yet or on this host. */
+sealed interface LaunchBlocker : CreateBlocker {
+    data object TemplateLoading : LaunchBlocker
+
+    /** A base branch will be sent without a branch; the daemon refuses that (`session.new base_branch requires branch`). */
+    data object BaseBranchWithoutBranch : LaunchBlocker
+
+    /** A branch or base branch will be sent, and the host has no `git`. */
+    data object GitUnavailable : LaunchBlocker
+
+    /** A branch or base branch will be sent, and the host cannot run a session in a worktree. */
+    data object WorktreeUnsupported : LaunchBlocker
+}
+
+/** The branch and base branch the request will carry: the template's, or the Blank texts, trimmed, with an empty one counting as none. */
+private fun branchOverrides(form: NewSessionForm): Pair<String?, String?> =
+    form.recipe?.let { it.branch to it.baseBranch } ?: (form.branch.trimmedOrNull() to form.baseBranch.trimmedOrNull())
+
 /**
  * The first reason [form] cannot be submitted, or null when Create is allowed. [choices] is null until the host's answer arrived;
  * [requestedProject] is the project id the form was opened on, which picking another project supersedes.
@@ -115,7 +151,20 @@ private fun selectionBlocker(form: NewSessionForm, choices: NewSessionChoices, r
     !choices.hasLaunchableAgent -> CreateBlocker.NoLaunchableAgent
     form.agent.isNullOrEmpty() -> CreateBlocker.NoAgent
     !choices.launchable(form.agent) -> CreateBlocker.AgentNotLaunchable(form.agent)
-    else -> null
+    form.templateLoading -> LaunchBlocker.TemplateLoading
+    else -> worktreeBlocker(form, choices)
+}
+
+/** The host's missing worktree support, when the request will carry a branch or a base branch. */
+private fun worktreeBlocker(form: NewSessionForm, choices: NewSessionChoices): CreateBlocker? {
+    val (branch, baseBranch) = branchOverrides(form)
+    return when {
+        branch == null && baseBranch == null -> null
+        branch == null -> LaunchBlocker.BaseBranchWithoutBranch
+        !choices.gitAvailable -> LaunchBlocker.GitUnavailable
+        !choices.worktreeSupported -> LaunchBlocker.WorktreeUnsupported
+        else -> null
+    }
 }
 
 /**
@@ -127,9 +176,10 @@ fun settleSelection(form: NewSessionForm, choices: NewSessionChoices): NewSessio
     agent = form.agent?.takeIf(choices::launchable) ?: choices.agents.firstOrNull { it.launchable }?.name,
 )
 
-/** The request for a form that passed [createBlocker]; name and prompt are trimmed and sent only when not blank. */
+/** The request for a form that passed [createBlocker]; name, prompt, branch and base branch are trimmed and sent only when not blank. */
 fun sessionNewParams(form: NewSessionForm, cols: Int, rows: Int): SessionNewParams? {
     val project = form.project ?: return null
     val agent = form.agent ?: return null
-    return SessionNewParams(agent, cols, rows, project, form.name.trim().ifEmpty { null }, form.prompt.trim().ifEmpty { null })
+    val (branch, baseBranch) = branchOverrides(form)
+    return SessionNewParams(agent, cols, rows, project, form.name.trimmedOrNull(), form.prompt.trimmedOrNull(), branch, baseBranch)
 }

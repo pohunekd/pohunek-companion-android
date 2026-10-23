@@ -5,6 +5,7 @@ import dev.pohunek.companion.core.domain.newsession.NewSessionActivity
 import dev.pohunek.companion.core.domain.newsession.NewSessionChoices
 import dev.pohunek.companion.core.domain.newsession.NewSessionForm
 import dev.pohunek.companion.core.domain.newsession.ProjectChoice
+import dev.pohunek.companion.core.domain.newsession.TemplateError
 import dev.pohunek.companion.core.domain.newsession.createBlocker
 import dev.pohunek.companion.protocol.HostRoute
 
@@ -42,6 +43,12 @@ data class NewSessionState(
     /** The selected host's projects and agents, or null until both answered. */
     val choices: NewSessionChoices? = null,
     val projectQuery: String = "",
+    /** The selected project's static template names, or null until they are read (or when they could not be). */
+    val templates: List<String>? = null,
+    /** Why the templates or the chosen template could not be used; Blank stays usable. */
+    val templateError: TemplateError? = null,
+    /** The Advanced section (branch and base branch of a Blank session) is open. */
+    val advancedOpen: Boolean = false,
     val activity: NewSessionActivity = NewSessionActivity(),
     /** The "Open after creating" switch. */
     val attachAfterCreate: Boolean = false,
@@ -61,6 +68,11 @@ data class NewSessionState(
 }
 
 sealed interface NewSessionEvent {
+    /** An edit of the form's own fields, ignored while a create is in flight. */
+    sealed interface FormEdit : NewSessionEvent {
+        fun applyTo(form: NewSessionForm): NewSessionForm
+    }
+
     data class SelectHost(val route: HostRoute) : NewSessionEvent
 
     /** Reads the selected host's choices again, after a failure. */
@@ -68,13 +80,32 @@ sealed interface NewSessionEvent {
 
     data class SelectProject(val id: String) : NewSessionEvent
 
-    data class SelectAgent(val name: String) : NewSessionEvent
+    data class SelectAgent(val name: String) : FormEdit {
+        override fun applyTo(form: NewSessionForm) = form.copy(agent = name)
+    }
 
     data class EditProjectQuery(val text: String) : NewSessionEvent
 
-    data class EditName(val text: String) : NewSessionEvent
+    /** A template of [NewSessionState.templates], or null for Blank. */
+    data class SelectTemplate(val name: String?) : NewSessionEvent
 
-    data class EditPrompt(val text: String) : NewSessionEvent
+    data class EditName(val text: String) : FormEdit {
+        override fun applyTo(form: NewSessionForm) = form.copy(name = text)
+    }
+
+    data class EditBranch(val text: String) : FormEdit {
+        override fun applyTo(form: NewSessionForm) = form.copy(branch = text)
+    }
+
+    data class EditBaseBranch(val text: String) : FormEdit {
+        override fun applyTo(form: NewSessionForm) = form.copy(baseBranch = text)
+    }
+
+    data object ToggleAdvanced : NewSessionEvent
+
+    data class EditPrompt(val text: String) : FormEdit {
+        override fun applyTo(form: NewSessionForm) = form.copy(prompt = text)
+    }
 
     data class SetAttachAfterCreate(val attach: Boolean) : NewSessionEvent
 

@@ -1,0 +1,38 @@
+{
+  "id": "req-1",
+  "ok": {
+    "agent": "claude",
+    "agent_base": "shell",
+    "applied_input": true,
+    "branch": "fixture/branch",
+    "capabilities": {
+      "fork": false,
+      "resume": false
+    },
+    "cols": 80,
+    "created_at": "2026-10-23T21:26:15.108963675Z",
+    "cwd": "/data/worktrees/s-01M5NAGH9KQ4DV5PAM9GBN8FQ3-pohunek-fixture-branch",
+    "cwd_source": "launch",
+    "external": false,
+    "id": "s-01M5NAGH9KQ4DV5PAM9GBN8FQ3",
+    "is_linked_worktree": true,
+    "name": "fixture-branched",
+    "pid": 1346,
+    "project_id": "p-617cf33c",
+    "repo": "/work/pohunek",
+    "rows": 24,
+    "runtime": {
+      "last_connected_at": "2026-10-23T21:26:15.213204646Z",
+      "runtime_generation": "1",
+      "started_at": "2026-10-23T21:26:15.213204646Z",
+      "state": "live",
+      "worker_id": "worker-10a04f01c343ba09de0142105b4f1464",
+      "worker_instance_id": "runtime-9612c6957ea3d9e6690c717b08ecc3d8"
+    },
+    "state": "running",
+    "state_source": "process",
+    "updated_at": "2026-10-23T21:26:15.213216306Z",
+    "worktree_path": "/data/worktrees/s-01M5NAGH9KQ4DV5PAM9GBN8FQ3-pohunek-fixture-branch"
+  },
+  "v": 4
+}

@@ -179,8 +179,8 @@ packages. Re-take it when `ghostty_commit` changes.
   with the wording of `confirm.rs` in the app's string resources; `resume.rs` (`resume_offer`,
   `refusal_sentence`) as `core/domain/.../sessions/ResumeOffer.kt`; `discovery.rs` (`plan`, `host_key`,
   `label`, `configured_entry`; without the New session dialog's host list) as
-  `core/domain/.../hosts/Discovery.kt`; `new_session.rs` (`agent_choices`, `submit_blocker`, `build_params`;
-  without templates, branches and the assistant) as `core/domain/.../newsession/NewSession.kt` and (`classify`, `CreateError`) as
+  `core/domain/.../hosts/Discovery.kt`; `new_session.rs` (`agent_choices`, `submit_blocker`, `build_params`,
+  `template_names`, `recipe_from_action`, `branch_overrides`; without the assistant) as `core/domain/.../newsession/NewSession.kt` and (`classify`, `CreateError`) as
   `core/domain/.../newsession/CreateOutcome.kt`; `pending_placement.rs`
   (`Pending::add`, `Pending::settle`; held in memory, without the file and its lock) as
   `core/domain/.../newsession/PendingPlacements.kt`.

@@ -11,10 +11,15 @@ import dev.pohunek.companion.core.domain.log.warn
 import dev.pohunek.companion.core.domain.newsession.CreateOutcome
 import dev.pohunek.companion.core.domain.newsession.NewSessionChoices
 import dev.pohunek.companion.core.domain.newsession.ProjectChoice
+import dev.pohunek.companion.core.domain.newsession.Recipe
+import dev.pohunek.companion.core.domain.newsession.TemplateError
+import dev.pohunek.companion.core.domain.newsession.TemplateStep
 import dev.pohunek.companion.core.domain.newsession.agentChoices
 import dev.pohunek.companion.core.domain.newsession.classifyCreateFailure
 import dev.pohunek.companion.core.domain.newsession.createdOutcome
 import dev.pohunek.companion.core.domain.newsession.projectChoices
+import dev.pohunek.companion.core.domain.newsession.recipeFromAction
+import dev.pohunek.companion.core.domain.newsession.templateNames
 import dev.pohunek.companion.protocol.ClientConfig
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.LineFramer
@@ -54,14 +59,42 @@ class NewSessions(
             PohunekConnection.open(route, client(), ioDispatcher).use { connection ->
                 val projects = projectChoices(connection.listProjects())
                 emit(ChoicesUpdate.Projects(projects))
-                val agents = agentChoices(connection.inspectHost().runtimes)
-                emit(ChoicesUpdate.Loaded(NewSessionChoices(projects, agents)))
+                val capabilities = connection.inspectHost()
+                val agents = agentChoices(capabilities.runtimes)
+                emit(ChoicesUpdate.Loaded(NewSessionChoices(projects, agents, capabilities.gitAvailable, capabilities.worktreeSupported)))
                 val counts = listOf(LogField.number("projects", projects.size.toLong()), LogField.number("agents", agents.size.toLong()))
                 log.info("new_session.choices_loaded", fields + counts)
             }
         } catch (e: ProtocolClientException) {
             log.warn("new_session.choices_failed", fields + LogField.errorCode(e.logCode()))
             emit(ChoicesUpdate.Failed(e.display()))
+        }
+    }
+
+    /** The names of [project]'s static templates on [route], or why they could not be read. */
+    suspend fun templates(route: HostRoute, project: String): TemplateStep<List<String>> {
+        val fields = listOf(hostKeyField(route), LogField.method("project.actions"))
+        return try {
+            val names = PohunekConnection.open(route, client(), ioDispatcher).use { templateNames(it.listProjectActions(project)) }
+            log.info("new_session.templates_loaded", fields + LogField.number("templates", names.size.toLong()))
+            TemplateStep.Applied(names)
+        } catch (e: ProtocolClientException) {
+            log.warn("new_session.templates_failed", fields + LogField.errorCode(e.logCode()))
+            TemplateStep.Failed(TemplateError.Daemon(e.display()))
+        }
+    }
+
+    /** The recipe of the template [name] of [project] on [route]; a prompt with variables is a [TemplateError.Variables]. */
+    suspend fun recipe(route: HostRoute, project: String, name: String): TemplateStep<Recipe> {
+        val fields = listOf(hostKeyField(route), LogField.method("project.action"))
+        return try {
+            val result = PohunekConnection.open(route, client(), ioDispatcher).use { it.projectAction(project, name) }
+            recipeFromAction(name, result).also { step ->
+                if (step is TemplateStep.Failed) log.warn("new_session.template_refused", fields) else log.info("new_session.template_loaded", fields)
+            }
+        } catch (e: ProtocolClientException) {
+            log.warn("new_session.template_failed", fields + LogField.errorCode(e.logCode()))
+            TemplateStep.Failed(TemplateError.Daemon(e.display()))
         }
     }
 

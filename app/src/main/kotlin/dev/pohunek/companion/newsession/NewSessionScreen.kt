@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
 import dev.pohunek.companion.core.domain.newsession.AgentChoice
 import dev.pohunek.companion.core.domain.newsession.CreateBlocker
+import dev.pohunek.companion.core.domain.newsession.LaunchBlocker
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
@@ -127,6 +128,7 @@ private fun FormBody(state: NewSessionState, onEvent: (NewSessionEvent) -> Unit,
         item { LoadStatus(state, onEvent) }
         item { SectionTitle(stringResource(R.string.new_session_project)) }
         projectSection(state, onEvent)
+        item { TemplateSection(state, onEvent) }
         item { SectionTitle(stringResource(R.string.new_session_agent)) }
         item { AgentChips(state, onEvent) }
         item {
@@ -149,6 +151,7 @@ private fun FormBody(state: NewSessionState, onEvent: (NewSessionEvent) -> Unit,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.gutter).testTag("NewSession.prompt"),
             )
         }
+        if (state.form.template == null && state.choices != null) item { AdvancedSection(state, onEvent) }
         item {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = spacing.gutter),
@@ -290,28 +293,4 @@ private fun CreateBar(state: NewSessionState, onEvent: (NewSessionEvent) -> Unit
             }
         }
     }
-}
-
-@Composable
-private fun noticeText(notice: CreateNotice): String = when (notice) {
-    is CreateNotice.Refused -> stringResource(R.string.new_session_refused, notice.message)
-    is CreateNotice.RefusedMaybeCreated -> stringResource(R.string.new_session_refused_maybe_created, notice.message)
-    is CreateNotice.NotSent -> stringResource(R.string.new_session_not_sent, notice.message)
-    CreateNotice.Unconfirmed -> stringResource(R.string.new_session_unconfirmed)
-    CreateNotice.PromptUnconfirmed -> stringResource(R.string.new_session_prompt_unconfirmed)
-}
-
-/** The sentence for [blocker]; none for the ones another element already explains (a load failure, an unconfirmed create). */
-@Composable
-private fun blockerText(blocker: CreateBlocker?): String? = when (blocker) {
-    null, is CreateBlocker.LoadFailed, CreateBlocker.Unconfirmed -> null
-    CreateBlocker.NoHost -> stringResource(R.string.new_session_blocker_no_host)
-    CreateBlocker.Loading -> stringResource(R.string.new_session_blocker_loading)
-    CreateBlocker.InFlight -> stringResource(R.string.new_session_blocker_in_flight)
-    is CreateBlocker.RequestedProjectMissing -> stringResource(R.string.new_session_blocker_requested_missing, sanitizeText(blocker.project))
-    CreateBlocker.NoProjectsOnDaemon -> stringResource(R.string.new_session_blocker_no_projects)
-    CreateBlocker.NoProject -> stringResource(R.string.new_session_blocker_no_project)
-    CreateBlocker.NoLaunchableAgent -> stringResource(R.string.new_session_blocker_no_launchable)
-    CreateBlocker.NoAgent -> stringResource(R.string.new_session_blocker_no_agent)
-    is CreateBlocker.AgentNotLaunchable -> stringResource(R.string.new_session_blocker_not_launchable, sanitizeText(blocker.agent))
 }

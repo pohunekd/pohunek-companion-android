@@ -1,0 +1,32 @@
+{
+  "id": "req-1",
+  "ok": {
+    "actions": [
+      {
+        "layer": "in_repo",
+        "name": "fix-bug",
+        "provider": "none",
+        "template": "fix"
+      },
+      {
+        "layer": "in_repo",
+        "name": "from-linear",
+        "provider": "linear_issue",
+        "template": "fix"
+      },
+      {
+        "layer": "in_repo",
+        "name": "ghost-agent",
+        "provider": "none",
+        "template": "ghost"
+      },
+      {
+        "layer": "in_repo",
+        "name": "with-vars",
+        "provider": "none",
+        "template": "vars"
+      }
+    ]
+  },
+  "v": 4
+}

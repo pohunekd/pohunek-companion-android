@@ -40,6 +40,16 @@ Captured as received (keys sorted, pretty-printed):
   `session-remove-not-found-response.json` (the error of a repeated removal): the response lines to raw `session.stop` and
   `session.remove` requests (bare session id as `params`) on the daemon socket, as received.
 
+- `project-actions-response.json`, `project-action-response.json`, `project-action-not-found-error.json`, `session-new-branch-response.json`,
+  `session-new-base-branch-error.json`: the responses of the `--showcase` daemon to `project.actions` and `project.action` of the `pohunek`
+  project, to `project.action` of an undefined action, to a `session.new` with `branch` and `base_branch` (a worktree session) and to a
+  `session.new` with `base_branch` alone (`daemon/bad_request`, `session.new base_branch requires branch`). The project's
+  `.pohunek/templates.toml`, `actions.toml` and `prompts/fix-bug.tmpl` were written into its work directory in the slot container (a static
+  `fix-bug` action with `branch`, a `from-linear` action with provider `linear_issue`, an action with a `${...}` prompt and one whose template
+  names an agent the host lacks). Request ids are `req-1`, working and worktree directories are rewritten to `/work/...` and
+  `/data/worktrees/...`; `project-actions-request.jsonl`, `project-action-request.jsonl` and `session-new-branch-request.jsonl` are the
+  request lines of the client's encoder that the daemon answered.
+
 Built from captured payloads, because the isolated daemon cannot be made to
 emit them (`--dev-subprocess` has no agent with a native session, and the
 restart-time events fire before a subscriber can connect):

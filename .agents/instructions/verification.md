@@ -238,13 +238,19 @@ scripts/ui-agent pohunek ARGS...
   `NewSession.hostIncompatible`), `NewSession.loading` or `NewSession.loadError` with `NewSession.retry` for the selected host,
   `NewSession.projectSearch` and one `NewSession.project` per project (shown as soon as `project.list` answers), one `NewSession.agent`
   chip per agent (a launchable one first; `NewSession.agentNote` names why another cannot start), `NewSession.name`,
-  `NewSession.prompt`, `NewSession.attach` (open the terminal after creating; starts as `attach_after_create` in `config.xml`),
+  `NewSession.templateBlank` and one `NewSession.template` per static template of the selected project (`NewSession.templateLoading`,
+  `NewSession.templateError` for a template that cannot be used), `NewSession.prompt`, `NewSession.advanced` (Blank only; opens
+  `NewSession.branch`, `NewSession.baseBranch` and `NewSession.worktreeNote` when the host has no git or no worktrees), `NewSession.attach` (open the terminal after creating; starts as `attach_after_create` in `config.xml`),
   `NewSession.create` (disabled while `NewSession.blocker` gives a reason), `NewSession.notice` (the daemon's refusal, an error that may have come after the session was recorded, a request that never
   left, an unconfirmed create or an unconfirmed prompt) and `NewSession.back`. Scroll with `swipe NewSession.form up`; `click TAG N` counts
   from 0. A create the daemon did not answer within `create_timeout_ms` is shown as unconfirmed and Create stays disabled: write
   `{"version":1,"overrides":{"create_timeout_ms":30}}` with `app-file put settings.json` and `restart` to force it against the isolated
   daemon (a response takes about 100 ms), then `pohunek session list` shows exactly one new session; the daemon's own log records no
-  requests. The app log has `new_session.choices_loaded`, `new_session.choices_failed`, `new_session.create`, `new_session.created`,
+  requests. Templates are files of the project: write `.pohunek/templates.toml` (`[template.NAME]` with `agent`, `prompt`, optional
+  `base_branch`), `.pohunek/actions.toml` (`[action.NAME]` with `template`, `provider = "none"`, optional `branch`) and
+  `.pohunek/prompts/PROMPT.tmpl` into the project's work directory with `podman exec pohunek-ui-agent-slot-N` (the showcase projects are
+  git repositories under `/tmp/ui-agent/iso/work/`), check them with `ui-agent pohunek project actions ID`, and read a branch with
+  `ui-agent pohunek session inspect ID`. The app log has `new_session.choices_loaded`, `new_session.choices_failed`, `new_session.templates_loaded` and `new_session.templates_failed` (a count or the error code), `new_session.template_loaded`, `new_session.template_refused` and `new_session.template_failed` (no template name), `new_session.create`, `new_session.created`,
   `new_session.create_refused` (a prompt too large for a control line), `new_session.create_failed` (error code only),
   `new_session.prompt_unconfirmed`, `new_session.attach_skipped` (the new session was not running yet) and
   `new_session.placement_expired` or `new_session.placement_dropped`; none carries a name or a prompt.

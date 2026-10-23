@@ -1,0 +1,12 @@
+{
+  "id": "req-1",
+  "ok": {
+    "agent": "claude",
+    "base_branch": "master",
+    "branch": "template/fix-bug",
+    "prompt_content": "Investigate the failing test and fix it.\n",
+    "prompt_name": "fix-bug",
+    "provider": "none"
+  },
+  "v": 4
+}
