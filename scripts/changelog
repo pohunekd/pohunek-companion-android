@@ -3,15 +3,15 @@
 # Run from the repository root.
 #
 #   scripts/changelog check
-#   scripts/changelog fold <version> [--date YYYY-MM-DD]
+#   scripts/changelog fold <version> [--date YYYY-MM-DD] [--repository OWNER/NAME]
 #   scripts/changelog notes <version>
 #
 # check   validates every fragment in changelog.d/.
 # fold    validates the fragments, writes the version section into CHANGELOG.md
 #         and deletes the fragments. Nothing is written when one is invalid.
+#         The entry links point at the `repository` of .github/agent-workflow.json;
+#         --repository overrides it and exists for the fixture runner only.
 # notes   prints the marker block of a version section for the release body.
-#
-# fold takes the repository for the entry links from the `origin` remote.
 set -euo pipefail
 export LC_ALL=C
 
@@ -21,6 +21,7 @@ fragment_pattern='^([1-9][0-9]*)-([a-z0-9]+(-[a-z0-9]+)*)\.md$'
 header_pattern='^([a-z]+): ([^[:space:]]|[^[:space:]].*[^[:space:]])$'
 changelog=CHANGELOG.md
 fragments_dir=changelog.d
+workflow_file=.github/agent-workflow.json
 marker_start='<!-- pohunek-changelog:start -->'
 marker_end='<!-- pohunek-changelog:end -->'
 
@@ -200,12 +201,18 @@ render_section() {
   done
 }
 
-# Prints owner/name of the origin remote when it is a GitHub repository.
-repository_slug() {
-  local url
-  url="$(git remote get-url origin 2>/dev/null)" || return 1
-  [[ $url =~ github\.com[:/]([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(\.git)?/?$ ]] || return 1
-  printf '%s\n' "${BASH_REMATCH[1]%.git}"
+# Prints the repository for the entry links: the given owner/name, or else the
+# `repository` of the workflow file. Fails fast when neither is a valid owner/name.
+resolve_repository() {
+  local given=$1 slug
+  if [ -n "$given" ]; then
+    slug=$given
+  else
+    [ -f "$workflow_file" ] || die "$workflow_file is missing; the entry links need its repository"
+    slug="$(jq -r '.repository // empty' "$workflow_file")" || die "$workflow_file is not valid JSON"
+  fi
+  [[ $slug =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "the repository must be owner/name, got '$slug'"
+  printf '%s\n' "$slug"
 }
 
 check_version() {
@@ -228,7 +235,7 @@ cmd_check() {
 }
 
 cmd_fold() {
-  local version=${1-} day repo tmp i line path
+  local version=${1-} day repo_arg= repo tmp i line path
   local -a cl_lines=() section=() block=() out=()
   [ -n "$version" ] || die "fold needs a version"
   shift
@@ -239,6 +246,10 @@ cmd_fold() {
         [ "$#" -ge 2 ] || die "--date needs a value"
         day=$2
         shift 2 ;;
+      --repository)
+        [ "$#" -ge 2 ] || die "--repository needs a value"
+        repo_arg=$2
+        shift 2 ;;
       *) die "unknown argument '$1'" ;;
     esac
   done
@@ -246,7 +257,7 @@ cmd_fold() {
   if ! [[ $day =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || [ "$(date -u -d "$day" +%F 2>/dev/null)" != "$day" ]; then
     die "--date must be a valid YYYY-MM-DD date, got '$day'"
   fi
-  repo="$(repository_slug)" || die "the origin remote must be a GitHub repository; the entry links need owner/name"
+  repo="$(resolve_repository "$repo_arg")"
   [ -f "$changelog" ] || die "$changelog is missing; it is committed by hand before the first fold"
   mapfile -t cl_lines < "$changelog"
   [ "${cl_lines[0]-}" = "# Changelog" ] || die "$changelog must start with '# Changelog'"
@@ -274,8 +285,10 @@ cmd_fold() {
   fi
   trim_trailing_blank out
 
+  # mktemp creates the file 0600; the changelog keeps its own mode.
   tmp="$(mktemp "$changelog.XXXXXX")"
   printf '%s\n' "${out[@]}" > "$tmp"
+  chmod --reference="$changelog" "$tmp"
   mv "$tmp" "$changelog"
   for path in "${fragment_paths[@]}"; do
     rm -- "$path"
@@ -313,5 +326,5 @@ case ${1-} in
   check) shift; cmd_check "$@" ;;
   fold) shift; cmd_fold "$@" ;;
   notes) shift; cmd_notes "$@" ;;
-  *) die "usage: scripts/changelog check | fold <version> [--date YYYY-MM-DD] | notes <version>" ;;
+  *) die "usage: scripts/changelog check | fold <version> [--date YYYY-MM-DD] [--repository OWNER/NAME] | notes <version>" ;;
 esac
