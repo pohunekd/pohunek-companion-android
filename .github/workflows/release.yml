@@ -3,8 +3,8 @@
 # the owner's release key and publishes it as a GitHub release.
 #
 # Jobs:
-#   prepare  checks the tag, that its commit is on main and that `ci` passed there.
-#            No secrets.
+#   prepare  checks the tag, that its commit is on main, that `ci` passed there and
+#            that docs/screenshots holds a valid set. No secrets.
 #   build    the only job in the `release` environment and the only one that sees
 #            the signing secrets; its token is read-only. Uploads the APK and its
 #            checksum as a workflow artifact, nothing else.
@@ -64,6 +64,10 @@ jobs:
           fi
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
           case "$TAG" in *-pre.*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+
+      # The site reads docs/screenshots at the tag; a tag without a valid set must not be built.
+      - name: Check the screenshot set
+        run: scripts/check-screenshots "$GITHUB_SHA"
 
   build:
     needs: prepare

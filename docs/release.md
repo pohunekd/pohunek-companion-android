@@ -60,14 +60,27 @@ Run these yourself; no agent runs them or sees the values.
 
 ## Publish a release
 
-On a commit of `main` with a green `ci`: `git tag -a v0.1.0-pre.1 -m "0.1.0-pre.1"`
-and `git push origin v0.1.0-pre.1`. The workflow checks the tag, the commit and
-the secrets, builds, verifies the signature (v2 or newer, one signer) and the
-version, and creates the release with the APK, its checksum, the certificate
-SHA-256 and the commit. A run that fails before the publish job leaves no release; one that fails
-afterwards may leave a draft. Fix the cause, delete the draft (if any) and the
-remote tag (`git push --delete origin <tag>`), and push the tag again; pushing an
-existing tag does nothing.
+1. Refresh the screenshots. The tagged tree must carry a set taken from its own
+   app sources, so on current `main` compare `git rev-parse HEAD:app/src/main`
+   with `appTree` in `docs/screenshots/manifest.json`. Equal: nothing to do. Different:
+   run `scripts/capture-screenshots` (it needs a clean `app/`), review the images,
+   and merge the result in a PR. `scripts/check-screenshots` validates the set
+   without an emulator; the `prepare` job runs it on the tag.
+2. On a commit of `main` with a green `ci`: `git tag -a v0.1.0-pre.1 -m "0.1.0-pre.1"`
+   and `git push origin v0.1.0-pre.1`. The workflow checks the tag, the commit,
+   the screenshot set (a missing manifest, a missing file or a wrong `sha256` fails
+   it; an `appTree` that differs from the tag's `app/src/main` only warns, naming
+   the changed paths) and the secrets, builds, verifies the signature (v2 or newer, one signer) and the
+   version, and creates the release with the APK, its checksum, the certificate
+   SHA-256 and the commit. A run that fails before the publish job leaves no release; one that fails
+   afterwards may leave a draft. Fix the cause, delete the draft (if any) and the
+   remote tag (`git push --delete origin <tag>`), and push the tag again; pushing an
+   existing tag does nothing.
+3. After the release is published, bump the Android pin on the site: in
+   [pohunekd/pohunek.dev](https://github.com/pohunekd/pohunek.dev) set `ref` in
+   `android.config.json` to the new tag, run `bun run build` (it verifies the
+   manifest and every digest at that tag), and open a PR with that one-line change.
+   The release procedure ends when that PR is open.
 
 ## Local signed build
 
