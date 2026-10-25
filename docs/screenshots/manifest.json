@@ -34,7 +34,7 @@
       "id": "groups",
       "file": "groups.png",
       "caption": "Your own groups, shared with the desktop app, hold the sessions you sort into them.",
-      "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then named groups such as Dependencies and Docs, each with its sessions.",
+      "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then the Dependencies group open with its session and the Docs and Tooling groups collapsed to a header with a count.",
       "width": 720,
       "height": 1600,
       "sha256": "609ddfc0b2daa5aa3d57fcf34a15435c6d1211c3835c7b6b0846405e18343aae"
@@ -51,11 +51,11 @@
     {
       "id": "session-details",
       "file": "session-details.png",
-      "caption": "All the fields of one session, each with a Copy button.",
+      "caption": "The identity, agent and location of one session, each field with a Copy button.",
       "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button.",
       "width": 720,
       "height": 1600,
-      "sha256": "ca1be3357d2e12a32e9d4a89c32487f319bd4ae312d06dcfc9f736239e97b76f"
+      "sha256": "facaec41930d6ca1c88fcb5196b450ec81af3390cb1c4ba781899eb597b49097"
     },
     {
       "id": "new-session",

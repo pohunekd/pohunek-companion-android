@@ -49,6 +49,9 @@ filter_project="pohunek-companion"
 sheet_session="review-pr-1412"
 template_project="pohunek-companion"
 template_name="fix-issue"
+# An ended session of filter_project and the status text of a connected host.
+ended_session="release-notes-0.1.2"
+connected_text="Connected"
 
 # Seconds a wait for a screen element or terminal text may take.
 wait_secs=60
@@ -166,7 +169,7 @@ after_by_state() {
 shot_filters() {
   click_tagged SessionList.project "$filter_project"
   "$agent" click SessionList.state.ended >/dev/null
-  wait_text "release-notes-0.1.2"
+  wait_text "$ended_session"
 }
 
 after_filters() {
@@ -246,7 +249,7 @@ after_new_session() {
 shot_hosts() {
   "$agent" click SessionList.hosts >/dev/null
   wait_tag Hosts.row
-  wait_text "Connected"
+  wait_text "$connected_text"
   wait_no_tag Hosts.discoveryError
 }
 
