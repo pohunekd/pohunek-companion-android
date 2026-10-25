@@ -51,9 +51,15 @@ done
 # ---- Shot steps --------------------------------------------------------------
 
 # Polls until the app shows an element with TAG.
+tag_count() { # TAG
+  local nodes
+  nodes="$("$agent" find "$1")" || die "scripts/ui-agent find $1 failed"
+  jq length <<<"$nodes"
+}
+
 wait_tag() { # TAG
   local deadline=$((SECONDS + wait_secs))
-  until [ "$("$agent" find "$1" | jq length)" -gt 0 ]; do
+  until [ "$(tag_count "$1")" -gt 0 ]; do
     [ "$SECONDS" -lt "$deadline" ] || die "'$1' did not appear within ${wait_secs}s"
     sleep 1
   done
@@ -61,7 +67,7 @@ wait_tag() { # TAG
 
 wait_no_tag() { # TAG
   local deadline=$((SECONDS + wait_secs))
-  while [ "$("$agent" find "$1" | jq length)" -gt 0 ]; do
+  while [ "$(tag_count "$1")" -gt 0 ]; do
     [ "$SECONDS" -lt "$deadline" ] || die "'$1' did not disappear within ${wait_secs}s"
     sleep 1
   done
@@ -150,13 +156,17 @@ started=0
 cleanup() {
   local status=$?
   rm -rf "$work"
-  if [ "$started" -eq 1 ]; then "$agent" stop >&2 || echo "capture-screenshots: could not stop the run; stop it with scripts/ui-agent stop" >&2; fi
+  if [ "$started" -eq 1 ] && ! "$agent" stop >&2; then
+    echo "capture-screenshots: could not stop the run; stop it with scripts/ui-agent stop" >&2
+    status=1
+  fi
   exit "$status"
 }
 trap cleanup EXIT
 
-started=1
+# ui-agent start removes its own claim when it fails, so the run is ours to stop only once it succeeded.
 "$agent" start --showcase >&2
+started=1
 port="$("$agent" status | sed -n 's/.*bridge=127\.0\.0\.1:\([0-9]*\).*/\1/p')"
 [[ "$port" =~ ^[0-9]+$ ]] || die "could not read the bridge port from scripts/ui-agent status"
 
@@ -199,6 +209,9 @@ for id in "${ids[@]}"; do
     ($shots[0][] | select(.id == $id)) as $s
     | .shots += [{id: $id, file: "\($id).png", caption: $s.caption, alt: $s.alt, width: $w, height: $h, sha256: $digest}]' \
     "$work/manifest.json" >"$work/manifest.next" && mv "$work/manifest.next" "$work/manifest.json"
+done
+for stale in "$out_dir"/*.png; do
+  printf '%s\n' "${ids[@]}" | grep -qxF -- "$(basename "$stale" .png)" || rm -f "$stale"
 done
 for id in "${ids[@]}"; do mv "$work/$id.png" "$out_dir/$id.png"; done
 mv "$work/manifest.json" "$manifest_file"
