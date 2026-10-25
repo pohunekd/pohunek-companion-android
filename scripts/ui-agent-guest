@@ -697,6 +697,49 @@ rotate() {
   echo "rotation=$next"
 }
 
+# Fixed status bar for reproducible screenshots: SystemUI demo mode with a set
+# clock, full battery and wifi, and no notification icons. The clock node must
+# read the fixed time afterwards, else demo mode did not take effect.
+demo_clock_hhmm=1000
+demo_mode() { # on|off
+  local broadcast='am broadcast -a com.android.systemui.demo'
+  case "$1" in
+    on)
+      adbd shell settings put global sysui_demo_allowed 1
+      adbd shell "$broadcast -e command enter" >/dev/null
+      adbd shell "$broadcast -e command clock -e hhmm $demo_clock_hhmm" >/dev/null
+      adbd shell "$broadcast -e command battery -e level 100 -e plugged false" >/dev/null
+      adbd shell "$broadcast -e command network -e wifi show -e level 4 -e fully true" >/dev/null
+      adbd shell "$broadcast -e command network -e mobile hide" >/dev/null
+      adbd shell "$broadcast -e command notifications -e visible false" >/dev/null
+      sleep 1
+      local want="${demo_clock_hhmm:0:2}:${demo_clock_hhmm:2:2}" dump got
+      # The status bar is a window of SystemUI, which only a --windows dump contains.
+      adbd shell "uiautomator dump --windows $device_ui_dump >/dev/null" || die "uiautomator dump failed"
+      dump="$(adbd exec-out cat "$device_ui_dump")"
+      got="$(sed -n '/resource-id="com.android.systemui:id\/clock"/{s/.* text="\([^"]*\)".*/\1/p}' <<<"${dump//>/$'\n'}" | sed -n 1p)"
+      [ "$got" = "$want" ] || die "demo mode is not active: the status bar clock reads '$got', expected '$want'"
+      echo "demo-mode on clock=$want" ;;
+    off)
+      adbd shell "$broadcast -e command exit" >/dev/null
+      adbd shell settings put global sysui_demo_allowed 0
+      echo "demo-mode off" ;;
+    *) die "usage: demo-mode on|off" ;;
+  esac
+}
+
+# Night mode of the emulator, which the app's DayNight theme follows.
+night_mode() { # on|off
+  case "$1" in
+    on) adbd shell cmd uimode night yes >/dev/null ;;
+    off) adbd shell cmd uimode night no >/dev/null ;;
+    *) die "usage: night on|off" ;;
+  esac
+  [ "$(adbd shell cmd uimode night | tr -d '\r')" = "Night mode: $([ "$1" = on ] && echo yes || echo no)" ] ||
+    die "the emulator did not switch night mode $1"
+  echo "night $1"
+}
+
 # Trailing whitespace of every line and trailing empty lines removed, so the two screen dumps compare with diff.
 trim_screen() {
   sed -e 's/[[:space:]]*$//' | awk '{ lines[NR] = $0 } END { last = NR; while (last > 0 && lines[last] == "") last--; for (i = 1; i <= last; i++) print lines[i] }'
@@ -1094,6 +1137,8 @@ case "$cmd" in
   type) load_run; type_text "${1:?text required}" "${2:-}" ;;
   key) load_run; send_key "${1:?key required}" ;;
   rotate) load_run; rotate ;;
+  demo-mode) load_run; require_isolated_run demo-mode; demo_mode "${1:-}" ;;
+  night) load_run; require_isolated_run night; night_mode "${1:-}" ;;
   net-drop) load_run; require_isolated net-drop; stop_bridge; echo "bridge down" ;;
   net-restore) load_run; require_isolated net-restore; stop_bridge; start_bridge; echo "bridge up" ;;
   host-stop) load_run; require_isolated host-stop; halt_daemon; echo "daemon stopped" ;;

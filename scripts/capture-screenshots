@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+# Captures the public screenshot set into docs/screenshots/ from a ui-agent
+# isolated run with the showcase data: <id>.png per entry of shots.json and
+# manifest.json (schema 1), the file pohunek.dev reads at a release tag.
+#
+#   scripts/capture-screenshots
+#
+# The command owns its run: it fails when this worktree already has one and
+# stops its own on exit. It takes no device or daemon option, so nothing but
+# the isolated emulator and its synthetic daemon can appear in an image.
+# app/ must be committed, because the manifest's appTree names the built tree.
+#
+# Shots run in the order of shots.json; the terminal shot stays last because the
+# attached terminal has no back control a script can reach. shots.json lists id,
+# caption and alt per shot; each id needs a function shot_<id with - as _> below
+# that leaves the screen as it should be captured. The image size is the
+# emulator_screen of config/dev.toml.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+config="$root/config/dev.toml"
+agent="$root/scripts/ui-agent"
+out_dir="$root/docs/screenshots"
+shots_file="$out_dir/shots.json"
+manifest_file="$out_dir/manifest.json"
+manifest_schema=1
+
+# Host label shown in the app, and the showcase sessions the shots open.
+host_label="Showcase"
+terminal_session="bump-tokio-1.48"
+terminal_ready_text="Working on the task"
+
+# Seconds a wait for a screen element or terminal text may take.
+wait_secs=60
+
+die() { echo "capture-screenshots: $*" >&2; exit 1; }
+
+config_value() {
+  local key="$1" value
+  value="$(sed -n -E "s/^${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*\$/\\1/p" "$config" | head -n 1)"
+  value="${value#\"}"; value="${value%\"}"
+  [ -n "$value" ] || die "$config: missing required key '$key'"
+  printf '%s' "$value"
+}
+
+for tool in jq git podman sha256sum; do
+  command -v "$tool" >/dev/null || die "$tool is not installed"
+done
+[ $# -eq 0 ] || die "takes no arguments"
+
+# ---- Shot steps --------------------------------------------------------------
+
+# Polls until the app shows an element with TAG.
+tag_count() { # TAG
+  local nodes
+  nodes="$("$agent" find "$1")" || die "scripts/ui-agent find $1 failed"
+  jq length <<<"$nodes"
+}
+
+wait_tag() { # TAG
+  local deadline=$((SECONDS + wait_secs))
+  until [ "$(tag_count "$1")" -gt 0 ]; do
+    [ "$SECONDS" -lt "$deadline" ] || die "'$1' did not appear within ${wait_secs}s"
+    sleep 1
+  done
+}
+
+wait_no_tag() { # TAG
+  local deadline=$((SECONDS + wait_secs))
+  while [ "$(tag_count "$1")" -gt 0 ]; do
+    [ "$SECONDS" -lt "$deadline" ] || die "'$1' did not disappear within ${wait_secs}s"
+    sleep 1
+  done
+}
+
+# Polls until the attached terminal shows TEXT.
+wait_screen_text() { # TEXT
+  local deadline=$((SECONDS + wait_secs))
+  until "$agent" screen 2>/dev/null | grep -qF -- "$1"; do
+    [ "$SECONDS" -lt "$deadline" ] || die "the terminal did not show '$1' within ${wait_secs}s"
+    sleep 1
+  done
+}
+
+# Index of the SessionList.row that contains a text node equal to NAME: the row
+# itself carries no text, its title is a child node inside its bounds.
+row_index() { # NAME
+  local index
+  index="$("$agent" tree | jq -r --arg name "$1" '
+    . as $nodes
+    | [$nodes[] | select(.id == "SessionList.row")] as $rows
+    | $rows | map(. as $row | any($nodes[]; .text == $name and .bounds.left >= $row.bounds.left and .bounds.right <= $row.bounds.right
+        and .bounds.top >= $row.bounds.top and .bounds.bottom <= $row.bounds.bottom))
+    | index(true) // empty')"
+  [ -n "$index" ] || die "no session row for '$1'"
+  printf '%s' "$index"
+}
+
+shot_session_list() {
+  wait_tag SessionList.needsYou
+  wait_no_tag SessionList.loading
+}
+
+shot_terminal() {
+  wait_tag SessionList.row
+  local index
+  index="$(row_index "$terminal_session")"
+  "$agent" click SessionList.row "$index" >/dev/null
+  wait_tag Terminal.view
+  wait_screen_text "$terminal_ready_text"
+}
+
+shot_settings() {
+  "$agent" click SessionList.settings >/dev/null
+  wait_tag Settings.list
+}
+
+after_settings() {
+  "$agent" click Settings.back >/dev/null
+  wait_tag SessionList.settings
+}
+
+shot_function() { printf 'shot_%s' "${1//-/_}"; }
+
+# ---- Checks before anything starts -------------------------------------------
+
+[ -r "$shots_file" ] || die "missing $shots_file"
+jq -e 'type == "array" and length > 0 and all(.[]; (.id | type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$")) and (.caption | type == "string" and length > 0) and (.alt | type == "string" and length > 0))' "$shots_file" >/dev/null ||
+  die "$shots_file must be a non-empty array of {id, caption, alt} with kebab-case ids and non-empty texts"
+[ "$(jq 'map(.id) | length - (unique | length)' "$shots_file")" -eq 0 ] || die "$shots_file has duplicate ids"
+
+mapfile -t ids < <(jq -r '.[].id' "$shots_file")
+for id in "${ids[@]}"; do
+  declare -F "$(shot_function "$id")" >/dev/null || die "shot '$id' is in shots.json but has no capture step ($(shot_function "$id"))"
+done
+while read -r fn; do
+  id="${fn#shot_}"; id="${id//_/-}"
+  printf '%s\n' "${ids[@]}" | grep -qxF -- "$id" || die "capture step $fn has no entry '$id' in shots.json"
+done < <(declare -F | awk '{print $3}' | grep '^shot_' | grep -v '^shot_function$')
+
+[ -z "$(git -C "$root" status --porcelain -- app)" ] ||
+  die "app/ has uncommitted or untracked changes; commit them first so appTree describes the captured build"
+app_tree="$(git -C "$root" rev-parse HEAD:app/src/main)"
+
+device="$(config_value emulator_screen)"
+[[ "$device" =~ ^([0-9]+)x([0-9]+)x[0-9]+$ ]] || die "$config: emulator_screen must be WIDTHxHEIGHTxDPI, got '$device'"
+width="${BASH_REMATCH[1]}"; height="${BASH_REMATCH[2]}"
+
+existing="$(podman ps -a --filter "label=ui-agent.worktree=$root" --format '{{.Names}}' | head -n 1)"
+[ -z "$existing" ] || die "this worktree already has a ui-agent run ($existing); stop it yourself with: scripts/ui-agent stop"
+
+# ---- Capture -----------------------------------------------------------------
+
+work="$(mktemp -d)"
+started=0
+cleanup() {
+  local status=$?
+  rm -rf "$work"
+  if [ "$started" -eq 1 ] && ! "$agent" stop >&2; then
+    echo "capture-screenshots: could not stop the run; stop it with scripts/ui-agent stop" >&2
+    status=1
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+
+# ui-agent start removes its own claim when it fails, so the run is ours to stop only once it succeeded.
+"$agent" start --showcase >&2
+started=1
+port="$("$agent" status | sed -n 's/.*bridge=127\.0\.0\.1:\([0-9]*\).*/\1/p')"
+[[ "$port" =~ ^[0-9]+$ ]] || die "could not read the bridge port from scripts/ui-agent status"
+
+# A fresh install opens the host form; the first saved host returns to the list.
+wait_tag HostForm.route
+"$agent" click HostForm.route >/dev/null
+"$agent" type "127.0.0.1:$port" >/dev/null
+"$agent" click HostForm.label >/dev/null
+"$agent" type "$host_label" >/dev/null
+"$agent" click HostForm.save >/dev/null
+wait_tag SessionList.settings
+
+"$agent" night on >&2
+"$agent" demo-mode on >&2
+wait_tag SessionList.settings
+
+png_size() { # FILE -> WIDTHxHEIGHT from the PNG header
+  od -An -tu1 -j16 -N8 "$1" | awk '{ printf "%d", $1*16777216 + $2*65536 + $3*256 + $4; printf "x%d", $5*16777216 + $6*65536 + $7*256 + $8 }'
+}
+
+for id in "${ids[@]}"; do
+  echo "capture-screenshots: $id" >&2
+  "$(shot_function "$id")"
+  sleep 1
+  "$agent" screenshot "$work/$id.png" >/dev/null
+  size="$(png_size "$work/$id.png")"
+  [ "$size" = "${width}x${height}" ] || die "$id is $size, expected ${width}x${height}"
+  after="after_${id//-/_}"
+  if declare -F "$after" >/dev/null; then "$after"; fi
+done
+
+# ---- Write -------------------------------------------------------------------
+
+jq -n --argjson schema "$manifest_schema" --arg tree "$app_tree" --arg device "$device" \
+  --slurpfile shots "$shots_file" '{schema: $schema, appTree: $tree, device: $device, shots: []}' >"$work/manifest.json"
+for id in "${ids[@]}"; do
+  digest="$(sha256sum "$work/$id.png" | cut -d' ' -f1)"
+  jq --arg id "$id" --arg digest "$digest" --argjson w "$width" --argjson h "$height" \
+    --slurpfile shots "$shots_file" '
+    ($shots[0][] | select(.id == $id)) as $s
+    | .shots += [{id: $id, file: "\($id).png", caption: $s.caption, alt: $s.alt, width: $w, height: $h, sha256: $digest}]' \
+    "$work/manifest.json" >"$work/manifest.next" && mv "$work/manifest.next" "$work/manifest.json"
+done
+for stale in "$out_dir"/*.png; do
+  printf '%s\n' "${ids[@]}" | grep -qxF -- "$(basename "$stale" .png)" || rm -f "$stale"
+done
+for id in "${ids[@]}"; do mv "$work/$id.png" "$out_dir/$id.png"; done
+mv "$work/manifest.json" "$manifest_file"
+echo "capture-screenshots: wrote ${#ids[@]} shots and manifest.json to docs/screenshots (appTree $app_tree)"

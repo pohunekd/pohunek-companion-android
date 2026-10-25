@@ -73,6 +73,7 @@ scripts/ui-agent start [--sessions N] [--showcase] [--device phone] [--owner-dae
 scripts/ui-agent install | restart | stop | status
 scripts/ui-agent screenshot OUT.png | tree | find TAG | click TAG [N]
 scripts/ui-agent type TEXT [--enter] | key esc|ctrl-c|tab|up|down|left|right|enter
+scripts/ui-agent demo-mode on|off | night on|off (emulator status bar fixed; dark theme)
 scripts/ui-agent rotate | net-drop | net-restore | host-stop | host-start
 scripts/ui-agent health | log [app|daemon|emulator]
 scripts/ui-agent screen | session-screen ID [--size]
@@ -369,6 +370,23 @@ host name, overlay address, or token.
   anything through them.
 - Raw `tree`, `find`, and `log` output can contain session names: treat it like
   a screenshot.
+
+### Screenshots
+
+`scripts/capture-screenshots` writes the public screenshot set to
+`docs/screenshots/`: `<id>.png` per entry of `shots.json` (id, caption, alt) and
+`manifest.json` (`schema` 1, `appTree` = `git rev-parse HEAD:app/src/main`,
+`device` from `emulator_screen`, per shot `id`, `file`, `caption`, `alt`,
+`width`, `height`, `sha256`). It takes no option, starts its own
+`ui-agent start --showcase` run (and fails if the worktree already has one),
+adds the showcase daemon as the host "Showcase", forces the dark theme
+(`ui-agent night on`) and a fixed status bar (`ui-agent demo-mode on`: clock
+10:00, full battery and wifi, no notifications; the command fails if the clock
+does not read it), then stops the run. It refuses to run with uncommitted
+changes under `app/`, and fails naming the id when `shots.json` and the capture
+steps in the script disagree. A new shot is a `shots.json` entry plus a
+`shot_<id>` function. Open every PNG before committing the set: each must show
+the intended screen with showcase data only. Run it before tagging a release.
 
 ## CI
 

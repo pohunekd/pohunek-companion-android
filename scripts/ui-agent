@@ -21,6 +21,8 @@
 #   scripts/ui-agent long-press TAG [N]    press and hold the centre of the Nth match
 #   scripts/ui-agent drag TAG [N] --to TAG [M] [--after]
 #                                          long-press the source, move to the target (its centre, or three quarters down with --after), release
+#   scripts/ui-agent demo-mode on|off      fix the status bar (SystemUI demo mode: clock 10:00, full battery and wifi, no notifications); isolated emulator runs only
+#   scripts/ui-agent night on|off          force the emulator's dark or light theme (isolated emulator runs only)
 #   scripts/ui-agent background | foreground
 #                                          send the app to the background (home) and bring its task back without a restart
 #   scripts/ui-agent clipboard             print the device clipboard text
@@ -358,6 +360,7 @@ case "${1:-}" in
   app-file) guest app-file "${2:?cat, put or rm required}" "${3:?path required}" ;;
   pohunek) shift; guest pohunek "$@" ;;
   rotate) guest rotate ;;
+  demo-mode | night) guest "$1" "${2:-}" ;;
   net-drop | net-restore | host-stop | host-start | health) guest "$1" ;;
   log) warn_unpublishable; guest log "${2:-app}" ;;
   *) sed -n '2,/ui-agent log \[app/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
