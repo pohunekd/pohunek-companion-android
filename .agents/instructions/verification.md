@@ -400,3 +400,13 @@ owner adds it to the `main` ruleset (agents may not change rulesets).
 
 Keep CI fast: before adding a job or a step, measure its cost on a PR run and
 state it in the PR. A slow or flaky CI is a bug: file it.
+
+## Changelog
+
+`scripts/test-changelog` checks the changelog tooling against the contract
+fixtures in `tests/changelog/fixtures`, byte for byte, and `scripts/changelog
+check` validates the fragments. The `changelog` workflow runs both on every pull
+request. They run on the host runner, not in the toolchain container, because
+the tooling needs only bash, git and coreutils. They are not part of
+`scripts/gates`; run them locally before pushing a change to `scripts/changelog`
+or to a fragment.

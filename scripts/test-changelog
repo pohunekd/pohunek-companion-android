@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# Runs scripts/changelog against the contract fixtures in tests/changelog. Each
+# fold and notes result must match its expected file byte for byte, and each case
+# under tests/changelog/fixtures/invalid must be rejected by `check` with a message.
+# Usage: scripts/test-changelog
+set -euo pipefail
+export LC_ALL=C
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+tool="$root/scripts/changelog"
+fixtures="$root/tests/changelog/fixtures"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+checks=0
+failures=0
+
+pass() { checks=$((checks + 1)); }
+fail() {
+  checks=$((checks + 1))
+  failures=$((failures + 1))
+  echo "FAIL: $*"
+}
+
+# same ACTUAL EXPECTED LABEL: the two files must be byte for byte equal.
+same() {
+  if cmp -s "$1" "$2"; then
+    pass
+  else
+    fail "$3 differs from ${2#"$root"/}"
+    diff "$2" "$1" | head -40 || true
+  fi
+}
+
+# new_repo NAME FIXTURE: a git checkout of the fixture input whose origin is the
+# fixture repository, so that fold links to example/app.
+new_repo() {
+  local dir="$work/$1"
+  cp -R "$fixtures/$2/input" "$dir"
+  git -C "$dir" init -q
+  git -C "$dir" remote add origin https://github.com/example/app.git
+  printf '%s\n' "$dir"
+}
+
+# fold_and_compare DIR VERSION DATE EXPECTED_DIR: folds, then compares CHANGELOG.md,
+# the removed fragments and the notes with the expected files.
+fold_and_compare() {
+  local dir=$1 version=$2 day=$3 expected=$4
+  if ! (cd "$dir" && "$tool" fold "$version" --date "$day"); then
+    fail "fold $version failed on the fixture input"
+    return
+  fi
+  same "$dir/CHANGELOG.md" "$expected/CHANGELOG.md" "fold $version: CHANGELOG.md"
+  if compgen -G "$dir/changelog.d/*.md" >/dev/null; then
+    fail "fold $version left fragments in changelog.d"
+  else
+    pass
+  fi
+  if ! (cd "$dir" && "$tool" notes "$version") > "$work/notes.md"; then
+    fail "notes $version failed"
+    return
+  fi
+  same "$work/notes.md" "$expected/notes.md" "notes $version"
+}
+
+# Single-product scenario: 0.37.0 then 0.37.1 on the result of the first fold.
+single="$(new_repo single "single")"
+fold_and_compare "$single" 0.37.0 2026-10-24 "$fixtures/single/expected-0.37.0"
+fold_and_compare "$single" 0.37.1 2026-10-25 "$fixtures/single/expected-0.37.1"
+
+# Pre-release version section.
+prerelease="$(new_repo prerelease prerelease)"
+fold_and_compare "$prerelease" 0.1.0-pre.4 2026-10-26 "$fixtures/prerelease/expected-0.1.0-pre.4"
+
+# Valid fixtures pass check.
+for name in single prerelease; do
+  if (cd "$(new_repo "valid-$name" "$name")" && "$tool" check) >/dev/null; then
+    pass
+  else
+    fail "check rejected the valid fixture $name"
+  fi
+done
+
+# Every invalid case is rejected, and the rejection says why.
+for case in "$fixtures"/invalid/*/; do
+  name="$(basename "$case")"
+  dir="$work/invalid-$name"
+  mkdir "$dir"
+  cp -R "$case". "$dir"
+  if (cd "$dir" && "$tool" check) >/dev/null 2> "$work/stderr"; then
+    fail "check accepted the invalid case $name"
+  elif [ -s "$work/stderr" ]; then
+    pass
+  else
+    fail "check rejected the invalid case $name without a message"
+  fi
+done
+
+# An invalid fragment aborts fold before anything is written.
+broken="$(new_repo broken single)"
+cp "$fixtures/invalid/heading-in-body/changelog.d/12-foo.md" "$broken/changelog.d/12-foo.md"
+before="$(cat "$broken/CHANGELOG.md")"
+if (cd "$broken" && "$tool" fold 0.37.0 --date 2026-10-24) 2>/dev/null; then
+  fail "fold accepted an invalid fragment"
+elif [ "$(cat "$broken/CHANGELOG.md")" = "$before" ] && [ -f "$broken/changelog.d/12-foo.md" ] && [ -f "$broken/changelog.d/9-attach-dump.md" ]; then
+  pass
+else
+  fail "fold wrote files although a fragment was invalid"
+fi
+
+# A version is folded once, and notes need an existing section.
+existing="$(new_repo existing single)"
+if (cd "$existing" && "$tool" fold 0.36.0 --date 2026-10-24) 2>/dev/null; then
+  fail "fold accepted a version that already has a section"
+else
+  pass
+fi
+if (cd "$existing" && "$tool" notes 0.99.0) 2>/dev/null; then
+  fail "notes printed a version without a section"
+else
+  pass
+fi
+
+echo "changelog tooling: $checks checks, $failures failed"
+[ "$failures" -eq 0 ]

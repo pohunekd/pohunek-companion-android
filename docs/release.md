@@ -24,6 +24,7 @@ The tag gives `versionName` (`0.1.0-pre.1`) and `versionCode`
 without `-pre.N`), so `0.1.0-pre.1` < `0.1.0-pre.2` < `0.1.0` < `0.1.1`.
 Minor and patch stay below 100 and `N` is 1 to 998. A build without a tag keeps
 `versionCode` 1 and `versionName` 0.1.0, and its release APK is unsigned.
+The release preparation changes no version file: both values come from the tag.
 
 ## One-time key setup (owner)
 
@@ -66,21 +67,56 @@ Run these yourself; no agent runs them or sees the values.
    run `scripts/capture-screenshots` (it needs a clean `app/`), review the images,
    and merge the result in a PR. `scripts/check-screenshots` validates the set
    without an emulator; the `prepare` job runs it on the tag.
-2. On a commit of `main` with a green `ci`: `git tag -a v0.1.0-pre.1 -m "0.1.0-pre.1"`
-   and `git push origin v0.1.0-pre.1`. The workflow checks the tag, the commit,
-   the screenshot set (a missing manifest, a missing file or a wrong `sha256` fails
-   it; an `appTree` that differs from the tag's `app/src/main` only warns, naming
-   the changed paths) and the secrets, builds, verifies the signature (v2 or newer, one signer) and the
-   version, and creates the release with the APK, its checksum, the certificate
-   SHA-256 and the commit. A run that fails before the publish job leaves no release; one that fails
-   afterwards may leave a draft. Fix the cause, delete the draft (if any) and the
-   remote tag (`git push --delete origin <tag>`), and push the tag again; pushing an
-   existing tag does nothing.
-3. After the release is published, bump the Android pin on the site: in
+2. Prepare the release in a `Release X` pull request. On `main` with a green
+   `ci`, fold the changelog fragments of the version into `CHANGELOG.md`:
+
+   ```bash
+   git fetch origin
+   git switch -c release-0.1.0-pre.4 origin/main
+   scripts/changelog fold 0.1.0-pre.4          # --date YYYY-MM-DD; defaults to today (UTC)
+   git add CHANGELOG.md changelog.d
+   git commit -m "Release 0.1.0-pre.4"
+   git push -u origin release-0.1.0-pre.4
+   gh pr create --title "Release 0.1.0-pre.4" --label no-changelog --fill
+   ```
+
+   The fold validates every fragment and writes nothing when one is invalid. It
+   adds the version section above the previous ones and deletes the folded
+   fragments. A wrong entry is corrected in its own pull request before the
+   release is prepared; the release pull request only folds. It goes through the
+   normal merge bar, and its `ci` run is the one that matters for the tag.
+3. Tag the merge commit of the release pull request, once `main` is green on it:
+   `git tag -a v0.1.0-pre.4 -m "0.1.0-pre.4"` and `git push origin v0.1.0-pre.4`.
+   The workflow checks the tag, the commit, the screenshot set (a missing manifest,
+   a missing file or a wrong `sha256` fails it; an `appTree` that differs from the
+   tag's `app/src/main` only warns, naming the changed paths), the changelog and
+   the secrets. It fails before building when the tagged `CHANGELOG.md` has no
+   section for the version, or when `changelog.d/` still holds a fragment. Then it
+   builds, verifies the signature (v2 or newer, one signer) and the version, and
+   creates the release with the APK, its checksum, the certificate SHA-256, the
+   commit and the notes. A run that fails before the publish job leaves no release;
+   one that fails afterwards may leave a draft. Fix the cause, delete the draft (if
+   any) and the remote tag (`git push --delete origin <tag>`), and push the tag again;
+   pushing an existing tag does nothing.
+4. After the release is published, bump the Android pin on the site: in
    [pohunekd/pohunek.dev](https://github.com/pohunekd/pohunek.dev) set `ref` in
    `android.config.json` to the new tag, run `bun run build` (it verifies the
    manifest and every digest at that tag), and open a PR with that one-line change.
    The release procedure ends when that PR is open.
+
+## Changelog
+
+Every pull request with a user-visible effect adds a fragment
+`changelog.d/<N>-<slug>.md`; the rules are in
+[.agents/instructions/changelog.md](../.agents/instructions/changelog.md). The
+pull request check `changelog` validates the fragments and requires one unless the
+pull request carries `no-changelog`. The fold of a release writes the version
+section into `CHANGELOG.md`, which is committed before the tag.
+
+The release body starts with that section between the markers
+`<!-- pohunek-changelog:start -->` and `<!-- pohunek-changelog:end -->`, followed by
+the signing text. The site reads only the marker block. The format is the shared
+ecosystem contract, zajca/pohunek#1588.
 
 ## Local signed build
 

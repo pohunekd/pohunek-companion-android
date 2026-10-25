@@ -1,2 +1,4 @@
 *.bat text eol=crlf
 gradle/wrapper/gradle-wrapper.jar binary
+# The changelog fixtures are compared byte for byte, including CRLF and BOM cases.
+tests/changelog/** -text

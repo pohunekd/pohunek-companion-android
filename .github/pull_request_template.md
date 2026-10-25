@@ -15,6 +15,14 @@ narrative belongs here, not in code comments. -->
 | --- | --- | --- |
 | D1 | met / unmet | |
 
+## Changelog
+
+<!-- A user-visible change adds its fragment changelog.d/<N>-<slug>.md (see
+.agents/instructions/changelog.md); otherwise the pull request carries the
+no-changelog label. -->
+
+- [ ] Fragment added, or `no-changelog` label set
+
 ## Verification
 
 - CI: <!-- check result and run URL -->

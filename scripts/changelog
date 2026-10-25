@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+# Changelog tooling for the user-facing changelog (contract version 1).
+# Run from the repository root.
+#
+#   scripts/changelog check
+#   scripts/changelog fold <version> [--date YYYY-MM-DD]
+#   scripts/changelog notes <version>
+#
+# check   validates every fragment in changelog.d/.
+# fold    validates the fragments, writes the version section into CHANGELOG.md
+#         and deletes the fragments. Nothing is written when one is invalid.
+# notes   prints the marker block of a version section for the release body.
+#
+# fold takes the repository for the entry links from the `origin` remote.
+set -euo pipefail
+export LC_ALL=C
+
+kinds=(added changed deprecated removed fixed security)
+version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-pre\.[1-9][0-9]*)?$'
+fragment_pattern='^([1-9][0-9]*)-([a-z0-9]+(-[a-z0-9]+)*)\.md$'
+header_pattern='^([a-z]+): ([^[:space:]]|[^[:space:]].*[^[:space:]])$'
+changelog=CHANGELOG.md
+fragments_dir=changelog.d
+marker_start='<!-- pohunek-changelog:start -->'
+marker_end='<!-- pohunek-changelog:end -->'
+
+die() { printf 'changelog: %s\n' "$*" >&2; exit 1; }
+
+# Each fragment is parsed by parse_fragment, which reports its first problem and
+# returns 1. Records of valid fragments collect in fragments, their paths in fragment_paths.
+fragments=()
+fragment_paths=()
+invalid=0
+
+# Prints one record for a valid fragment: kind, breaking rank (0 sorts first),
+# issue number, slug and the rendered text, separated by tabs.
+parse_fragment() {
+  local path=$1 name=${1##*/}
+  local -a lines=() body=()
+  local -A seen=()
+  local i line key value kind= breaking=false end= text= number slug rank=1
+
+  reject() { printf 'changelog.d/%s: %s\n' "$name" "$*" >&2; }
+
+  if ! [[ $name =~ $fragment_pattern ]]; then
+    reject "bad file name, expected <N>-<slug>.md with lowercase slug and N without leading zeros"
+    return 1
+  fi
+  number=${BASH_REMATCH[1]} slug=${BASH_REMATCH[2]}
+
+  if ! iconv -f UTF-8 -t UTF-8 "$path" >/dev/null 2>&1; then
+    reject "not valid UTF-8"
+    return 1
+  fi
+  if [ "$(head -c 3 "$path" | od -An -tx1 | tr -d ' ')" = efbbbf ]; then
+    reject "byte order mark"
+    return 1
+  fi
+  if grep -q $'\r' "$path"; then
+    reject "CRLF or CR line ending, use LF"
+    return 1
+  fi
+
+  mapfile -t lines < "$path"
+  if [ "${lines[0]-}" != --- ]; then
+    reject "no opening ---"
+    return 1
+  fi
+  for ((i = 1; i < ${#lines[@]}; i++)); do
+    if [ "${lines[i]}" = --- ]; then
+      end=$i
+      break
+    fi
+  done
+  if [ -z "$end" ]; then
+    reject "no closing ---"
+    return 1
+  fi
+
+  for ((i = 1; i < end; i++)); do
+    line=${lines[i]}
+    if ! [[ $line =~ $header_pattern ]]; then
+      reject "bad header line '$line', expected 'key: value' with no surrounding spaces"
+      return 1
+    fi
+    key=${BASH_REMATCH[1]} value=${BASH_REMATCH[2]}
+    if [ -n "${seen[$key]-}" ]; then
+      reject "duplicate key $key"
+      return 1
+    fi
+    seen[$key]=1
+    case $key in
+      kind) kind=$value ;;
+      breaking) breaking=$value ;;
+      surfaces)
+        reject "surfaces is only allowed in a multi-surface repository"
+        return 1 ;;
+      *)
+        reject "unknown key $key"
+        return 1 ;;
+    esac
+  done
+
+  case $kind in
+    "")
+      reject "missing kind"
+      return 1 ;;
+    added|changed|deprecated|removed|fixed|security) ;;
+    *)
+      reject "unknown kind '$kind'"
+      return 1 ;;
+  esac
+  case $breaking in
+    true|false) ;;
+    *)
+      reject "breaking must be true or false, got '$breaking'"
+      return 1 ;;
+  esac
+  [ "$breaking" = true ] && rank=0
+
+  body=("${lines[@]:end+1}")
+  while [ "${#body[@]}" -gt 0 ] && [ -z "${body[0]//[[:space:]]/}" ]; do
+    body=("${body[@]:1}")
+  done
+  while [ "${#body[@]}" -gt 0 ] && [ -z "${body[-1]//[[:space:]]/}" ]; do
+    unset 'body[-1]'
+  done
+  if [ "${#body[@]}" -eq 0 ]; then
+    reject "empty body"
+    return 1
+  fi
+  for line in "${body[@]}"; do
+    if [ -z "${line//[[:space:]]/}" ]; then
+      reject "blank line inside the body, the body is one paragraph"
+      return 1
+    fi
+    if [[ $line == \#* ]]; then
+      reject "heading line in the body"
+      return 1
+    fi
+  done
+
+  for line in "${body[@]}"; do
+    line=${line#"${line%%[![:space:]]*}"}
+    line=${line%"${line##*[![:space:]]}"}
+    text+=${text:+ }$line
+  done
+
+  printf '%s\t%s\t%s\t%s\t%s\n' "$kind" "$rank" "$number" "$slug" "$text"
+}
+
+# Validates every fragment in changelog.d/ and collects the valid ones.
+load_fragments() {
+  local path record
+  local -a paths=()
+  shopt -s nullglob
+  paths=("$fragments_dir"/*.md)
+  shopt -u nullglob
+  for path in "${paths[@]}"; do
+    if record="$(parse_fragment "$path")"; then
+      fragments+=("$record")
+      fragment_paths+=("$path")
+    else
+      invalid=1
+    fi
+  done
+}
+
+# Prints the entries of the section, one kind subsection after another. Breaking
+# entries first, then by issue number, then by slug.
+render_section() {
+  local repo=$1 kind entry rank number slug text bold first=1
+  local -a entries=()
+
+  if [ "${#fragments[@]}" -eq 0 ]; then
+    printf 'No user-facing changes.\n'
+    return
+  fi
+  for kind in "${kinds[@]}"; do
+    mapfile -t entries < <(printf '%s\n' "${fragments[@]}" \
+      | awk -F '\t' -v kind="$kind" '$1 == kind' \
+      | sort -t $'\t' -k2,2n -k3,3n -k4,4)
+    [ "${#entries[@]}" -gt 0 ] || continue
+    [ "$first" -eq 1 ] || printf '\n'
+    first=0
+    printf '### %s\n\n' "${kind^}"
+    for entry in "${entries[@]}"; do
+      IFS=$'\t' read -r _ rank number slug text <<< "$entry"
+      bold=
+      [ "$rank" -eq 0 ] && bold='**Breaking:** '
+      printf -- '- %s%s ([#%s](https://github.com/%s/issues/%s))\n' "$bold" "$text" "$number" "$repo" "$number"
+    done
+  done
+}
+
+# Prints owner/name of the origin remote when it is a GitHub repository.
+repository_slug() {
+  local url
+  url="$(git remote get-url origin 2>/dev/null)" || return 1
+  [[ $url =~ github\.com[:/]([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(\.git)?/?$ ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]%.git}"
+}
+
+check_version() {
+  [[ $1 =~ $version_pattern ]] || die "version '$1' is not X.Y.Z or X.Y.Z-pre.N"
+}
+
+# Removes trailing empty lines of the array named $1.
+trim_trailing_blank() {
+  local -n arr=$1
+  while [ "${#arr[@]}" -gt 0 ] && [ -z "${arr[-1]}" ]; do
+    unset 'arr[-1]'
+  done
+}
+
+cmd_check() {
+  [ "$#" -eq 0 ] || die "check takes no arguments"
+  load_fragments
+  [ "$invalid" -eq 0 ] || exit 1
+  printf 'changelog: %d fragment(s) valid\n' "${#fragments[@]}"
+}
+
+cmd_fold() {
+  local version=${1-} day repo tmp i line path
+  local -a cl_lines=() section=() block=() out=()
+  [ -n "$version" ] || die "fold needs a version"
+  shift
+  day=$(date -u +%F)
+  while [ "$#" -gt 0 ]; do
+    case $1 in
+      --date)
+        [ "$#" -ge 2 ] || die "--date needs a value"
+        day=$2
+        shift 2 ;;
+      *) die "unknown argument '$1'" ;;
+    esac
+  done
+  check_version "$version"
+  if ! [[ $day =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || [ "$(date -u -d "$day" +%F 2>/dev/null)" != "$day" ]; then
+    die "--date must be a valid YYYY-MM-DD date, got '$day'"
+  fi
+  repo="$(repository_slug)" || die "the origin remote must be a GitHub repository; the entry links need owner/name"
+  [ -f "$changelog" ] || die "$changelog is missing; it is committed by hand before the first fold"
+  mapfile -t cl_lines < "$changelog"
+  [ "${cl_lines[0]-}" = "# Changelog" ] || die "$changelog must start with '# Changelog'"
+  for line in "${cl_lines[@]}"; do
+    [[ $line == "## $version - "* ]] && die "$changelog already has a section for $version"
+  done
+
+  load_fragments
+  [ "$invalid" -eq 0 ] || die "invalid fragments, nothing was written"
+
+  mapfile -t section < <(render_section "$repo")
+  block=("## $version - $day" "" "${section[@]}")
+
+  local first_section=-1
+  for i in "${!cl_lines[@]}"; do
+    if [[ ${cl_lines[i]} == "## "* ]]; then
+      first_section=$i
+      break
+    fi
+  done
+  if [ "$first_section" -ge 0 ]; then
+    out=("${cl_lines[@]:0:first_section}" "${block[@]}" "" "${cl_lines[@]:first_section}")
+  else
+    out=("${cl_lines[@]}" "" "${block[@]}")
+  fi
+  trim_trailing_blank out
+
+  tmp="$(mktemp "$changelog.XXXXXX")"
+  printf '%s\n' "${out[@]}" > "$tmp"
+  mv "$tmp" "$changelog"
+  for path in "${fragment_paths[@]}"; do
+    rm -- "$path"
+  done
+}
+
+cmd_notes() {
+  local version=${1-} start=-1 i
+  local -a cl_lines=() content=()
+  [ -n "$version" ] || die "notes needs a version"
+  [ "$#" -eq 1 ] || die "notes takes one version"
+  check_version "$version"
+  [ -f "$changelog" ] || die "$changelog is missing"
+  mapfile -t cl_lines < "$changelog"
+  for i in "${!cl_lines[@]}"; do
+    if [[ ${cl_lines[i]} == "## $version - "* ]]; then
+      start=$i
+      break
+    fi
+  done
+  [ "$start" -ge 0 ] || die "$changelog has no section for $version"
+  [ -z "${cl_lines[start+1]-}" ] || die "the section for $version must be followed by a blank line"
+  for ((i = start + 2; i < ${#cl_lines[@]}; i++)); do
+    if [[ ${cl_lines[i]} == "## "* ]]; then
+      break
+    fi
+    content+=("${cl_lines[i]}")
+  done
+  trim_trailing_blank content
+  [ "${#content[@]}" -gt 0 ] || die "the section for $version has no content"
+  printf '%s\n' "$marker_start" "${content[@]}" "$marker_end"
+}
+
+case ${1-} in
+  check) shift; cmd_check "$@" ;;
+  fold) shift; cmd_fold "$@" ;;
+  notes) shift; cmd_notes "$@" ;;
+  *) die "usage: scripts/changelog check | fold <version> [--date YYYY-MM-DD] | notes <version>" ;;
+esac

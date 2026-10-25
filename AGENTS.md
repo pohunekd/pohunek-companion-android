@@ -34,6 +34,8 @@ Read a guide when its trigger applies.
   copied third-party code, and comment rules.
 - **Before any commit or PR:** [.agents/instructions/verification.md](.agents/instructions/verification.md)
   for the gate set, the testing policy, CI, and evidence.
+- **A user-visible change:** [.agents/instructions/changelog.md](.agents/instructions/changelog.md)
+  for the changelog fragment every such pull request adds, or its `no-changelog` label.
 - **Architecture or product decisions:** [docs/architecture.md](docs/architecture.md)
   is authoritative; revise it explicitly in the same PR when a decision changes.
 
@@ -66,6 +68,8 @@ scripts/build-libghostty-vt                # libghostty-vt.a for arm64-v8a and x
 scripts/gates                              # Spotless, detekt, lint, unit tests, assembleDebug: the set CI runs
 scripts/ui-agent start                     # emulator + app + isolated daemon; then screenshot, tree, click, type, key, screen, stop (see verification.md)
 scripts/check-screenshots                  # docs/screenshots matches its manifest (the release workflow runs it)
+scripts/changelog check                    # validates the changelog fragments in changelog.d/
+scripts/test-changelog                     # the changelog tooling against its contract fixtures
 ```
 
 The repository is public: published screenshots, logs, and PR or issue text
