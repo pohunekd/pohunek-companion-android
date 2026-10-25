@@ -1,0 +1,54 @@
+# Checks the changelog contract on every pull request: the tooling fixtures, every
+# fragment in the tree, and a fragment in the pull request unless it carries the
+# no-changelog label. Runs on the host runner because the tooling needs only bash,
+# git and coreutils; the toolchain container is not involved.
+#
+# The job holds no secret and only read access: it runs scripts from the pull request.
+
+name: changelog
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: changelog-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run the tooling fixtures
+        run: scripts/test-changelog
+
+      - name: Validate the fragments
+        run: scripts/changelog check
+
+      # The label is matched by the expression engine, never by the shell, so a label name cannot
+      # smuggle a separator into the comparison.
+      - name: Require a fragment
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # The pathspec glob also matches dotfiles, which the tool ignores; the regex keeps real fragment names only.
+          changed="$(git diff --name-only --diff-filter=AMR "$BASE_SHA...$HEAD_SHA" -- 'changelog.d/*.md' \
+            | grep -E '^changelog\.d/[1-9][0-9]*-[a-z0-9]+(-[a-z0-9]+)*\.md$' || true)"
+          if [ -z "$changed" ]; then
+            echo "::error::this pull request adds or changes no fragment in changelog.d/; add one (.agents/instructions/changelog.md) or label it no-changelog"
+            exit 1
+          fi
+          echo "Fragments in this pull request:"
+          echo "$changed"

@@ -4,11 +4,14 @@
 #
 # Jobs:
 #   prepare  checks the tag, that its commit is on main, that `ci` passed there and
-#            that docs/screenshots holds a valid set. No secrets.
+#            that docs/screenshots holds a valid set. Builds the release notes from
+#            the tagged CHANGELOG.md and uploads them as data. No secrets.
 #   build    the only job in the `release` environment and the only one that sees
 #            the signing secrets; its token is read-only. Uploads the APK and its
 #            checksum as a workflow artifact, nothing else.
-#   publish  the only job with `contents: write`; it holds no secret.
+#   publish  the only job with `contents: write`; it holds no secret and runs no
+#            repository code. It places the notes from prepare in front of the
+#            footer text and creates the release.
 #
 # The owner's one-time setup (key, environment, secrets) is in docs/release.md.
 
@@ -68,6 +71,29 @@ jobs:
       # The site reads docs/screenshots at the tag; a tag without a valid set must not be built.
       - name: Check the screenshot set
         run: scripts/check-screenshots "$GITHUB_SHA"
+
+      # The version section must be folded into the tagged commit's CHANGELOG.md, and no fragment may
+      # remain: a leftover fragment would be dropped from the release silently.
+      - name: Build the release notes
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          scripts/changelog check
+          if [ -n "$(find changelog.d -maxdepth 1 -name '*.md' -print -quit)" ]; then
+            echo "::error::changelog.d still holds fragments at $GITHUB_SHA; fold them into CHANGELOG.md in the release preparation PR first"
+            exit 1
+          fi
+          mkdir "$RUNNER_TEMP/changelog"
+          scripts/changelog notes "$VERSION" > "$RUNNER_TEMP/changelog/notes.md"
+
+      - name: Upload the release notes
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/changelog/notes.md
+          if-no-files-found: error
+          retention-days: 14
 
   build:
     needs: prepare
@@ -223,6 +249,11 @@ jobs:
           name: release-apk
           path: ${{ runner.temp }}/release
 
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/changelog
+
       # A rerun must not add a second release for the same tag. The release is
       # created as a draft, its assets are compared with the local files, and
       # only then is it published.
@@ -238,12 +269,14 @@ jobs:
           fi
           flags=(--draft --verify-tag --title "$TAG")
           [ "$PRERELEASE" = true ] && flags+=(--prerelease)
-          notes="Signed APK \`pohunek-companion-${VERSION}.apk\` built from commit ${GITHUB_SHA}.
+          # The notes are data from prepare: the changelog marker block, then the footer.
+          footer="Signed APK \`pohunek-companion-${VERSION}.apk\` built from commit ${GITHUB_SHA}.
 
           Signing certificate SHA-256: \`${CERT_SHA256}\`
 
           Verify the download with \`sha256sum -c pohunek-companion-${VERSION}.apk.sha256\` and the signer with \`apksigner verify --print-certs\`; see docs/release.md."
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" "${flags[@]}" --notes "$notes" ./*
+          { cat "$RUNNER_TEMP/changelog/notes.md"; echo; printf '%s\n' "$footer"; } > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" "${flags[@]}" --notes-file "$RUNNER_TEMP/release-notes.md" ./*
 
       - name: Verify the draft's assets
         run: |
@@ -255,6 +288,15 @@ jobs:
             echo "$f $(stat -c %s "$f") sha256:$(sha256sum "$f" | cut -d' ' -f1)"
           done | LC_ALL=C sort > "$RUNNER_TEMP/local.txt"
           diff "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt"
+
+      # The site reads only the marker block, so the draft's body must start with the block prepare built.
+      - name: Verify the draft's notes
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$RUNNER_TEMP/body.md"
+          lines="$(wc -l < "$RUNNER_TEMP/changelog/notes.md")"
+          head -n "$lines" "$RUNNER_TEMP/body.md" > "$RUNNER_TEMP/body-head.md"
+          diff "$RUNNER_TEMP/changelog/notes.md" "$RUNNER_TEMP/body-head.md"
 
       - name: Publish the release
         run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

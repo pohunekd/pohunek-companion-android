@@ -59,6 +59,8 @@ to call the current issue done.
   share a Gradle `build/` directory concurrently.
 - Commits: imperative English subject, body with the why when not obvious, no
   `Co-Authored-By` or generated-by trailers, unsigned.
+- A change with a user-visible effect adds its changelog fragment in the same
+  PR; a change without one carries the `no-changelog` label (changelog.md).
 - PR body: `Closes #N`, what changed and why, the gate results, and manual
   verification evidence (see verification.md). The before/after story lives
   here, never in code comments.
