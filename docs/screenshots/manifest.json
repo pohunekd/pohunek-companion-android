@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "appTree": "0b829337d8209c79789577f44c24587b756bc06b",
+  "device": "720x1600x320",
+  "shots": [
+    {
+      "id": "session-list",
+      "file": "session-list.png",
+      "caption": "Every session on every host, with the ones that need you at the top.",
+      "alt": "Pohunek Companion session list in the dark theme: a Needs you section with two blocked agent sessions above the working and idle sessions.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "084942727e8a2d41ecb26a2f89a1a8cde1c233533e9ac03f6cc4d4da115181d6"
+    },
+    {
+      "id": "settings",
+      "file": "settings.png",
+      "caption": "Every tunable of the app in one list, with its default and a reset.",
+      "alt": "Pohunek Companion settings screen in the dark theme: a list of tunables, each with its default value.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "1faf6cd38183e261a6815dac62a032b38f7e35fab19a3d078575494cce175bda"
+    },
+    {
+      "id": "terminal",
+      "file": "terminal.png",
+      "caption": "A full-screen terminal attached to a running session.",
+      "alt": "Pohunek Companion full-screen terminal attached to a session of a working agent, in the dark theme.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "cc9b36ba10a8f0965224070bfa56c0982dcfb697c0e58546b4fa2937bb6f6080"
+    }
+  ]
+}
