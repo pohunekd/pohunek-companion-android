@@ -67,9 +67,14 @@ single="$(new_repo single "single")"
 fold_and_compare "$single" 0.37.0 2026-10-24 "$fixtures/single/expected-0.37.0"
 fold_and_compare "$single" 0.37.1 2026-10-25 "$fixtures/single/expected-0.37.1"
 
-# Pre-release version section.
+# Pre-release version section. The input carries a dotfile that fold must leave in place.
 prerelease="$(new_repo prerelease prerelease)"
 fold_and_compare "$prerelease" 0.1.0-pre.4 2026-10-26 "$fixtures/prerelease/expected-0.1.0-pre.4"
+if [ -f "$prerelease/changelog.d/.draft-notes.txt" ] && [ -f "$prerelease/changelog.d/.gitkeep" ]; then
+  pass
+else
+  fail "fold removed a dotfile from changelog.d"
+fi
 
 # Valid fixtures pass check.
 for name in single prerelease; do
