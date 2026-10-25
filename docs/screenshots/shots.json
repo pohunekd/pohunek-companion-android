@@ -5,6 +5,41 @@
     "alt": "Pohunek Companion session list in the dark theme: a Needs you section with two blocked agent sessions above the working and idle sessions."
   },
   {
+    "id": "by-state",
+    "caption": "The same sessions grouped by what they are doing, so the ones waiting for you come first.",
+    "alt": "Pohunek Companion session list in the dark theme with the By state view selected: sessions in Needs you, Working and Idle sections."
+  },
+  {
+    "id": "filters",
+    "caption": "Narrow the list by state, project or host; here one project is shown with its ended sessions.",
+    "alt": "Pohunek Companion session list in the dark theme with the Ended state chip on and one project selected, showing only that project's sessions."
+  },
+  {
+    "id": "groups",
+    "caption": "Your own groups, shared with the desktop app, hold the sessions you sort into them.",
+    "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then named groups such as Dependencies and Docs, each with its sessions."
+  },
+  {
+    "id": "row-actions",
+    "caption": "Every session row has an action sheet to open, rename, move, stop or remove it.",
+    "alt": "Pohunek Companion action sheet for one session in the dark theme, listing Open terminal, Details, Rename, New session here, Move to group, Open link, Stop and Remove."
+  },
+  {
+    "id": "session-details",
+    "caption": "All the fields of one session, each with a Copy button.",
+    "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button."
+  },
+  {
+    "id": "new-session",
+    "caption": "Start a session on a host from a project template, with its agent and prompt filled in.",
+    "alt": "Pohunek Companion New session form in the dark theme with a project template selected, its agent chosen and its prompt filled in."
+  },
+  {
+    "id": "hosts",
+    "caption": "The hosts the app follows, each with its connection state.",
+    "alt": "Pohunek Companion Hosts screen in the dark theme: one host with its address and a Connected status, and an Add a host button."
+  },
+  {
     "id": "settings",
     "caption": "Every tunable of the app in one list, with its default and a reset.",
     "alt": "Pohunek Companion settings screen in the dark theme: a list of tunables, each with its default value."

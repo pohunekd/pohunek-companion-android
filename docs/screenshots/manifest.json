@@ -13,13 +13,76 @@
       "sha256": "df2c760c27ec4aa3620f4ccaa3f213c9b26062dcc78e65ba1b74244c04281a7c"
     },
     {
+      "id": "by-state",
+      "file": "by-state.png",
+      "caption": "The same sessions grouped by what they are doing, so the ones waiting for you come first.",
+      "alt": "Pohunek Companion session list in the dark theme with the By state view selected: sessions in Needs you, Working and Idle sections.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "f105968d3dc89c0aebef53e25ee8d20f495849e425596db808d143f8b0ddf420"
+    },
+    {
+      "id": "filters",
+      "file": "filters.png",
+      "caption": "Narrow the list by state, project or host; here one project is shown with its ended sessions.",
+      "alt": "Pohunek Companion session list in the dark theme with the Ended state chip on and one project selected, showing only that project's sessions.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "ffa3aeb30e59da10c08f7e980a742358445393a4407b2f1e01e1bb1a2991d5e7"
+    },
+    {
+      "id": "groups",
+      "file": "groups.png",
+      "caption": "Your own groups, shared with the desktop app, hold the sessions you sort into them.",
+      "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then named groups such as Dependencies and Docs, each with its sessions.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "609ddfc0b2daa5aa3d57fcf34a15435c6d1211c3835c7b6b0846405e18343aae"
+    },
+    {
+      "id": "row-actions",
+      "file": "row-actions.png",
+      "caption": "Every session row has an action sheet to open, rename, move, stop or remove it.",
+      "alt": "Pohunek Companion action sheet for one session in the dark theme, listing Open terminal, Details, Rename, New session here, Move to group, Open link, Stop and Remove.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "055e3a2ffbd150836b1e44855a687de6e9637c2ea9868cc0914dc22b3adaf5bf"
+    },
+    {
+      "id": "session-details",
+      "file": "session-details.png",
+      "caption": "All the fields of one session, each with a Copy button.",
+      "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "ca1be3357d2e12a32e9d4a89c32487f319bd4ae312d06dcfc9f736239e97b76f"
+    },
+    {
+      "id": "new-session",
+      "file": "new-session.png",
+      "caption": "Start a session on a host from a project template, with its agent and prompt filled in.",
+      "alt": "Pohunek Companion New session form in the dark theme with a project template selected, its agent chosen and its prompt filled in.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "80e0e9955ad443efceb874f79453f29b044377669604ebd3328f72f14770d7f2"
+    },
+    {
+      "id": "hosts",
+      "file": "hosts.png",
+      "caption": "The hosts the app follows, each with its connection state.",
+      "alt": "Pohunek Companion Hosts screen in the dark theme: one host with its address and a Connected status, and an Add a host button.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "02987f9197ecf6f6ea9f09c703528026ac30e016d427a16773c973ae0934541f"
+    },
+    {
       "id": "settings",
       "file": "settings.png",
       "caption": "Every tunable of the app in one list, with its default and a reset.",
       "alt": "Pohunek Companion settings screen in the dark theme: a list of tunables, each with its default value.",
       "width": 720,
       "height": 1600,
-      "sha256": "1faf6cd38183e261a6815dac62a032b38f7e35fab19a3d078575494cce175bda"
+      "sha256": "792029e571df006d55c7f622320ecf8a7e09195858b1fd041c07eaecdc8ec0f8"
     },
     {
       "id": "terminal",

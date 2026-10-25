@@ -324,6 +324,7 @@ generated_session() {
 # `name|project|agent|state|meta` with state one of working, blocked, idle,
 # stopped (ended) or shell (a plain shell, no activity).
 showcase_projects=(pohunek pohunek-companion ripgrep neovim tokio zed)
+showcase_template_project=pohunek-companion
 showcase_sessions=(
   "review-pr-1412|ripgrep|claude|blocked|work.link.provider=github work.link.kind=pr work.link.id=1412 work.link.url=https://github.com/BurntSushi/ripgrep/pull/1412 work.role=reviewer"
   "fix-flaky-pty-test|pohunek|codex|blocked|work.link.provider=github work.link.kind=issue work.link.id=388 work.link.url=https://github.com/zajca/pohunek/issues/388 work.role=implementer"
@@ -464,6 +465,41 @@ EOF
   done
 }
 
+# Project templates for the "New session" form (one project, two static
+# templates with their actions and prompts), and a `netbird` that reports no
+# overlay peers so the Hosts screen shows no discovery failure.
+write_showcase_fixtures() {
+  local dir="$iso/work/$showcase_template_project/.pohunek"
+  mkdir -p "$dir/prompts"
+  cat >"$dir/templates.toml" <<'EOF'
+[template.fix-issue]
+agent = "claude"
+prompt = "fix-issue"
+base_branch = "main"
+
+[template.review-pr]
+agent = "codex"
+prompt = "review-pr"
+EOF
+  cat >"$dir/actions.toml" <<'EOF'
+[action.fix-issue]
+template = "fix-issue"
+provider = "none"
+branch = "fix/{slug}"
+
+[action.review-pr]
+template = "review-pr"
+provider = "none"
+EOF
+  printf '%s\n' "Fix the issue described below and open a pull request." >"$dir/prompts/fix-issue.tmpl"
+  printf '%s\n' "Review the pull request and list the problems you find." >"$dir/prompts/review-pr.tmpl"
+  cat >"$iso/bin/netbird" <<'EOF'
+#!/bin/sh
+printf '%s\n' '{"peers":[]}'
+EOF
+  chmod 700 "$iso/bin/netbird"
+}
+
 create_showcase_session() { # `name|project|agent|state|meta`
   local name project agent state meta kv out
   IFS='|' read -r name project agent state meta <<<"$1"
@@ -523,6 +559,7 @@ start_daemon() { # EXTRA_SESSIONS SHOWCASE(0|1)
     lines=("${showcase_sessions[@]}")
     create=create_showcase_session
     write_showcase_agents
+    write_showcase_fixtures
   fi
   for ((i = 0; i < extra; i++)); do lines+=("$(generated_session "$i")"); done
   # Sessions are created in parallel batches; a failed creation is fatal.
