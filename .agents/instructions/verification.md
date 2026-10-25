@@ -382,7 +382,11 @@ host name, overlay address, or token.
 adds the showcase daemon as the host "Showcase", forces the dark theme
 (`ui-agent night on`) and a fixed status bar (`ui-agent demo-mode on`: clock
 10:00, full battery and wifi, no notifications; the command fails if the clock
-does not read it), then stops the run. It refuses to run with uncommitted
+does not read it), sets `idle_threshold_secs` to a few seconds through
+`settings.json` so the showcase's idle sessions show as Idle, then stops the
+run. The showcase dataset carries the "New session" templates of
+`pohunek-companion` and a `netbird` that reports no peers (no discovery failure
+on Hosts); the groups shot assigns owner groups through `companion.group`. It refuses to run with uncommitted
 changes under `app/`, and fails naming the id when `shots.json` and the capture
 steps in the script disagree. A new shot is a `shots.json` entry plus a
 `shot_<id>` function. Open every PNG before committing the set: each must show

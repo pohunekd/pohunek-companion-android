@@ -11,7 +11,8 @@
 # app/ must be committed, because the manifest's appTree names the built tree.
 #
 # Shots run in the order of shots.json; the terminal shot stays last because the
-# attached terminal has no back control a script can reach. shots.json lists id,
+# attached terminal has no back control a script can reach; row-actions leaves its
+# sheet open for session-details, which opens from it. shots.json lists id,
 # caption and alt per shot; each id needs a function shot_<id with - as _> below
 # that leaves the screen as it should be captured. The image size is the
 # emulator_screen of config/dev.toml.
@@ -29,6 +30,28 @@ manifest_schema=1
 host_label="Showcase"
 terminal_session="bump-tokio-1.48"
 terminal_ready_text="Working on the task"
+
+# Seconds a session must be idle before the app shows it as Idle.
+idle_threshold_secs=5
+
+# Owner groups the groups shot assigns, as `group|session names`, in the order the
+# list shows them. The first stays open and the others are collapsed, so every
+# group has a header on the screen. Sessions that need the owner stay in Needs
+# you whatever their group.
+groups=(
+  "Dependencies|bump-tokio-1.48"
+  "Docs|docs-install-guide tray-badge-polish triage-open-issues"
+  "Tooling|lsp-semantic-tokens multibuffer-scroll-fix rustfmt-edition-2024 review-pr-1655 scratch-shell"
+)
+# Project the filters shot narrows to, the session whose actions and details are
+# shown, and the project whose template the new-session shot picks.
+filter_project="pohunek-companion"
+sheet_session="review-pr-1412"
+template_project="pohunek-companion"
+template_name="fix-issue"
+# An ended session of filter_project and the status text of a connected host.
+ended_session="release-notes-0.1.2"
+connected_text="Connected"
 
 # Seconds a wait for a screen element or terminal text may take.
 wait_secs=60
@@ -82,18 +105,41 @@ wait_screen_text() { # TEXT
   done
 }
 
-# Index of the SessionList.row that contains a text node equal to NAME: the row
-# itself carries no text, its title is a child node inside its bounds.
-row_index() { # NAME
+# Polls until the app shows a text node equal to TEXT.
+wait_text() { # TEXT
+  local deadline=$((SECONDS + wait_secs))
+  until "$agent" tree | jq -e --arg text "$1" 'any(.[]; .text == $text)' >/dev/null; do
+    [ "$SECONDS" -lt "$deadline" ] || die "'$1' did not appear within ${wait_secs}s"
+    sleep 1
+  done
+}
+
+# Index among the elements tagged TAG of the one that contains a text node equal
+# to NAME: such an element carries no text itself, its label is a child node
+# inside its bounds.
+tag_index() { # TAG NAME
   local index
-  index="$("$agent" tree | jq -r --arg name "$1" '
+  index="$("$agent" tree | jq -r --arg tag "$1" --arg name "$2" '
     . as $nodes
-    | [$nodes[] | select(.id == "SessionList.row")] as $rows
-    | $rows | map(. as $row | any($nodes[]; .text == $name and .bounds.left >= $row.bounds.left and .bounds.right <= $row.bounds.right
-        and .bounds.top >= $row.bounds.top and .bounds.bottom <= $row.bounds.bottom))
+    | [$nodes[] | select(.id == $tag)] as $items
+    | $items | map(. as $item | any($nodes[]; .text == $name and .bounds.left >= $item.bounds.left and .bounds.right <= $item.bounds.right
+        and .bounds.top >= $item.bounds.top and .bounds.bottom <= $item.bounds.bottom))
     | index(true) // empty')"
-  [ -n "$index" ] || die "no session row for '$1'"
+  [ -n "$index" ] || die "no $1 for '$2'"
   printf '%s' "$index"
+}
+
+click_tagged() { # TAG NAME
+  local index
+  index="$(tag_index "$1" "$2")"
+  "$agent" click "$1" "$index" >/dev/null
+}
+
+session_id() { # NAME
+  local id
+  id="$("$agent" pohunek session list --json | jq -r --arg name "$1" '[.. | objects | select(.name? == $name) | .id][0] // empty')"
+  [ -n "$id" ] || die "no session named '$1'"
+  printf '%s' "$id"
 }
 
 shot_session_list() {
@@ -104,10 +150,112 @@ shot_session_list() {
 shot_terminal() {
   wait_tag SessionList.row
   local index
-  index="$(row_index "$terminal_session")"
+  index="$(tag_index SessionList.row "$terminal_session")"
   "$agent" click SessionList.row "$index" >/dev/null
   wait_tag Terminal.view
   wait_screen_text "$terminal_ready_text"
+}
+
+shot_by_state() {
+  "$agent" click SessionList.view.by-state >/dev/null
+  wait_tag SessionList.groupHeader
+}
+
+after_by_state() {
+  "$agent" click SessionList.view.my-groups >/dev/null
+  wait_tag SessionList.needsYou
+}
+
+shot_filters() {
+  click_tagged SessionList.project "$filter_project"
+  "$agent" click SessionList.state.ended >/dev/null
+  wait_text "$ended_session"
+}
+
+after_filters() {
+  "$agent" click SessionList.state.ended >/dev/null
+  "$agent" click SessionList.projectAll >/dev/null
+  wait_no_tag SessionList.noMatch
+}
+
+shot_groups() {
+  local entry group name id
+  for entry in "${groups[@]}"; do
+    group="${entry%%|*}"
+    for name in ${entry#*|}; do
+      id="$(session_id "$name")"
+      "$agent" pohunek session metadata "$id" --set "companion.group=$group" >/dev/null
+    done
+  done
+  wait_text "${groups[0]%%|*}"
+  # A header below the screen is not in the tree, so collapse from the top down and open the first group again.
+  for entry in "${groups[@]}"; do
+    wait_text "${entry%%|*}"
+    click_tagged SessionList.groupHeader "${entry%%|*}"
+    sleep 1
+  done
+  click_tagged SessionList.groupHeader "${groups[0]%%|*}"
+  "$agent" swipe SessionList.list down >/dev/null
+  "$agent" swipe SessionList.list down >/dev/null
+  wait_tag SessionList.needsYou
+}
+
+after_groups() {
+  local i
+  for ((i = ${#groups[@]} - 1; i > 0; i--)); do
+    click_tagged SessionList.groupHeader "${groups[i]%%|*}"
+    sleep 1
+  done
+}
+
+shot_row_actions() {
+  local index
+  "$agent" swipe SessionList.list down >/dev/null
+  "$agent" swipe SessionList.list down >/dev/null
+  wait_tag SessionList.needsYou
+  index="$(tag_index SessionList.row "$sheet_session")"
+  "$agent" click SessionRow.more "$index" >/dev/null
+  wait_tag RowSheet.title
+  "$agent" swipe RowSheet up >/dev/null
+  wait_tag RowSheet.remove
+}
+
+shot_session_details() {
+  "$agent" click RowSheet.details >/dev/null
+  wait_tag SessionDetails.list
+}
+
+after_session_details() {
+  "$agent" click SessionDetails.back >/dev/null
+  wait_tag SessionList.newSession
+}
+
+shot_new_session() {
+  "$agent" click SessionList.newSession >/dev/null
+  wait_tag NewSession.project
+  click_tagged NewSession.project "$template_project"
+  "$agent" swipe NewSession.form up >/dev/null
+  "$agent" swipe NewSession.form up >/dev/null
+  wait_tag NewSession.template
+  click_tagged NewSession.template "$template_name"
+  wait_no_tag NewSession.templateLoading
+}
+
+after_new_session() {
+  "$agent" click NewSession.back >/dev/null
+  wait_tag SessionList.hosts
+}
+
+shot_hosts() {
+  "$agent" click SessionList.hosts >/dev/null
+  wait_tag Hosts.row
+  wait_text "$connected_text"
+  wait_no_tag Hosts.discoveryError
+}
+
+after_hosts() {
+  "$agent" click Hosts.back >/dev/null
+  wait_tag SessionList.settings
 }
 
 shot_settings() {
@@ -177,6 +325,12 @@ wait_tag HostForm.route
 "$agent" click HostForm.label >/dev/null
 "$agent" type "$host_label" >/dev/null
 "$agent" click HostForm.save >/dev/null
+wait_tag SessionList.settings
+
+# The showcase's idle sessions show as Idle once they have been idle for the app's
+# idle_threshold_secs, which is minutes by default; the override makes them Idle now.
+printf '{"version":1,"overrides":{"idle_threshold_secs":%s}}' "$idle_threshold_secs" | "$agent" app-file put settings.json >/dev/null
+"$agent" restart >&2
 wait_tag SessionList.settings
 
 "$agent" night on >&2
