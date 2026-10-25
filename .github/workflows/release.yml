@@ -79,6 +79,7 @@ jobs:
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
           set -euo pipefail
+          scripts/changelog check
           if [ -n "$(find changelog.d -maxdepth 1 -name '*.md' -print -quit)" ]; then
             echo "::error::changelog.d still holds fragments at $GITHUB_SHA; fold them into CHANGELOG.md in the release preparation PR first"
             exit 1
