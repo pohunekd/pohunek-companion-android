@@ -16,8 +16,8 @@ overlay (Kotlin, Jetpack Compose).
 
 Installing a release APK and publishing one: [docs/release.md](docs/release.md).
 
-Status: pre-release. The latest build is on the
-[releases page](https://github.com/pohunekd/pohunek-companion-android/releases/latest);
+Status: pre-release. The pre-release builds are on the
+[releases page](https://github.com/pohunekd/pohunek-companion-android/releases);
 installing it is described in [docs/release.md](docs/release.md). The
 [Android page on pohunek.dev](https://pohunek.dev/surfaces/android/) describes
 the app and [docs/architecture.md](docs/architecture.md) how it works.
@@ -74,7 +74,6 @@ the app and [docs/architecture.md](docs/architecture.md) how it works.
     </td>
   </tr>
 </table>
-
 
 The Android robot is reproduced or modified from work created and shared by
 Google and used according to terms described in the Creative Commons 3.0
