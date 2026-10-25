@@ -43,7 +43,9 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          changed="$(git diff --name-only --diff-filter=AMR "$BASE_SHA...$HEAD_SHA" -- 'changelog.d/*.md')"
+          # The pathspec glob also matches dotfiles, which the tool ignores; the regex keeps real fragment names only.
+          changed="$(git diff --name-only --diff-filter=AMR "$BASE_SHA...$HEAD_SHA" -- 'changelog.d/*.md' \
+            | grep -E '^changelog\.d/[1-9][0-9]*-[a-z0-9]+(-[a-z0-9]+)*\.md$' || true)"
           if [ -z "$changed" ]; then
             echo "::error::this pull request adds or changes no fragment in changelog.d/; add one (.agents/instructions/changelog.md) or label it no-changelog"
             exit 1
