@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Checks the committed screenshot set against docs/screenshots/manifest.json
+# (schema 1): the manifest is valid, every listed file exists with the listed
+# sha256 and no unlisted image sits beside them. Fails with a message naming the
+# problem. When the app sources of REF differ from the manifest's appTree, prints
+# a ::warning:: naming the changed paths; that never fails the check.
+#
+#   scripts/check-screenshots [REF]
+#
+# Files are read from the working tree; REF (default HEAD) only selects the
+# app/src/main tree compared with appTree. The release workflow runs it on the
+# tag's checkout.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+dir="$root/docs/screenshots"
+manifest="$dir/manifest.json"
+manifest_schema=1
+ref="${1:-HEAD}"
+
+fail() { echo "::error::check-screenshots: $*"; exit 1; }
+
+for tool in jq git sha256sum; do
+  command -v "$tool" >/dev/null || fail "$tool is not installed"
+done
+[ $# -le 1 ] || fail "takes at most one argument, a git ref"
+
+[ -f "$manifest" ] || fail "docs/screenshots/manifest.json is missing; run scripts/capture-screenshots and merge the result before tagging"
+jq -e . "$manifest" >/dev/null 2>&1 || fail "docs/screenshots/manifest.json is not valid JSON"
+
+jq -e --argjson schema "$manifest_schema" '
+  type == "object" and .schema == $schema
+  and (.appTree | type == "string" and test("^[0-9a-f]{40}$"))
+  and (.device | type == "string" and length > 0)
+  and (.shots | type == "array" and length > 0 and all(.[];
+    (.id | type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$"))
+    and (.file | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*\\.png$"))
+    and (.caption | type == "string" and length > 0)
+    and (.alt | type == "string" and length > 0)
+    and (.width | type == "number" and . > 0 and . == floor)
+    and (.height | type == "number" and . > 0 and . == floor)
+    and (.sha256 | type == "string" and test("^[0-9a-f]{64}$"))))
+  and ((.shots | map(.id) | length) == (.shots | map(.id) | unique | length))
+  and ((.shots | map(.file) | length) == (.shots | map(.file) | unique | length))' \
+  "$manifest" >/dev/null || fail "docs/screenshots/manifest.json is not a valid schema $manifest_schema manifest"
+
+problems=0
+while IFS=$'\t' read -r file digest; do
+  if [ ! -f "$dir/$file" ]; then
+    echo "::error::check-screenshots: docs/screenshots/$file is listed in the manifest but missing"
+    problems=1
+    continue
+  fi
+  actual="$(sha256sum "$dir/$file" | cut -d' ' -f1)"
+  if [ "$actual" != "$digest" ]; then
+    echo "::error::check-screenshots: docs/screenshots/$file has sha256 $actual, the manifest lists $digest"
+    problems=1
+  fi
+done < <(jq -r '.shots[] | [.file, .sha256] | @tsv' "$manifest")
+
+while IFS= read -r listed; do
+  [ -n "$listed" ] || continue
+  base="$(basename "$listed")"
+  jq -e --arg f "$base" 'any(.shots[]; .file == $f)' "$manifest" >/dev/null || {
+    echo "::error::check-screenshots: docs/screenshots/$base is not listed in the manifest"
+    problems=1
+  }
+done < <(find "$dir" -maxdepth 1 -type f -name '*.png' | sort)
+[ "$problems" -eq 0 ] || exit 1
+
+app_tree="$(jq -r .appTree "$manifest")"
+current_tree="$(git -C "$root" rev-parse --verify --quiet "$ref:app/src/main")" || fail "cannot resolve app/src/main at '$ref'"
+if [ "$current_tree" != "$app_tree" ]; then
+  # The newest commit whose app/src/main is the captured tree is the baseline for the path list.
+  baseline=""
+  while IFS= read -r commit; do
+    if [ "$(git -C "$root" rev-parse "$commit:app/src/main")" = "$app_tree" ]; then baseline="$commit"; break; fi
+  done < <(git -C "$root" rev-list "$ref" -- app/src/main)
+  if [ -n "$baseline" ]; then
+    paths="$(git -C "$root" diff --name-only "$baseline" "$ref" -- app/src/main | paste -sd, - | sed 's/,/, /g')"
+  else
+    paths="not found in the history of $ref"
+  fi
+  echo "::warning::check-screenshots: app/src/main at $ref ($current_tree) differs from the manifest's appTree ($app_tree); the screenshots were taken from other app sources. Changed paths: $paths"
+fi
+echo "check-screenshots: $(jq '.shots | length' "$manifest") shots in docs/screenshots match the manifest"
