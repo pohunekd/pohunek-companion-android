@@ -19,6 +19,11 @@ internal object GhosttyVt {
   const val EVENT_TITLE = 1 shl 1
   const val EVENT_PWD = 1 shl 2
 
+  // Wheel routing returned by nativeWheelTarget; mirror ghostty_jni.cpp.
+  const val WHEEL_LOCAL = 0
+  const val WHEEL_MOUSE = 1
+  const val WHEEL_ARROWS = 2
+
   /** Create a terminal session. Returns 0 on failure. */
   external fun nativeCreate(cols: Int, rows: Int, maxScrollback: Long): Long
 
@@ -85,6 +90,30 @@ internal object GhosttyVt {
     metaState: Int,
     unshiftedCodepoint: Int,
     utf8: ByteArray?
+  ): ByteArray?
+
+  /**
+   * Where a vertical wheel step goes in the terminal's current state:
+   * [WHEEL_MOUSE] when the program requested mouse reporting, [WHEEL_ARROWS]
+   * on the alternate screen under alternate-scroll mode (1007), else
+   * [WHEEL_LOCAL] (the local scrollback).
+   */
+  external fun nativeWheelTarget(handle: Long): Int
+
+  /**
+   * Encode one wheel step ([up] = button 4, else button 5) at the view pixel
+   * ([x], [y]) for the active mouse mode and format, or null when the mode
+   * reports no wheel.
+   */
+  external fun nativeEncodeWheel(
+    handle: Long,
+    up: Boolean,
+    x: Float,
+    y: Float,
+    widthPx: Int,
+    heightPx: Int,
+    cellWidthPx: Int,
+    cellHeightPx: Int
   ): ByteArray?
 
   /** Select the word at a viewport cell; false when there is nothing there. */

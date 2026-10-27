@@ -66,6 +66,11 @@ constexpr jint kEventBell = 1;
 constexpr jint kEventTitle = 1 << 1;
 constexpr jint kEventPwd = 1 << 2;
 
+// Wheel routing returned by nativeWheelTarget; must mirror GhosttyVt.WHEEL_*.
+constexpr jint kWheelLocal = 0;
+constexpr jint kWheelMouse = 1;
+constexpr jint kWheelArrows = 2;
+
 struct Session {
   GhosttyTerminal term = nullptr;
   GhosttyRenderState renderState = nullptr;
@@ -73,6 +78,8 @@ struct Session {
   GhosttyRenderStateRowCells cells = nullptr;
   GhosttyKeyEncoder encoder = nullptr;
   GhosttyKeyEvent keyEvent = nullptr;
+  GhosttyMouseEncoder mouseEncoder = nullptr;
+  GhosttyMouseEvent mouseEvent = nullptr;
   // Query responses emitted by the terminal during vt_write; forwarded to the
   // PTY by the caller after each write.
   std::vector<uint8_t> ptyOut;
@@ -161,6 +168,8 @@ bool parseColor(JNIEnv* env, jstring str, GhosttyColorRgb* out) {
 
 void destroySession(Session* session) {
   if (session == nullptr) return;
+  ghostty_mouse_event_free(session->mouseEvent);
+  ghostty_mouse_encoder_free(session->mouseEncoder);
   ghostty_key_event_free(session->keyEvent);
   ghostty_key_encoder_free(session->encoder);
   ghostty_render_state_row_cells_free(session->cells);
@@ -279,7 +288,9 @@ Java_dev_pohunek_companion_terminal_GhosttyVt_nativeCreate(
       ghostty_render_state_row_iterator_new(nullptr, &session->rowIter) != GHOSTTY_SUCCESS ||
       ghostty_render_state_row_cells_new(nullptr, &session->cells) != GHOSTTY_SUCCESS ||
       ghostty_key_encoder_new(nullptr, &session->encoder) != GHOSTTY_SUCCESS ||
-      ghostty_key_event_new(nullptr, &session->keyEvent) != GHOSTTY_SUCCESS) {
+      ghostty_key_event_new(nullptr, &session->keyEvent) != GHOSTTY_SUCCESS ||
+      ghostty_mouse_encoder_new(nullptr, &session->mouseEncoder) != GHOSTTY_SUCCESS ||
+      ghostty_mouse_event_new(nullptr, &session->mouseEvent) != GHOSTTY_SUCCESS) {
     __android_log_print(ANDROID_LOG_ERROR, kLogTag, "failed to create terminal session");
     destroySession(session);
     return 0;
@@ -910,6 +921,81 @@ Java_dev_pohunek_companion_terminal_GhosttyVt_nativeEncodeKey(
   ghostty_key_event_set_utf8(session->keyEvent, nullptr, 0);
   if (utf8Bytes != nullptr) env->ReleaseByteArrayElements(utf8, utf8Bytes, JNI_ABORT);
 
+  if (result != GHOSTTY_SUCCESS || written == 0) return nullptr;
+  jbyteArray outArray = env->NewByteArray(static_cast<jsize>(written));
+  if (outArray == nullptr) return nullptr;
+  env->SetByteArrayRegion(outArray, 0, static_cast<jsize>(written),
+                          reinterpret_cast<const jbyte*>(out));
+  return outArray;
+}
+
+// Where a vertical wheel step goes, from the terminal's own state, in the
+// order ghostty applies: mouse reporting wins, then alternate-scroll mode
+// (1007) on the alternate screen, else the local scrollback. Mirrors
+// GhosttyVt.WHEEL_*.
+JNIEXPORT jint JNICALL
+Java_dev_pohunek_companion_terminal_GhosttyVt_nativeWheelTarget(
+    JNIEnv*, jobject, jlong handle) {
+  auto* session = fromHandle(handle);
+  if (session == nullptr) return kWheelLocal;
+
+  bool mouseTracking = false;
+  if (ghostty_terminal_get(session->term, GHOSTTY_TERMINAL_DATA_MOUSE_TRACKING,
+                           &mouseTracking) == GHOSTTY_SUCCESS &&
+      mouseTracking) {
+    return kWheelMouse;
+  }
+
+  GhosttyTerminalScreen screen = GHOSTTY_TERMINAL_SCREEN_PRIMARY;
+  bool altScroll = false;
+  if (ghostty_terminal_get(session->term, GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN, &screen) ==
+          GHOSTTY_SUCCESS &&
+      screen == GHOSTTY_TERMINAL_SCREEN_ALTERNATE &&
+      ghostty_terminal_mode_get(session->term, GHOSTTY_MODE_ALT_SCROLL, &altScroll) ==
+          GHOSTTY_SUCCESS &&
+      altScroll) {
+    return kWheelArrows;
+  }
+  return kWheelLocal;
+}
+
+// Encodes one wheel step (button 4 up, button 5 down) at a pixel position of
+// the view for the active mouse tracking mode and format, or null when that
+// mode reports no wheel (X10) or the encode fails.
+JNIEXPORT jbyteArray JNICALL
+Java_dev_pohunek_companion_terminal_GhosttyVt_nativeEncodeWheel(
+    JNIEnv* env, jobject, jlong handle, jboolean up, jfloat x, jfloat y, jint widthPx,
+    jint heightPx, jint cellWidthPx, jint cellHeightPx) {
+  auto* session = fromHandle(handle);
+  if (session == nullptr) return nullptr;
+
+  ghostty_mouse_encoder_setopt_from_terminal(session->mouseEncoder, session->term);
+  GhosttyMouseEncoderSize size{};
+  size.size = sizeof(size);
+  size.screen_width = static_cast<uint32_t>(widthPx);
+  size.screen_height = static_cast<uint32_t>(heightPx);
+  size.cell_width = static_cast<uint32_t>(cellWidthPx);
+  size.cell_height = static_cast<uint32_t>(cellHeightPx);
+  ghostty_mouse_encoder_setopt(session->mouseEncoder, GHOSTTY_MOUSE_ENCODER_OPT_SIZE, &size);
+
+  ghostty_mouse_event_set_action(session->mouseEvent, GHOSTTY_MOUSE_ACTION_PRESS);
+  ghostty_mouse_event_set_button(session->mouseEvent, up == JNI_TRUE ? GHOSTTY_MOUSE_BUTTON_FOUR
+                                                                      : GHOSTTY_MOUSE_BUTTON_FIVE);
+  ghostty_mouse_event_set_mods(session->mouseEvent, 0);
+  ghostty_mouse_event_set_position(session->mouseEvent, GhosttyMousePosition{x, y});
+
+  char stackBuf[64];
+  size_t written = 0;
+  GhosttyResult result = ghostty_mouse_encoder_encode(session->mouseEncoder, session->mouseEvent,
+                                                      stackBuf, sizeof(stackBuf), &written);
+  std::vector<char> heapBuf;
+  const char* out = stackBuf;
+  if (result == GHOSTTY_OUT_OF_SPACE) {
+    heapBuf.resize(written);
+    result = ghostty_mouse_encoder_encode(session->mouseEncoder, session->mouseEvent,
+                                          heapBuf.data(), heapBuf.size(), &written);
+    out = heapBuf.data();
+  }
   if (result != GHOSTTY_SUCCESS || written == 0) return nullptr;
   jbyteArray outArray = env->NewByteArray(static_cast<jsize>(written));
   if (outArray == nullptr) return nullptr;
