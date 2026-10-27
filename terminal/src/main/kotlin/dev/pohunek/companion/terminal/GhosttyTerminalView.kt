@@ -31,6 +31,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.OverScroller
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.hypot
@@ -151,6 +152,11 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
 
   private var scrollAccum = 0f
 
+  // Last touch position of a scroll gesture; the position a wheel report
+  // carries while a fling keeps going after the finger lifted.
+  private var wheelX = 0f
+  private var wheelY = 0f
+
   // ── Scrollback state ──
   private val scroller = OverScroller(context)
   private var flingLastY = 0
@@ -170,9 +176,7 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
       val deltaRows = (scrollAccum / cellHeight).toInt()
       if (deltaRows != 0) {
         scrollAccum -= deltaRows * cellHeight
-        GhosttyVt.nativeScroll(handle, deltaRows)
-        markScrollActivity()
-        scheduleFrame()
+        scrollRows(deltaRows, wheelX, wheelY)
       }
       postOnAnimation(this)
     }
@@ -231,11 +235,11 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
         if (handle == 0L || scaleDetector.isInProgress) return false
         scrollAccum += distanceY
         val deltaRows = (scrollAccum / cellHeight).toInt()
+        wheelX = e2.x
+        wheelY = e2.y
         if (deltaRows != 0) {
           scrollAccum -= deltaRows * cellHeight
-          GhosttyVt.nativeScroll(handle, deltaRows)
-          markScrollActivity()
-          scheduleFrame()
+          scrollRows(deltaRows, wheelX, wheelY)
         }
         return true
       }
@@ -248,6 +252,8 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
       ): Boolean {
         if (handle == 0L || scaleDetector.isInProgress) return false
         // Finger up (negative velocity) scrolls content down: invert.
+        wheelX = e2.x
+        wheelY = e2.y
         flingLastY = 0
         scroller.fling(0, 0, 0, -velocityY.toInt(), 0, 0, Int.MIN_VALUE, Int.MAX_VALUE)
         postOnAnimation(flingRunnable)
@@ -402,6 +408,33 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
       }
       holdBlinkSolid()
       onInputBytes?.invoke(bytes)
+    }
+  }
+
+  /**
+   * Scroll by [deltaRows] (negative is up) the way a desktop terminal treats
+   * a wheel: wheel reports to a program that asked for mouse reporting, arrow
+   * keys on the alternate screen under alternate-scroll mode, else the local
+   * scrollback.
+   */
+  private fun scrollRows(deltaRows: Int, x: Float, y: Float) {
+    when (GhosttyVt.nativeWheelTarget(handle)) {
+      GhosttyVt.WHEEL_MOUSE -> repeat(abs(deltaRows)) {
+        GhosttyVt.nativeEncodeWheel(
+          handle, deltaRows < 0, x, y, width, height, cellWidth.roundToInt(), cellHeight
+        )?.let(::sendBytes)
+      }
+      GhosttyVt.WHEEL_ARROWS -> {
+        val keyCode = if (deltaRows < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
+        repeat(abs(deltaRows)) {
+          GhosttyVt.nativeEncodeKey(handle, keyCode, 1, 0, 0, null)?.let(::sendBytes)
+        }
+      }
+      else -> {
+        GhosttyVt.nativeScroll(handle, deltaRows)
+        markScrollActivity()
+        scheduleFrame()
+      }
     }
   }
 
