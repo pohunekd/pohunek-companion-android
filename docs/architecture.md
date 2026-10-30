@@ -67,9 +67,10 @@ as the desktop companion: `v0.35.2` today.
   `liveness_interval_ms + liveness_failures × liveness_timeout_ms + (liveness_failures − 1) × liveness_retry_ms` (22 s by
   default). The probe detects a dead network path; it does not look at the subscription socket itself, and the daemon does not answer
   requests on a subscribed connection. A subscription that died while new connections still work is noticed by the periodic re-seed
-  instead: a re-seed that changes the store with no buffered event to explain it ends the connection (`live.reseed_corrected`), so
-  such a socket is replaced within `reseed_interval_secs` of the first change it missed. An event still in flight on a slow stream
-  can look the same and costs one early reconnect, which keeps the store and stays inside the unreachable grace.
+  instead: a re-seed that changes the store with no buffered event to explain it (`live.reseed_corrected`) makes the connection
+  suspect, and it ends if no event arrives within `liveness_retry_ms`. An event still in flight on a healthy stream arrives in that
+  window and clears the suspicion. A dead socket is thus replaced within `reseed_interval_secs + liveness_retry_ms` of the first
+  change it missed.
 - Backoff reset (departs from the desktop on purpose): the desktop resets the failure count only after a connection held
   `reconnect_max`, so on a link that drops briefly every half minute the wait ratchets to the cap while the rows stay dimmed. Here a
   connection that was seeded and held at least `backoff_reset_ms` (default 5 s, never above `reconnect_max_ms`) resets it; failed

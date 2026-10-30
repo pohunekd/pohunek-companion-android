@@ -185,10 +185,33 @@ class HostLiveTest {
         advanceTimeBy(config.reseedInterval)
         runCurrent()
         assertEquals(listOf<String?>("new"), updates.lastSessions().map { it.info.name })
-        assertTrue(updates.last().second is LiveUpdate.Reconnecting)
+        assertTrue(updates.none { it.second is LiveUpdate.Reconnecting })
 
+        advanceTimeBy(config.liveness.retry)
+        runCurrent()
+        assertTrue(updates.last().second is LiveUpdate.Reconnecting)
         advanceTimeBy(config.reconnectInitial + 1.milliseconds)
         assertEquals(2, transport.streams.size)
+        job.cancel()
+    }
+
+    @Test
+    fun `an event that arrives after an unexplained re-seed change keeps the connection`() = runTest {
+        val transport = FakeTransport()
+        transport.seed = { listOf(session("s-1", name = "old")) }
+        val updates = mutableListOf<Pair<Long, LiveUpdate>>()
+        val job = collect(transport, updates)
+        runCurrent()
+
+        transport.seed = { listOf(session("s-1", "2026-01-01T10:00:09Z", name = "new")) }
+        advanceTimeBy(config.reseedInterval)
+        runCurrent()
+        transport.streams.single().inbox.trySend(DaemonEvent.SessionUpdated(session("s-1", "2026-01-01T10:00:09Z", name = "new")))
+        advanceTimeBy(config.liveness.retry * 2)
+        runCurrent()
+
+        assertTrue(updates.none { it.second is LiveUpdate.Reconnecting })
+        assertEquals(1, transport.streams.size)
         job.cancel()
     }
 
