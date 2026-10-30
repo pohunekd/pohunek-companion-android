@@ -661,6 +661,13 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
    */
   private fun renderPeekRow(buf: ByteBuffer) {
     val canvas = peekCanvas ?: return
+    // At the end there is no row below, and moving back would leave the viewport off the bottom.
+    val bar = GhosttyVt.nativeScrollbar(handle)
+    if (bar == null || bar[1] + bar[2] >= bar[0]) {
+      scrollAccumulator.clear()
+      scrollOffsetPx = 0f
+      return
+    }
     GhosttyVt.nativeScroll(handle, 1)
     val rowCount = GhosttyVt.nativeSnapshot(handle, buf)
     GhosttyVt.nativeScroll(handle, -1)
