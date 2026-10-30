@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.ComparableTimeMark
 
 /** Where one host's live connection stands. */
 sealed interface HostConnection {
@@ -36,6 +37,8 @@ data class HostFeed(
     val sessions: List<OwnerSession>? = null,
     /** True from a requested re-seed until it finishes or the connection fails. */
     val refreshing: Boolean = false,
+    /** When the host last stopped being [HostConnection.Connected], or started its loop; null while connected. See [link]. */
+    val downSince: ComparableTimeMark? = null,
 )
 
 /**
@@ -107,16 +110,20 @@ class HostRegistry(private val factory: HostLiveFactory) {
     private suspend fun follow(route: HostRoute) {
         val live = factory.create(route, states.getOrPut(route) { factory.createState(route) })
         lives[route] = live
-        feeds.update { it + (route to (it[route]?.copy(connection = HostConnection.Connecting, refreshing = false) ?: HostFeed())) }
+        feeds.update { map ->
+            val feed = map[route] ?: HostFeed()
+            map + (route to feed.copy(connection = HostConnection.Connecting, refreshing = false, downSince = feed.downSince ?: factory.now()))
+        }
         live.updates().collect { update ->
-            feeds.update { map -> map[route]?.let { map + (route to it.apply(update)) } ?: map }
+            feeds.update { map -> map[route]?.let { map + (route to it.apply(update, factory.now())) } ?: map }
         }
     }
 }
 
-private fun HostFeed.apply(update: LiveUpdate): HostFeed = when (update) {
-    LiveUpdate.Connected -> copy(connection = HostConnection.Connected, refreshing = false)
+private fun HostFeed.apply(update: LiveUpdate, now: ComparableTimeMark): HostFeed = when (update) {
+    LiveUpdate.Connected -> copy(connection = HostConnection.Connected, refreshing = false, downSince = null)
     is LiveUpdate.Sessions -> copy(sessions = update.sessions)
     LiveUpdate.Reseeded -> copy(refreshing = false)
-    is LiveUpdate.Reconnecting -> copy(connection = HostConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false)
+    is LiveUpdate.Reconnecting ->
+        copy(connection = HostConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false, downSince = downSince ?: now)
 }

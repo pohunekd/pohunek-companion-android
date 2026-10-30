@@ -17,6 +17,8 @@ import dev.pohunek.companion.core.data.layout.LayoutState
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostFeed
 import dev.pohunek.companion.core.data.live.HostRegistry
+import dev.pohunek.companion.core.data.live.graceRemaining
+import dev.pohunek.companion.core.data.live.link
 import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
@@ -78,9 +80,15 @@ import dev.pohunek.companion.core.domain.sessions.workBadge
 import dev.pohunek.companion.core.domain.sessions.workFacts
 import dev.pohunek.companion.core.mvi.BaseViewModel
 import dev.pohunek.companion.protocol.HostRoute
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -145,7 +153,7 @@ class SessionListViewModel(
             for (seed in seeds) applySeed(seed)
         }
         viewModelScope.launch {
-            combine(hosts.state, registry.state, layouts.state, limits, layouts.notShared, ::ListInputs).collect { input ->
+            combine(hosts.state, graceAwareFeeds(limits), layouts.state, limits, layouts.notShared, ::ListInputs).collect { input ->
                 val (configured, feeds, layout) = input
                 if (configured is HostsState.Loaded && configured.hosts.isEmpty() && !firstHostRequested) {
                     firstHostRequested = true
@@ -153,12 +161,24 @@ class SessionListViewModel(
                 }
                 editor.configure(input.limits.groupNameMaxBytes, (configured as? HostsState.Loaded)?.hosts.orEmpty())
                 queueSeeds(configured, feeds, layout, input.limits.groupNameMaxBytes)
-                updateState { listed(it, configured, feeds, layout, input.notShared, input.limits.rowBadgeMaxChars, input.limits.sectionTitleMaxChars) }
+                updateState { listed(it, configured, feeds, layout, input.notShared, input.limits) }
                 pruneCollapsed(configured, feeds, input.limits.sectionTitleMaxChars)
             }
         }
         viewModelScope.launch { processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { hosts.run() } }
     }
+
+    /** The registry's feeds, emitted again when a host's grace period ends, since nothing else changes at that moment. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun graceAwareFeeds(limits: Flow<DisplayLimits>): Flow<Map<HostRoute, HostFeed>> =
+        combine(registry.state, limits.map { it.unreachableGrace }.distinctUntilChanged(), ::Pair).flatMapLatest { (feeds, grace) ->
+            flow {
+                while (true) {
+                    emit(feeds)
+                    delay(feeds.values.mapNotNull { it.graceRemaining(grace) }.minOrNull() ?: break)
+                }
+            }
+        }
 
     private suspend fun applySeed(seed: Seed) {
         when (seed) {
@@ -453,7 +473,7 @@ class SessionListViewModel(
         updateState { it.copy(actionSheet = null) }
         val feed = registry.state.value[ref.route]
         val url = feed?.sessions?.firstOrNull { it.info.id == ref.sessionId }?.let { openableWorkLink(it.info.metadata.orEmpty()) }
-        if (url == null || feed.connection !is HostConnection.Connected) {
+        if (url == null || currentRow(ref)?.reachable != true) {
             sendEffect(SessionListEffect.LinkUnavailable)
             return
         }
@@ -516,9 +536,8 @@ class SessionListViewModel(
 
     /** The dialog for [action] on [ref], or null when the host is not connected, the session or its row is gone, or the action is not offered. */
     private fun actionDialogFor(ref: RowRef, action: SessionAction): ActionDialog? {
-        val feed = registry.state.value[ref.route]?.takeIf { it.connection is HostConnection.Connected }
-        val info = feed?.sessions?.firstOrNull { it.info.id == ref.sessionId }?.info
-        val row = (currentState.needsYou + currentState.rows.orEmpty()).firstOrNull { it.ref == ref }
+        val row = currentRow(ref)?.takeIf { it.reachable }
+        val info = registry.state.value[ref.route]?.sessions?.firstOrNull { it.info.id == ref.sessionId }?.info
         val offered = when (action) {
             SessionAction.Stop -> info != null && offersStop(info)
             SessionAction.Remove -> info != null && offersRemove(info)
@@ -568,14 +587,18 @@ private fun listed(
     feeds: Map<HostRoute, HostFeed>,
     layout: LayoutState,
     notShared: Set<SessionKey>,
-    badgeMaxChars: Int,
-    sectionTitleMaxChars: Int,
+    limits: DisplayLimits,
 ): SessionListState {
+    val badgeMaxChars = limits.rowBadgeMaxChars
+    val sectionTitleMaxChars = limits.sectionTitleMaxChars
+    val unreachableGrace = limits.unreachableGrace
     val hostList = (configured as? HostsState.Loaded)?.hosts.orEmpty()
-    val entries = hostList.map { host -> HostSessions(host, feeds[host.route].link(), feeds[host.route]?.sessions.orEmpty()) }
+    val entries = hostList.map { host -> HostSessions(host, feeds[host.route].link(unreachableGrace), feeds[host.route]?.sessions.orEmpty()) }
     val listing = partitionNeedsYou(entries)
-    val statuses = hostList.mapNotNull { host ->
-        (feeds[host.route]?.connection as? HostConnection.Reconnecting)?.let { HostStatus(hostDisplayLabel(host), it) }
+    // A host in its grace period has no status line yet.
+    val statuses = entries.mapNotNull { entry ->
+        (feeds[entry.host.route]?.connection as? HostConnection.Reconnecting)?.takeIf { entry.link == HostLink.Down }
+            ?.let { HostStatus(hostDisplayLabel(entry.host), it) }
     }
     val awaiting = awaitsList(hostList, feeds, empty = listing.needsYou.isEmpty() && listing.others.isEmpty())
     val others = listing.others.map { it.toRow(badgeMaxChars, notShared) }
@@ -607,7 +630,7 @@ private fun listed(
         project = project,
         projectChips = projectChips((listing.needsYou + listing.others).map { sessionProjectLabel(it.session.info) }, project),
         host = host,
-        hostOptions = hostOptions(hostList.map { it.toEntry(feeds[it.route].link()) }, host),
+        hostOptions = hostOptions(entries.map { it.host.toEntry(it.link) }, host),
         groups = available?.layout?.presentView(others, SessionRow::layoutKey, sectionTitleMaxChars, SessionRow::facts).orEmpty(),
         ownerGroups = available?.layout?.orderedGroups().orEmpty(),
         layoutIssue = available?.issue,
@@ -670,13 +693,7 @@ private fun RenameDraft?.stillListed(sessions: List<HostedSession>): RenameDraft
     takeIf { draft -> draft != null && sessions.any { RowRef(it.route, it.session.info.id) == draft.ref } }
 
 private fun ConfiguredHost.toEntry(link: HostLink) =
-    HostEntry(route.toString(), hostDisplayLabel(this), if (link == HostLink.Connected) HostReach.Connected else HostReach.Unreachable)
-
-private fun HostFeed?.link(): HostLink = when (this?.connection) {
-    HostConnection.Connected -> HostLink.Connected
-    is HostConnection.Reconnecting, HostConnection.NotReported -> HostLink.Down
-    HostConnection.Connecting, null -> HostLink.Connecting
-}
+    HostEntry(route.toString(), hostDisplayLabel(this), if (link.reachable) HostReach.Connected else HostReach.Unreachable)
 
 /** A host that is down or no longer reported by discovery will not send a list on its own. */
 private fun HostConnection.expectsList(): Boolean = this !is HostConnection.Reconnecting && this != HostConnection.NotReported

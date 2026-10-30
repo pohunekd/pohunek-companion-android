@@ -19,9 +19,16 @@ enum class HostLink {
 
     /** The connection failed and is being retried, or the daemon refused it. */
     Down,
+
+    /** Not connected, but only for a moment: the rows look and behave as connected until the grace period ends. */
+    Grace,
+    ;
+
+    /** True when the rows show and offer what they do for a connected host. */
+    val reachable: Boolean get() = this == Connected || this == Grace
 }
 
-/** One host with the last sessions it sent; they may be out of date unless [link] is [HostLink.Connected]. */
+/** One host with the last sessions it sent; they may be out of date unless [link] is [HostLink.Connected] or [HostLink.Grace]. */
 data class HostSessions(val host: ConfiguredHost, val link: HostLink, val sessions: List<OwnerSession>)
 
 /** A session of the union list with the host it came from. */
@@ -30,7 +37,7 @@ data class HostedSession(val route: HostRoute, val hostLabel: String, val link: 
     val key: SessionKey get() = SessionKey(route.toString(), session.info.id)
 
     /** Facts of a host that is not connected are the last known ones: the row offers nothing that needs the daemon. */
-    val reachable: Boolean get() = link == HostLink.Connected
+    val reachable: Boolean get() = link.reachable
 }
 
 /** The union of every host's sessions split for display: those that need the owner in wait order, and all the others. */

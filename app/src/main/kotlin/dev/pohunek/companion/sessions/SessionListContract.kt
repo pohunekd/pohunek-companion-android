@@ -56,7 +56,7 @@ data class SessionRow(
     /** True when the group of this session is kept only on this phone: it is external, or the daemon cannot hold the key for it. */
     val notShared: Boolean,
 ) {
-    val reachable: Boolean get() = link == HostLink.Connected
+    val reachable: Boolean get() = link.reachable
 
     /** What the derived views group by. */
     val facts: RowFacts get() = RowFacts(ownerState, project, workItem)

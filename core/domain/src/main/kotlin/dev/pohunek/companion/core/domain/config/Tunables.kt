@@ -21,6 +21,7 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long =
     RECONNECT_INITIAL_MS(1, TunableUnit.Milliseconds),
     RECONNECT_MAX_MS(1, TunableUnit.Milliseconds),
     BACKOFF_RESET_MS(1, TunableUnit.Milliseconds),
+    UNREACHABLE_GRACE_MS(1, TunableUnit.Milliseconds),
     LIVENESS_INTERVAL_MS(1, TunableUnit.Milliseconds),
     LIVENESS_TIMEOUT_MS(1, TunableUnit.Milliseconds),
     ATTACH_LIVENESS_INTERVAL_MS(1, TunableUnit.Milliseconds),
