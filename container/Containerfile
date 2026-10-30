@@ -61,10 +61,34 @@ RUN mkdir -p "$ANDROID_HOME/cmdline-tools"; \
     echo "${PLATFORM_TOOLS_SHA1}  /tmp/pt.zip" | sha1sum -c -; \
     unzip -q /tmp/pt.zip -d "$ANDROID_HOME"; rm /tmp/pt.zip
 
+# Emulator: sdkmanager cannot select a build and would install the current
+# stable one as a dependency of the system image. The pinned build is unpacked
+# first and registered with a package.xml, so sdkmanager sees the dependency as
+# satisfied and leaves it alone. Google drops superseded builds from its
+# repository manifest but keeps serving the archive, so the sha1 below was taken
+# from the archive and matches the files of the sdkmanager install of this build.
+ARG EMULATOR_BUILD_ID=16428233
+ARG EMULATOR_SHA1=cd7362ea55dfb86a418958138dc396e74165dd01
+ARG EMULATOR_REVISION_MAJOR=37
+ARG EMULATOR_REVISION_MINOR=2
+ARG EMULATOR_REVISION_MICRO=12
+RUN curl -fsSL --retry 5 -o /tmp/emu.zip "https://dl.google.com/android/repository/emulator-linux_x64-${EMULATOR_BUILD_ID}.zip"; \
+    echo "${EMULATOR_SHA1}  /tmp/emu.zip" | sha1sum -c -; \
+    unzip -q /tmp/emu.zip -d "$ANDROID_HOME"; rm /tmp/emu.zip; \
+    grep -qx "Pkg.BuildId=${EMULATOR_BUILD_ID}" "$ANDROID_HOME/emulator/source.properties"; \
+    printf '%s' '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' \
+      '<ns2:repository xmlns:ns2="http://schemas.android.com/repository/android/common/02"' \
+      ' xmlns:ns5="http://schemas.android.com/repository/android/generic/02">' \
+      '<localPackage path="emulator" obsolete="false">' \
+      '<type-details xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns5:genericDetailsType"/>' \
+      "<revision><major>${EMULATOR_REVISION_MAJOR}</major><minor>${EMULATOR_REVISION_MINOR}</minor><micro>${EMULATOR_REVISION_MICRO}</micro></revision>" \
+      '<display-name>Android Emulator</display-name></localPackage></ns2:repository>' \
+      > "$ANDROID_HOME/emulator/package.xml"
+
 # SDK packages installed by sdkmanager, which verifies its own downloads.
 # Installing the licence-gated packages accepts the Android SDK licences.
-# sdkmanager cannot select an emulator build and installs the stable one as a
-# dependency of the system image, so the build fails if it is not this one.
+# The emulator registered above must survive this step untouched; the check
+# fails the build if sdkmanager replaced it.
 # The emulator system image is API 36: the API 37 image aborts in guest gralloc
 # under the software GPU (#25); move the pin back once that is fixed upstream.
 ARG ANDROID_PLATFORM=platforms;android-37.0
@@ -72,12 +96,12 @@ ARG ANDROID_BUILD_TOOLS=build-tools;37.0.0
 ARG ANDROID_SYSTEM_IMAGE=system-images;android-36;google_apis;x86_64
 ARG ANDROID_NDK=ndk;27.1.12297006
 ARG ANDROID_CMAKE=cmake;4.1.2
-ARG EMULATOR_BUILD_ID=16428233
 RUN SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; \
     printf 'y\n%.0s' {1..50} | "$SDKM" --licenses >/dev/null; \
     "$SDKM" --install "${ANDROID_PLATFORM}" "${ANDROID_BUILD_TOOLS}" "${ANDROID_NDK}" "${ANDROID_CMAKE}" "${ANDROID_SYSTEM_IMAGE}"; \
-    grep -qx "Pkg.BuildId=${EMULATOR_BUILD_ID}" "$ANDROID_HOME/emulator/source.properties" \
-      || { echo "emulator build is not ${EMULATOR_BUILD_ID}; bump EMULATOR_BUILD_ID deliberately" >&2; exit 1; }
+    { grep -qx "Pkg.BuildId=${EMULATOR_BUILD_ID}" "$ANDROID_HOME/emulator/source.properties" \
+        && ! compgen -G "$ANDROID_HOME/emulator-*" >/dev/null; } \
+      || { echo "sdkmanager replaced or duplicated the pinned emulator ${EMULATOR_BUILD_ID}" >&2; exit 1; }
 
 # Pohunek release v0.35.2 (musl builds are static; sha256 published on the
 # zajca/pohunek GitHub release).
