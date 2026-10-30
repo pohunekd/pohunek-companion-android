@@ -24,6 +24,8 @@ private val RESOURCES: Map<Tunable, TunableResources> = mapOf(
     Tunable.UNREACHABLE_GRACE_MS to TunableResources(R.integer.unreachable_grace_ms, R.string.unreachable_grace_ms_help),
     Tunable.LIVENESS_INTERVAL_MS to TunableResources(R.integer.liveness_interval_ms, R.string.liveness_interval_ms_help),
     Tunable.LIVENESS_TIMEOUT_MS to TunableResources(R.integer.liveness_timeout_ms, R.string.liveness_timeout_ms_help),
+    Tunable.LIVENESS_FAILURES to TunableResources(R.integer.liveness_failures, R.string.liveness_failures_help),
+    Tunable.LIVENESS_RETRY_MS to TunableResources(R.integer.liveness_retry_ms, R.string.liveness_retry_ms_help),
     Tunable.ATTACH_LIVENESS_INTERVAL_MS to TunableResources(R.integer.attach_liveness_interval_ms, R.string.attach_liveness_interval_ms_help),
     Tunable.ATTACH_LIVENESS_TIMEOUT_MS to TunableResources(R.integer.attach_liveness_timeout_ms, R.string.attach_liveness_timeout_ms_help),
     Tunable.REATTACH_INITIAL_MS to TunableResources(R.integer.reattach_initial_ms, R.string.reattach_initial_ms_help),

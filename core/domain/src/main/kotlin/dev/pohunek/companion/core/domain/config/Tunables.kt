@@ -24,6 +24,8 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long =
     UNREACHABLE_GRACE_MS(1, TunableUnit.Milliseconds),
     LIVENESS_INTERVAL_MS(1, TunableUnit.Milliseconds),
     LIVENESS_TIMEOUT_MS(1, TunableUnit.Milliseconds),
+    LIVENESS_FAILURES(1, TunableUnit.Count),
+    LIVENESS_RETRY_MS(1, TunableUnit.Milliseconds),
     ATTACH_LIVENESS_INTERVAL_MS(1, TunableUnit.Milliseconds),
     ATTACH_LIVENESS_TIMEOUT_MS(1, TunableUnit.Milliseconds),
     REATTACH_INITIAL_MS(1, TunableUnit.Milliseconds),
@@ -46,7 +48,7 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long =
     val readByLiveLoops: Boolean
         get() = when (this) {
             CONNECT_TIMEOUT_MS, REQUEST_TIMEOUT_MS, RESEED_INTERVAL_SECS, RECONNECT_INITIAL_MS, RECONNECT_MAX_MS, BACKOFF_RESET_MS,
-            LIVENESS_INTERVAL_MS, LIVENESS_TIMEOUT_MS, IDLE_THRESHOLD_SECS, NOTIFICATION_PAGE_SIZE,
+            LIVENESS_INTERVAL_MS, LIVENESS_TIMEOUT_MS, LIVENESS_FAILURES, LIVENESS_RETRY_MS, IDLE_THRESHOLD_SECS, NOTIFICATION_PAGE_SIZE,
             -> true
             else -> false
         }

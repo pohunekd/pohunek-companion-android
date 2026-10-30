@@ -4,6 +4,7 @@ import dev.pohunek.companion.core.data.attach.AttachSettings
 import dev.pohunek.companion.core.data.attach.ReattachPolicy
 import dev.pohunek.companion.core.data.discovery.DiscoveryConfig
 import dev.pohunek.companion.core.data.live.LiveConfig
+import dev.pohunek.companion.core.data.live.Liveness
 import dev.pohunek.companion.core.domain.config.Tunable
 import dev.pohunek.companion.protocol.AttachPolicy
 import dev.pohunek.companion.protocol.ClientConfig
@@ -82,8 +83,12 @@ class AppConfig private constructor(
                     reconnectInitial = value(Tunable.RECONNECT_INITIAL_MS).milliseconds,
                     reconnectMax = value(Tunable.RECONNECT_MAX_MS).milliseconds,
                     backoffReset = value(Tunable.BACKOFF_RESET_MS).milliseconds,
-                    livenessInterval = value(Tunable.LIVENESS_INTERVAL_MS).milliseconds,
-                    livenessTimeout = value(Tunable.LIVENESS_TIMEOUT_MS).milliseconds,
+                    liveness = Liveness(
+                        interval = value(Tunable.LIVENESS_INTERVAL_MS).milliseconds,
+                        timeout = value(Tunable.LIVENESS_TIMEOUT_MS).milliseconds,
+                        failures = value(Tunable.LIVENESS_FAILURES).toInt(),
+                        retry = value(Tunable.LIVENESS_RETRY_MS).milliseconds,
+                    ),
                     idleThreshold = value(Tunable.IDLE_THRESHOLD_SECS).seconds,
                     notificationPageSize = value(Tunable.NOTIFICATION_PAGE_SIZE).toInt(),
                 ),

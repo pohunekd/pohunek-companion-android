@@ -30,6 +30,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -41,11 +42,13 @@ class HostLiveTest {
         reconnectInitial = 500.milliseconds,
         reconnectMax = 30.seconds,
         backoffReset = 5.seconds,
-        livenessInterval = 10.seconds,
-        livenessTimeout = 5.seconds,
+        liveness = Liveness(interval = 10.seconds, timeout = 5.seconds, failures = 2, retry = 2.seconds),
         idleThreshold = 300.seconds,
         notificationPageSize = 200,
     )
+
+    private val detectionBound =
+        config.liveness.interval + config.liveness.timeout * config.liveness.failures + config.liveness.retry * (config.liveness.failures - 1)
 
     private class FakeStream : EventStream {
         val inbox = Channel<Any>(Channel.UNLIMITED)
@@ -220,36 +223,40 @@ class HostLiveTest {
     }
 
     @Test
-    fun `a failed health probe fails the connection at the probe interval`() = runTest {
+    fun `one failed probe followed by a good one keeps the connection`() = runTest {
         val transport = FakeTransport()
-        transport.probe = { throw ProtocolClientException.ConnectionFailed(route, IOException("unreachable")) }
+        var probes = 0
+        transport.probe = { if (++probes == 1) throw ProtocolClientException.ConnectionFailed(route, IOException("unreachable")) }
         val updates = mutableListOf<Pair<Long, LiveUpdate>>()
         val job = collect(transport, updates)
 
-        advanceTimeBy(config.livenessInterval)
+        advanceTimeBy(config.liveness.interval + config.liveness.retry + config.liveness.interval)
         runCurrent()
 
-        assertEquals(config.livenessInterval.inWholeMilliseconds, updates.single { it.second is LiveUpdate.Reconnecting }.first)
+        assertEquals(3, probes)
+        assertTrue(updates.none { it.second is LiveUpdate.Reconnecting })
         job.cancel()
     }
 
     @Test
-    fun `a probe that never answers fails the connection after the liveness timeout`() = runTest {
+    fun `failed probes in a row end the connection within the documented bound`() = runTest {
         val transport = FakeTransport()
         transport.probe = { awaitCancellation() }
         val updates = mutableListOf<Pair<Long, LiveUpdate>>()
         val job = collect(transport, updates)
 
-        advanceTimeBy(config.livenessInterval + config.livenessTimeout)
+        advanceTimeBy(detectionBound - 1.milliseconds)
+        runCurrent()
+        assertTrue(updates.none { it.second is LiveUpdate.Reconnecting })
+        advanceTimeBy(1.milliseconds)
         runCurrent()
 
-        val failed = updates.single { it.second is LiveUpdate.Reconnecting }
-        assertEquals((config.livenessInterval + config.livenessTimeout).inWholeMilliseconds, failed.first)
+        assertEquals(detectionBound.inWholeMilliseconds, updates.single { it.second is LiveUpdate.Reconnecting }.first)
         job.cancel()
     }
 
     @Test
-    fun `a failed re-seed fails the connection and the next connection seeds again`() = runTest {
+    fun `a failed re-seed followed by a good probe keeps the connection and is retried`() = runTest {
         val transport = FakeTransport()
         var seeds = 0
         transport.seed = {
@@ -258,12 +265,40 @@ class HostLiveTest {
         val updates = mutableListOf<Pair<Long, LiveUpdate>>()
         val job = collect(transport, updates)
 
-        advanceTimeBy(config.reseedInterval + config.reconnectInitial)
+        advanceTimeBy(config.reseedInterval + config.liveness.retry)
         runCurrent()
 
-        assertEquals(config.reseedInterval.inWholeMilliseconds, updates.single { it.second is LiveUpdate.Reconnecting }.first)
+        assertEquals(3, seeds)
+        assertTrue(updates.none { it.second is LiveUpdate.Reconnecting })
         assertEquals(listOf("s-3"), updates.lastSessions().map { it.info.id })
-        assertEquals(2, updates.count { it.second == LiveUpdate.Connected })
+        job.cancel()
+    }
+
+    @Test
+    fun `failed re-seeds in a row end the connection after the retry wait`() = runTest {
+        val transport = FakeTransport()
+        var seeds = 0
+        transport.seed = { if (++seeds >= 2) throw ProtocolClientException.ConnectionLost("seed") else emptyList() }
+        val updates = mutableListOf<Pair<Long, LiveUpdate>>()
+        // A good probe would reset the count, so none falls inside the test.
+        val noProbes = LiveConfig(
+            reseedInterval = config.reseedInterval,
+            reconnectInitial = config.reconnectInitial,
+            reconnectMax = config.reconnectMax,
+            backoffReset = config.backoffReset,
+            liveness = Liveness(interval = 1.hours, timeout = config.liveness.timeout, failures = 2, retry = config.liveness.retry),
+            idleThreshold = config.idleThreshold,
+            notificationPageSize = config.notificationPageSize,
+        )
+        val job = launch {
+            HostLive(route, transport, noProbes, testScheduler.timeSource, NoLog).updates().collect { updates += currentTime to it }
+        }
+
+        advanceTimeBy(config.reseedInterval + config.liveness.retry)
+        runCurrent()
+
+        val expected = (config.reseedInterval + config.liveness.retry).inWholeMilliseconds
+        assertEquals(expected, updates.single { it.second is LiveUpdate.Reconnecting }.first)
         job.cancel()
     }
 
