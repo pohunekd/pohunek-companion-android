@@ -32,6 +32,7 @@
 #   scripts/ui-agent pohunek ARGS...       the Pohunek CLI against the isolated daemon (session new|rename|stop|rm; notification create|delete|list)
 #   scripts/ui-agent rotate                toggle portrait and landscape
 #   scripts/ui-agent net-drop | net-restore    cut and restore the app's path to the daemon
+#   scripts/ui-agent stall SECONDS|on|off  freeze the bridge without closing a socket (bytes stop, connects still complete), for SECONDS or until off
 #   scripts/ui-agent host-stop | host-start    stop and restart the isolated daemon
 #   scripts/ui-agent health                one daemon.health request sent from the device
 #   scripts/ui-agent screen                text of the attached terminal's grid (debug build, a terminal open)
@@ -361,6 +362,7 @@ case "${1:-}" in
   pohunek) shift; guest pohunek "$@" ;;
   rotate) guest rotate ;;
   demo-mode | night) guest "$1" "${2:-}" ;;
+  stall) guest stall "${2:?on, off or a number of seconds required}" ;;
   net-drop | net-restore | host-stop | host-start | health) guest "$1" ;;
   log) warn_unpublishable; guest log "${2:-app}" ;;
   *) sed -n '2,/ui-agent log \[app/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;

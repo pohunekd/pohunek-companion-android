@@ -17,6 +17,7 @@ run_env="$run_dir/run.env"
 iso="$run_dir/iso"
 up_status="$run_dir/up.status"
 bridge_pid_file="$run_dir/bridge.pid"
+stall_file="$run_dir/stall.since"
 emulator_pid_file="$run_dir/emulator.pid"
 daemon_log="$iso/daemon.log"
 shared_lock=/android-home/ui-agent-avd.lock
@@ -585,6 +586,7 @@ start_daemon() { # EXTRA_SESSIONS SHOWCASE(0|1)
 # maps the device port to the same port in this container, where socat forwards
 # to the socket. The daemon itself never listens on TCP in the isolated run.
 start_bridge() {
+  rm -f "$stall_file"
   (
     cd "$run_dir"
     setsid socat "TCP-LISTEN:$BRIDGE_PORT,bind=127.0.0.1,reuseaddr,fork" "UNIX-CONNECT:$iso/run/pohunek/daemon.sock" \
@@ -605,10 +607,71 @@ stop_bridge() {
   adbd reverse --remove "tcp:$BRIDGE_PORT" >/dev/null 2>&1 || true
   if [ -f "$bridge_pid_file" ]; then
     pid=$(cat "$bridge_pid_file")
+    # A stopped process holds a SIGTERM pending until it is continued.
+    resume_bridge "$pid"
+    kill -TERM -- "-$pid" 2>/dev/null || true
     pkill -TERM -P "$pid" 2>/dev/null || true
     kill -TERM "$pid" 2>/dev/null || true
     rm -f "$bridge_pid_file"
   fi
+}
+
+# Continues the bridge listener and its per-connection children and clears the
+# stall marker.
+resume_bridge() { # PID
+  # The bridge is a session of its own (setsid), so its pid is the process
+  # group of the listener and every child, also children orphaned by a dead listener.
+  kill -CONT -- "-$1" 2>/dev/null || true
+  kill -CONT "$1" 2>/dev/null || true
+  rm -f "$stall_file"
+}
+
+# Freezes the bridge without closing any socket: the stopped listener's backlog
+# accepts TCP connects until it is full, but no byte passes in either direction, so the
+# app's requests time out instead of failing. The marker holds the start time
+# and the owner (`manual`, or `timer:PID` for a timed stall) and is written
+# first, so an interruption never leaves a frozen bridge without one.
+stall_on() { # OWNER
+  local pid
+  [ ! -f "$stall_file" ] || die "the bridge is already stalled; resume it with: stall off"
+  [ -f "$bridge_pid_file" ] && pid=$(cat "$bridge_pid_file") && kill -0 "$pid" 2>/dev/null ||
+    die "the bridge is down; restore it first with: net-restore"
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $1" >"$stall_file"
+  kill -STOP -- "-$pid" 2>/dev/null || kill -STOP "$pid"
+  echo "stall on since $(cut -d' ' -f1 "$stall_file")"
+}
+
+# Resumes the bridge; with OWNER only a stall that OWNER started.
+stall_off() { # [OWNER]
+  local pid
+  [ -f "$stall_file" ] || { echo "stall already off"; return 0; }
+  if [ -n "${1:-}" ] && [ "$(cut -d' ' -f2 "$stall_file")" != "$1" ]; then return 0; fi
+  if [ -f "$bridge_pid_file" ] && pid=$(cat "$bridge_pid_file"); then
+    resume_bridge "$pid"
+  else
+    rm -f "$stall_file"
+  fi
+  echo "stall off at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+
+# `stall on|off|SECONDS`: SECONDS freezes, waits, and resumes, also when the
+# wait is interrupted.
+stall() { # on|off|SECONDS
+  owner="timer:$$" # global: the EXIT trap runs after this function returns
+  case "${1:-}" in
+    on) stall_on manual ;;
+    off) stall_off ;;
+    [1-9] | [1-9][0-9]*)
+      trap 'stall_off "$owner" >/dev/null' EXIT
+      trap 'exit 130' INT TERM
+      stall_on "$owner"
+      # A foreground sleep would delay a signal until it ends.
+      sleep "$1" &
+      wait $!
+      trap - INT TERM
+      stall_off "$owner" ;;
+    *) die "stall takes on, off or a number of seconds" ;;
+  esac
 }
 
 require_isolated() {
@@ -835,6 +898,9 @@ status() {
   fi
   echo "device=$DEVICE serial=$SERIAL state=$state"
   echo "daemon=$DAEMON state=$daemon_state bridge=$bridge"
+  if [ "$DAEMON" = isolated ]; then
+    if [ -f "$stall_file" ]; then echo "stall=on since=$(cut -d" " -f1 "$stall_file")"; else echo "stall=off"; fi
+  fi
 }
 
 log_of() { # app|daemon|emulator
@@ -1178,6 +1244,7 @@ case "$cmd" in
   night) load_run; require_isolated_run night; night_mode "${1:-}" ;;
   net-drop) load_run; require_isolated net-drop; stop_bridge; echo "bridge down" ;;
   net-restore) load_run; require_isolated net-restore; stop_bridge; start_bridge; echo "bridge up" ;;
+  stall) load_run; require_isolated_run stall; stall "${1:-}" ;;
   host-stop) load_run; require_isolated host-stop; halt_daemon; echo "daemon stopped" ;;
   host-start) load_run; require_isolated host-start; launch_daemon; echo "daemon started" ;;
   health) load_run; health ;;

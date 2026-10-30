@@ -74,7 +74,7 @@ scripts/ui-agent install | restart | stop | status
 scripts/ui-agent screenshot OUT.png | tree | find TAG | click TAG [N]
 scripts/ui-agent type TEXT [--enter] | key esc|ctrl-c|tab|up|down|left|right|enter
 scripts/ui-agent demo-mode on|off | night on|off (emulator status bar fixed; dark theme)
-scripts/ui-agent rotate | net-drop | net-restore | host-stop | host-start
+scripts/ui-agent rotate | net-drop | net-restore | stall SECONDS|on|off | host-stop | host-start
 scripts/ui-agent health | log [app|daemon|emulator]
 scripts/ui-agent screen | session-screen ID [--size]
 scripts/ui-agent swipe TAG up|down|left|right | long-press TAG [N] | drag TAG [N] --to TAG [M] [--after]
@@ -124,7 +124,16 @@ scripts/ui-agent pohunek ARGS...
   `find TAG` filters by exact tag and `click TAG [N]` taps the centre of the Nth
   match. `type` and `key` go to the focused view (tap the terminal first).
   `net-drop` and `net-restore` cut and restore the bridge and the `adb reverse`;
-  `host-stop` and `host-start` stop and restart the daemon with the same
+  `stall` is the black-hole case: `stall SECONDS` (or `stall on` and `stall off`) freezes the bridge
+  (`socat` listener and its per-connection children) with `SIGSTOP` and resumes it with `SIGCONT`, closing no
+  socket. A new TCP connect from the device completes while the listener's backlog has room (the kernel accepts
+  it) but no byte passes in either direction, so requests time out instead of failing, where `net-drop` closes the sockets and
+  the app sees the loss at once. `status` shows `stall=on since=TIME` while frozen; `stall off`, `net-drop`,
+  `net-restore` and `stop` resume the bridge first, and `stall` refuses a second `on` and a down bridge. It
+  works only in isolated emulator runs, like the gesture commands. A stall shorter than the liveness probe
+  timeout cannot end the live connection; a longer one ends it with `request_timeout`. Latency and packet loss
+  cannot be injected: the slot container has no `tc`, no `ip` and no capabilities, and the emulator's network
+  shaping does not apply to `adb reverse` traffic. `host-stop` and `host-start` stop and restart the daemon with the same
   directories. `health` sends one `daemon.health` line from the device with
   toybox `nc` through the reversed port and prints the reply.
 - **Session list.** `MainActivity` opens the Hosts screen with the host form on a fresh install (no host
