@@ -70,6 +70,10 @@ as the desktop companion: `v0.35.2` today.
   `reconnect_max`, so on a link that drops briefly every half minute the wait ratchets to the cap while the rows stay dimmed. Here a
   connection that was seeded and held at least `backoff_reset_ms` (default 5 s, never above `reconnect_max_ms`) resets it; failed
   attempts in a row, and connections that drop sooner, still double the wait up to `reconnect_max_ms`.
+- Network events (departs from the desktop on purpose): while the loops run, a `ConnectivityManager` network callback (a request
+  with `NET_CAPABILITY_INTERNET` and without `NOT_VPN`, so a physical network and a VPN network such as NetBird's both match) reports a
+  network that becomes `VALIDATED`. Every loop that is waiting out a backoff then attempts at once, one attempt per event; a connected
+  loop or one mid-attempt ignores it, no re-seed runs, and the failure count is kept. The callback is unregistered with the loops.
 - Lifecycle (until M4's foreground service): the live loops run only while the
   app is visible (`ProcessLifecycleOwner` started) and stop when it goes to the
   background, which closes their sockets. On return they reconnect and re-seed

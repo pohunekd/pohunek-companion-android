@@ -57,6 +57,9 @@ private sealed interface Wake {
     data object Timer : Wake
 }
 
+/** What ended a wait between two connection attempts. */
+private enum class WaitEnd { Elapsed, Refresh, Network }
+
 /**
  * What one host's loop keeps across its connections and restarts: the session store and the last list handed to the collector. A seed
  * on a new connection reconciles into this store, so idle clocks survive and an unchanged list is not published again.
@@ -74,6 +77,7 @@ class LiveState(val store: SessionStore) {
  * once; so do [Liveness.failures] failed re-seeds or health probes in a row, and the loop reconnects with a growing wait. Collecting
  * [updates] runs the loop until the collector is cancelled; each collection starts with a fresh failure count and reconciles into [state].
  */
+@Suppress("TooManyFunctions") // The loop and its helpers share the wake channels and the connection state.
 class HostLive(
     route: HostRoute,
     private val transport: HostTransport,
@@ -85,17 +89,30 @@ class HostLive(
     private val hostKey = hostKeyField(route)
     private val refresh = Channel<Unit>(Channel.CONFLATED)
 
+    private val network = Channel<Unit>(Channel.CONFLATED)
+
+    /** True only while the loop waits between two attempts; a network event at any other time has nothing to cut short. */
+    @Volatile
+    private var waiting = false
+
     /** Asks the running loop to re-seed now, or to stop waiting for the next reconnect. */
     fun requestReseed() {
         refresh.trySend(Unit)
     }
 
+    /** Ends the wait before the next reconnect, once per call; a loop that is connected or mid-attempt ignores it, and the failure count stays. */
+    fun networkAvailable() {
+        if (waiting) network.trySend(Unit)
+    }
+
     fun updates(): Flow<LiveUpdate> = flow {
         var failures = 0
+        var early = false
         state.store.idleThreshold = config.idleThreshold
         while (true) {
             val connection = Connection(state.store, this)
-            log.info("live.connecting", listOf(hostKey, LogField.number("attempt", failures + 1L)))
+            val attemptFields = listOf(hostKey, LogField.number("attempt", failures + 1L))
+            log.info("live.connecting", if (early) attemptFields + LogField.number("early", 1) else attemptFields)
             val error = try {
                 connect(connection)
             } catch (e: ProtocolClientException) {
@@ -107,7 +124,22 @@ class HostLive(
             val delay = backoffDelay(config, failures)
             logEnded(connection.store, held != null, error, failures, delay)
             emit(LiveUpdate.Reconnecting(failures, error.message.orEmpty(), error.protocolCode()))
-            withTimeoutOrNull(delay) { refresh.receive() }
+            early = waitForNextAttempt(delay) == WaitEnd.Network
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun waitForNextAttempt(delay: Duration): WaitEnd {
+        network.tryReceive()
+        waiting = true
+        try {
+            return select {
+                refresh.onReceive { WaitEnd.Refresh }
+                network.onReceive { WaitEnd.Network }
+                onTimeout(delay) { WaitEnd.Elapsed }
+            }
+        } finally {
+            waiting = false
         }
     }
 

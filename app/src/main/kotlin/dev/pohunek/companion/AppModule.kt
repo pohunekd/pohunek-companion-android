@@ -2,6 +2,7 @@ package dev.pohunek.companion
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.net.ConnectivityManager
 import android.util.AtomicFile
 import android.util.Log
 import androidx.lifecycle.Lifecycle
@@ -80,6 +81,7 @@ val appModule = module {
         val runtime = get<RuntimeConfig>()
         HostRegistry(HostLiveFactory({ runtime.current().client }, { runtime.current().live }, get(ioDispatcher), TimeSource.Monotonic, get()))
     }
+    single { NetworkMonitor(get<Context>().getSystemService(ConnectivityManager::class.java), get(), get()) }
     // One discovery for the process: the hosts screen shows what the session list's foreground period found.
     single {
         val runtime = get<RuntimeConfig>()
