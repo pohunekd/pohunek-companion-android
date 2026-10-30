@@ -37,7 +37,10 @@
     <string name="reconnect_initial_ms_help">How long to wait before the first reconnect to a daemon; the wait doubles per consecutive failure. It may not exceed the longest wait.</string>
 
     <integer name="reconnect_max_ms">30000</integer>
-    <string name="reconnect_max_ms_help">The longest wait between two reconnects, and how long a connection must hold before the failure count resets. It may not be below the first wait.</string>
+    <string name="reconnect_max_ms_help">The longest wait between two reconnects. It may not be below the first wait or below the hold that resets the backoff.</string>
+
+    <integer name="backoff_reset_ms">5000</integer>
+    <string name="backoff_reset_ms_help">How long a connection must stay up after it was established before the next drop starts again at the first wait instead of continuing the doubling. It may not exceed the longest wait.</string>
 
     <integer name="liveness_interval_ms">10000</integer>
     <string name="liveness_interval_ms_help">How often a health probe detects a silently dead connection to a daemon. A dead connection is noticed within this plus the probe timeout.</string>

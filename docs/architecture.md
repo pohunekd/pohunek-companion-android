@@ -64,6 +64,10 @@ as the desktop companion: `v0.35.2` today.
   `liveness_timeout_ms`) that fails, ends the connection and the loop reconnects
   with backoff. The probe detects a dead network path; it does not look at the
   subscription socket itself.
+- Backoff reset (departs from the desktop on purpose): the desktop resets the failure count only after a connection held
+  `reconnect_max`, so on a link that drops briefly every half minute the wait ratchets to the cap while the rows stay dimmed. Here a
+  connection that was seeded and held at least `backoff_reset_ms` (default 5 s, never above `reconnect_max_ms`) resets it; failed
+  attempts in a row, and connections that drop sooner, still double the wait up to `reconnect_max_ms`.
 - Lifecycle (until M4's foreground service): the live loops run only while the
   app is visible (`ProcessLifecycleOwner` started) and stop when it goes to the
   background, which closes their sockets. On return they reconnect and re-seed
