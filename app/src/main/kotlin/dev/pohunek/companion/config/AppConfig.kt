@@ -12,12 +12,14 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-/** The longest texts the screens show before they cut them, and the longest group name read from session metadata, in UTF-8 bytes. */
+/** The longest texts the screens show before they cut them, the longest group name read from metadata (UTF-8 bytes), and the grace before a host shows down. */
 data class DisplayLimits(
     val rowBadgeMaxChars: Int,
     val sectionTitleMaxChars: Int,
     val detailValueMaxChars: Int,
     val groupNameMaxBytes: Int,
+    /** How long a host without a connection keeps looking connected in the session list. */
+    val unreachableGrace: Duration,
 )
 
 /** What starting a session needs. */
@@ -95,6 +97,7 @@ class AppConfig private constructor(
                     value(Tunable.SECTION_TITLE_MAX_CHARS).toInt(),
                     value(Tunable.DETAIL_VALUE_MAX_CHARS).toInt(),
                     value(Tunable.GROUP_NAME_MAX_BYTES).toInt(),
+                    value(Tunable.UNREACHABLE_GRACE_MS).milliseconds,
                 ),
             )
         }

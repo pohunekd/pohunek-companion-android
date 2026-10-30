@@ -170,7 +170,9 @@ scripts/ui-agent pohunek ARGS...
   come back ended (show them with the Ended chip); to make a write fail with sessions intact, freeze the daemon with `kill -STOP` of `pohunekd` in the
   slot container and resume it with `kill -CONT`. A layout file that cannot
   be read (`app-file put layout.json` with broken JSON, then `restart`) shows `Layout.error` above the list, keeps the
-  file byte for byte, and runs with an unsaved Inbox-only layout. The rows of a host that is not connected stay, dimmed, never count in Needs you, and a tap
+  file byte for byte, and runs with an unsaved Inbox-only layout. A host that lost its connection (or restarted its loop with a list) looks connected for
+  `unreachable_grace_ms`: rows undimmed, Needs you unchanged, no `SessionList.status`, a tap opens the terminal; a refusal with a code
+  is shown at once. After that grace the rows of a host that is not connected stay, dimmed, never count in Needs you, and a tap
   opens nothing and shows `SessionList.refusal`; one `SessionList.status` line per such host names it, the
   attempt and the reason (`<label>: Reconnecting (attempt N): reason`, `<label>: Connection refused (code):
   reason` for a daemon refusal such as `version_mismatch`). Recovery can take up to the current backoff, so

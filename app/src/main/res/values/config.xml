@@ -42,6 +42,9 @@
     <integer name="backoff_reset_ms">5000</integer>
     <string name="backoff_reset_ms_help">How long a connection must stay up after it was established before the next drop starts again at the first wait instead of continuing the doubling. It may not exceed the longest wait.</string>
 
+    <integer name="unreachable_grace_ms">10000</integer>
+    <string name="unreachable_grace_ms_help">How long a host that lost its connection, or is connecting again, keeps looking connected in the session list before its rows dim and its status appears. A refusal by the daemon is shown at once.</string>
+
     <integer name="liveness_interval_ms">10000</integer>
     <string name="liveness_interval_ms_help">How often a health probe detects a silently dead connection to a daemon. A dead connection is noticed within this plus the probe timeout.</string>
 

@@ -71,7 +71,8 @@ as the desktop companion: `v0.35.2` today.
 - Lifecycle (until M4's foreground service): the live loops run only while the
   app is visible (`ProcessLifecycleOwner` started) and stop when it goes to the
   background, which closes their sockets. On return they reconnect and re-seed
-  at once. M4 replaces this with the foreground service where background
+  at once; the hosts keep looking connected for `unreachable_grace_ms` meanwhile,
+  so a quick app switch is invisible. M4 replaces this with the foreground service where background
   monitoring is wanted.
 - Attach: `session.attach` returns a one-shot `stream_id` (10 s TTL). A second
   TCP connection sends `{"attach":"<id>"}\n` and from then on carries raw PTY
@@ -209,8 +210,15 @@ as the desktop companion: `v0.35.2` today.
   `127.0.0.1:PORT` and `localhost:PORT`) counts as two hosts. One live loop
   per host runs in a process-wide registry (`HostRegistry`); a loop never
   touches another host's loop or rows. The list is the union of the hosts'
-  latest sessions keyed by host and session id, and the rows of a host that is
-  not connected stay, dimmed, with their last known facts.
+  latest sessions keyed by host and session id. The rows of a host that has been
+  without a connection for `unreachable_grace_ms` stay, dimmed, with their last
+  known facts; until then (a loss, or a loop start that keeps the last list) the
+  host looks connected: rows undimmed, Needs you unchanged, no status line, a tap
+  opens the terminal, and writes that need the daemon still require a connected
+  host and report their own failure. A daemon refusal with a code, and a host
+  that discovery no longer reports, are shown at once. The desktop marks a host
+  down only after a reconnect update, never while it first connects; the grace
+  period is the nearest equivalent that still shows a long outage.
 - **Discovered hosts** join the configured ones without being stored. While the app is
   visible, every connected configured host is asked for `host.discover {force:false}`
   (the request keeps `v:{4,4}`, so a protocol-3 peer comes back as `version_mismatch`)
