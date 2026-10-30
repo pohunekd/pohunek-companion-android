@@ -20,6 +20,7 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long =
     DISCOVER_TIMEOUT_SECS(1, TunableUnit.Seconds),
     RECONNECT_INITIAL_MS(1, TunableUnit.Milliseconds),
     RECONNECT_MAX_MS(1, TunableUnit.Milliseconds),
+    BACKOFF_RESET_MS(1, TunableUnit.Milliseconds),
     LIVENESS_INTERVAL_MS(1, TunableUnit.Milliseconds),
     LIVENESS_TIMEOUT_MS(1, TunableUnit.Milliseconds),
     ATTACH_LIVENESS_INTERVAL_MS(1, TunableUnit.Milliseconds),
@@ -43,18 +44,18 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long =
     /** True when a running live loop captured the value at its start, so a change needs the loops restarted to take effect. */
     val readByLiveLoops: Boolean
         get() = when (this) {
-            CONNECT_TIMEOUT_MS, REQUEST_TIMEOUT_MS, RESEED_INTERVAL_SECS, RECONNECT_INITIAL_MS, RECONNECT_MAX_MS, LIVENESS_INTERVAL_MS,
-            LIVENESS_TIMEOUT_MS, IDLE_THRESHOLD_SECS, NOTIFICATION_PAGE_SIZE,
+            CONNECT_TIMEOUT_MS, REQUEST_TIMEOUT_MS, RESEED_INTERVAL_SECS, RECONNECT_INITIAL_MS, RECONNECT_MAX_MS, BACKOFF_RESET_MS,
+            LIVENESS_INTERVAL_MS, LIVENESS_TIMEOUT_MS, IDLE_THRESHOLD_SECS, NOTIFICATION_PAGE_SIZE,
             -> true
             else -> false
         }
 
-    /** The tunable this one may not fall below: a longest wait is never shorter than the first. */
-    val lowerBound: Tunable?
+    /** The tunables this one may not fall below: a longest wait is never shorter than the first, nor than the hold that resets it. */
+    val lowerBounds: List<Tunable>
         get() = when (this) {
-            RECONNECT_MAX_MS -> RECONNECT_INITIAL_MS
-            REATTACH_MAX_MS -> REATTACH_INITIAL_MS
-            else -> null
+            RECONNECT_MAX_MS -> listOf(RECONNECT_INITIAL_MS, BACKOFF_RESET_MS)
+            REATTACH_MAX_MS -> listOf(REATTACH_INITIAL_MS)
+            else -> emptyList()
         }
 }
 
@@ -83,13 +84,12 @@ sealed interface OverrideCheck {
 /** Every rule a complete set of [values] breaks, none when it is valid; a pair of ordered tunables reports both members. */
 fun tunableProblems(values: Map<Tunable, Long>): List<TunableProblem> = Tunable.entries.flatMap { tunable ->
     val value = values.getValue(tunable)
-    val bound = tunable.lowerBound
     val own = when {
         value < tunable.minimum -> rangeProblem(tunable, value)
         value > tunable.maximum -> TunableProblem(tunable, "must be at most ${tunable.maximum}, got $value")
         else -> null
     }
-    val ordering = bound?.let { floor ->
+    val ordering = tunable.lowerBounds.flatMap { floor ->
         val floorValue = values.getValue(floor)
         if (value < floorValue) {
             listOf(
@@ -100,7 +100,7 @@ fun tunableProblems(values: Map<Tunable, Long>): List<TunableProblem> = Tunable.
             emptyList()
         }
     }
-    listOfNotNull(own) + ordering.orEmpty()
+    listOfNotNull(own) + ordering
 }.distinct()
 
 private fun rangeProblem(tunable: Tunable, value: Long): TunableProblem =

@@ -69,6 +69,18 @@ class TunablesTest {
     }
 
     @Test
+    fun `a reset hold above the maximum wait is refused on both members`() {
+        val problems = invalid(checkOverrides(defaults, entered(Tunable.BACKOFF_RESET_MS to "40000")))
+        assertEquals(
+            listOf(
+                TunableProblem(Tunable.RECONNECT_MAX_MS, "must be at least backoff_reset_ms (40000), got 30000"),
+                TunableProblem(Tunable.BACKOFF_RESET_MS, "must not exceed reconnect_max_ms (30000), got 40000"),
+            ),
+            problems,
+        )
+    }
+
+    @Test
     fun `a maximum below the default initial backoff is refused`() {
         val problems = invalid(checkOverrides(defaults, entered(Tunable.REATTACH_MAX_MS to "100")))
         assertEquals(Tunable.REATTACH_MAX_MS, problems.first().tunable)

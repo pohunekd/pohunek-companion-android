@@ -102,7 +102,7 @@ class HostLive(
                 e
             }
             val held = connection.establishedAt
-            if (held != null && held.elapsedNow() >= config.reconnectMax) failures = 0
+            if (held != null && held.elapsedNow() >= config.backoffReset) failures = 0
             failures++
             val delay = backoffDelay(config, failures)
             logEnded(connection.store, held != null, error, failures, delay)

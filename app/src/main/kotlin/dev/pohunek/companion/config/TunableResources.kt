@@ -20,6 +20,7 @@ private val RESOURCES: Map<Tunable, TunableResources> = mapOf(
     Tunable.DISCOVER_TIMEOUT_SECS to TunableResources(R.integer.discover_timeout_secs, R.string.discover_timeout_secs_help),
     Tunable.RECONNECT_INITIAL_MS to TunableResources(R.integer.reconnect_initial_ms, R.string.reconnect_initial_ms_help),
     Tunable.RECONNECT_MAX_MS to TunableResources(R.integer.reconnect_max_ms, R.string.reconnect_max_ms_help),
+    Tunable.BACKOFF_RESET_MS to TunableResources(R.integer.backoff_reset_ms, R.string.backoff_reset_ms_help),
     Tunable.LIVENESS_INTERVAL_MS to TunableResources(R.integer.liveness_interval_ms, R.string.liveness_interval_ms_help),
     Tunable.LIVENESS_TIMEOUT_MS to TunableResources(R.integer.liveness_timeout_ms, R.string.liveness_timeout_ms_help),
     Tunable.ATTACH_LIVENESS_INTERVAL_MS to TunableResources(R.integer.attach_liveness_interval_ms, R.string.attach_liveness_interval_ms_help),

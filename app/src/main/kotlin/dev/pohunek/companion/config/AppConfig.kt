@@ -79,6 +79,7 @@ class AppConfig private constructor(
                     reseedInterval = value(Tunable.RESEED_INTERVAL_SECS).seconds,
                     reconnectInitial = value(Tunable.RECONNECT_INITIAL_MS).milliseconds,
                     reconnectMax = value(Tunable.RECONNECT_MAX_MS).milliseconds,
+                    backoffReset = value(Tunable.BACKOFF_RESET_MS).milliseconds,
                     livenessInterval = value(Tunable.LIVENESS_INTERVAL_MS).milliseconds,
                     livenessTimeout = value(Tunable.LIVENESS_TIMEOUT_MS).milliseconds,
                     idleThreshold = value(Tunable.IDLE_THRESHOLD_SECS).seconds,

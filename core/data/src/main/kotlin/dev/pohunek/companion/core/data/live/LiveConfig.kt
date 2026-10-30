@@ -8,8 +8,10 @@ class LiveConfig(
     val reseedInterval: Duration,
     /** Wait before the first reconnect; doubles per consecutive failure. */
     val reconnectInitial: Duration,
-    /** Longest wait between reconnects; also how long a connection must hold before the failure count resets. */
+    /** Longest wait between reconnects. */
     val reconnectMax: Duration,
+    /** How long a connection that was seeded must hold before the failure count resets, so the next drop starts at [reconnectInitial]. */
+    val backoffReset: Duration,
     /** Interval of the `daemon.health` probe on a connection that is otherwise quiet. */
     val livenessInterval: Duration,
     /** Time one probe, connecting included, may take before the connection is declared dead. */
@@ -23,6 +25,7 @@ class LiveConfig(
         require(reseedInterval.isPositive()) { "reseedInterval must be positive" }
         require(reconnectInitial.isPositive()) { "reconnectInitial must be positive" }
         require(reconnectMax >= reconnectInitial) { "reconnectMax must be at least reconnectInitial" }
+        require(backoffReset.isPositive()) { "backoffReset must be positive" }
         require(livenessInterval.isPositive()) { "livenessInterval must be positive" }
         require(livenessTimeout.isPositive()) { "livenessTimeout must be positive" }
         require(idleThreshold.isPositive()) { "idleThreshold must be positive" }

@@ -40,6 +40,7 @@ class HostLiveTest {
         reseedInterval = 60.seconds,
         reconnectInitial = 500.milliseconds,
         reconnectMax = 30.seconds,
+        backoffReset = 5.seconds,
         livenessInterval = 10.seconds,
         livenessTimeout = 5.seconds,
         idleThreshold = 300.seconds,
@@ -209,13 +210,13 @@ class HostLiveTest {
     }
 
     @Test
-    fun `a connection that drops soon keeps the failure count growing`() = runTest {
-        assertEquals(3, attemptAfterConnectionHeld(5_000))
+    fun `a connection that drops before the reset hold keeps the failure count growing`() = runTest {
+        assertEquals(3, attemptAfterConnectionHeld(4_000))
     }
 
     @Test
-    fun `a connection that held for the maximum wait resets the failure count`() = runTest {
-        assertEquals(1, attemptAfterConnectionHeld(config.reconnectMax.inWholeMilliseconds))
+    fun `a connection that held for the reset hold resets the failure count`() = runTest {
+        assertEquals(1, attemptAfterConnectionHeld(config.backoffReset.inWholeMilliseconds))
     }
 
     @Test
