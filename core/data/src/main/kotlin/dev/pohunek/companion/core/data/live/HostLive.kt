@@ -173,9 +173,10 @@ class HostLive(
             val current = store.ownerSessions().sortedBy { it.info.id }
             val previous = state.shown
             if (current == previous) return
-            state.shown = current
             if (previous != null) logOwnerStateChanges(previous, current)
             out.emit(LiveUpdate.Sessions(current))
+            // Recorded only after the collector took it, so a cancelled emit is published again by the next loop.
+            state.shown = current
         }
     }
 

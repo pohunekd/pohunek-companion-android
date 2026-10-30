@@ -79,7 +79,7 @@ class SettingsViewModel(
         when (result) {
             ApplyResult.Applied -> {
                 val effective = defaults + overrides
-                // A restart resets the idle clocks, so only a change a running loop captured at its start triggers one.
+                // A restart drops the connections, so only a change a running loop captured at its start triggers one.
                 if (Tunable.entries.any { it.readByLiveLoops && before.getValue(it) != effective.getValue(it) }) registry.restart()
                 logChanges(before, effective)
                 updateState { state ->
