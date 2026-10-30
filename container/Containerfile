@@ -99,8 +99,9 @@ ARG ANDROID_CMAKE=cmake;4.1.2
 RUN SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; \
     printf 'y\n%.0s' {1..50} | "$SDKM" --licenses >/dev/null; \
     "$SDKM" --install "${ANDROID_PLATFORM}" "${ANDROID_BUILD_TOOLS}" "${ANDROID_NDK}" "${ANDROID_CMAKE}" "${ANDROID_SYSTEM_IMAGE}"; \
-    grep -qx "Pkg.BuildId=${EMULATOR_BUILD_ID}" "$ANDROID_HOME/emulator/source.properties" \
-      || { echo "sdkmanager replaced the pinned emulator; the build is not ${EMULATOR_BUILD_ID}" >&2; exit 1; }
+    { grep -qx "Pkg.BuildId=${EMULATOR_BUILD_ID}" "$ANDROID_HOME/emulator/source.properties" \
+        && ! compgen -G "$ANDROID_HOME/emulator-*" >/dev/null; } \
+      || { echo "sdkmanager replaced or duplicated the pinned emulator ${EMULATOR_BUILD_ID}" >&2; exit 1; }
 
 # Pohunek release v0.35.2 (musl builds are static; sha256 published on the
 # zajca/pohunek GitHub release).
