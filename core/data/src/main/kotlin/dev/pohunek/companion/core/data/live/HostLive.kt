@@ -74,7 +74,8 @@ class LiveState(val store: SessionStore) {
 /**
  * Keeps one daemon's sessions current: subscribe first so no event is lost, seed on a second connection, apply the events that arrived
  * meanwhile, then stream. Every [LiveConfig.reseedInterval] the seed is taken again the same way. A broken stream ends the connection at
- * once; so do [Liveness.failures] failed re-seeds or health probes in a row, and the loop reconnects with a growing wait. Collecting
+ * once; so do [Liveness.failures] failed re-seeds or health probes in a row, and a re-seed that finds a change no buffered event
+ * explains (a dead subscription the probes cannot see). The loop then reconnects with a growing wait. Collecting
  * [updates] runs the loop until the collector is cancelled; each collection starts with a fresh failure count and reconciles into [state].
  */
 @Suppress("TooManyFunctions") // The loop and its helpers share the wake channels and the connection state.
@@ -153,6 +154,9 @@ class HostLive(
         /** Probes and re-seeds that failed in a row since the last one that succeeded. */
         var failedChecks = 0
 
+        /** Set by a re-seed that changed the store although no event was waiting to explain it. */
+        var streamMissedChange = false
+
         /**
          * Records a failed probe or re-seed and returns after logging it as [event], or throws [error] once [Liveness.failures]
          * checks failed in a row.
@@ -196,7 +200,10 @@ class HostLive(
             when {
                 initial -> log.info("live.seeded", counts)
                 change.isEmpty || buffered > 0 -> log.info("live.reseeded", counts)
-                else -> log.warn("live.reseed_corrected", counts)
+                else -> {
+                    log.warn("live.reseed_corrected", counts)
+                    streamMissedChange = true
+                }
             }
             val now = timeSource.markNow()
             reseedDue = now + config.reseedInterval
@@ -294,6 +301,8 @@ class HostLive(
         if (!connection.seed(initial = false)) return
         connection.publish()
         connection.out.emit(LiveUpdate.Reseeded)
+        // The subscription is the only way events reach the store, and the seed and probe connections cannot tell that it is dead.
+        if (connection.streamMissedChange) throw ProtocolClientException.ConnectionLost("the re-seed found a change the event stream never delivered")
     }
 
     private fun logOwnerStateChanges(previous: List<OwnerSession>, current: List<OwnerSession>) {
