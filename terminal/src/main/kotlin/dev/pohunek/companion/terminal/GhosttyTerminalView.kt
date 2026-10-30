@@ -150,7 +150,17 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     renderFrame()
   }
 
-  private var scrollAccum = 0f
+  // Finger and fling travel not yet applied; one step per display frame turns it into scrollback
+  // movement, a sub-row draw offset, or a paced batch of wheel reports.
+  private val scrollAccumulator = ScrollAccumulator()
+  private var fingerDown = false
+  private var scrollFramePending = false
+
+  // Pixels the local scrollback is drawn shifted up by (0 until a cell height); the row that
+  // slides in below the grid is drawn from [peekBitmap].
+  private var scrollOffsetPx = 0f
+  private var peekBitmap: Bitmap? = null
+  private var peekCanvas: Canvas? = null
 
   // Last touch position of a scroll gesture; the position a wheel report
   // carries while a fling keeps going after the finger lifted.
@@ -167,19 +177,9 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
   private val scrollbarPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val jumpChipPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val jumpChipArrow = Path()
-  private val flingRunnable = object : Runnable {
-    override fun run() {
-      if (handle == 0L || !scroller.computeScrollOffset()) return
-      val y = scroller.currY
-      scrollAccum += (y - flingLastY).toFloat()
-      flingLastY = y
-      val deltaRows = (scrollAccum / cellHeight).toInt()
-      if (deltaRows != 0) {
-        scrollAccum -= deltaRows * cellHeight
-        scrollRows(deltaRows, wheelX, wheelY)
-      }
-      postOnAnimation(this)
-    }
+  private val scrollFrameCallback = Choreographer.FrameCallback {
+    scrollFramePending = false
+    scrollStep()
   }
 
   private val gestureDetector = GestureDetector(
@@ -193,6 +193,8 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
           val slop = JUMP_CHIP_RADIUS_DP * 1.5f * resources.displayMetrics.density
           if (hypot(e.x - cx, e.y - cy) <= slop) {
             GhosttyVt.nativeScrollToBottom(handle)
+            scrollAccumulator.clear()
+            scrollOffsetPx = 0f
             scheduleFrame()
             return true
           }
@@ -233,14 +235,10 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
         distanceY: Float
       ): Boolean {
         if (handle == 0L || scaleDetector.isInProgress) return false
-        scrollAccum += distanceY
-        val deltaRows = (scrollAccum / cellHeight).toInt()
+        scrollAccumulator.add(distanceY)
         wheelX = e2.x
         wheelY = e2.y
-        if (deltaRows != 0) {
-          scrollAccum -= deltaRows * cellHeight
-          scrollRows(deltaRows, wheelX, wheelY)
-        }
+        scheduleScrollStep()
         return true
       }
 
@@ -256,7 +254,7 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
         wheelY = e2.y
         flingLastY = 0
         scroller.fling(0, 0, 0, -velocityY.toInt(), 0, 0, Int.MIN_VALUE, Int.MAX_VALUE)
-        postOnAnimation(flingRunnable)
+        scheduleScrollStep()
         return true
       }
     }
@@ -390,7 +388,10 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     blinkScheduled = false
     removeCallbacks(blinkRunnable)
     scroller.abortAnimation()
-    removeCallbacks(flingRunnable)
+    if (scrollFramePending) {
+      Choreographer.getInstance().removeFrameCallback(scrollFrameCallback)
+      scrollFramePending = false
+    }
     actionMode?.finish()
     if (handle != 0L) {
       GhosttyVt.nativeFree(handle)
@@ -404,6 +405,8 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
       // Typing while scrolled into history jumps back to the live view.
       if (handle != 0L && scrollbarOffset + scrollbarLen < scrollbarTotal) {
         GhosttyVt.nativeScrollToBottom(handle)
+        scrollAccumulator.clear()
+        scrollOffsetPx = 0f
         scheduleFrame()
       }
       holdBlinkSolid()
@@ -411,31 +414,93 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     }
   }
 
+  private fun scheduleScrollStep() {
+    if (scrollFramePending) return
+    scrollFramePending = true
+    Choreographer.getInstance().postFrameCallback(scrollFrameCallback)
+  }
+
   /**
-   * Scroll by [deltaRows] (negative is up) the way a desktop terminal treats
-   * a wheel: wheel reports to a program that asked for mouse reporting, arrow
-   * keys on the alternate screen under alternate-scroll mode, else the local
-   * scrollback.
+   * One display frame of scrolling, the way a desktop terminal treats a wheel: wheel reports to a
+   * program that asked for mouse reporting, arrow keys on the alternate screen under
+   * alternate-scroll mode, else the local scrollback. The route is read again every frame.
    */
-  private fun scrollRows(deltaRows: Int, x: Float, y: Float) {
-    when (GhosttyVt.nativeWheelTarget(handle)) {
-      GhosttyVt.WHEEL_MOUSE -> repeat(abs(deltaRows)) {
-        GhosttyVt.nativeEncodeWheel(
-          handle, deltaRows < 0, x, y, width, height, cellWidth.roundToInt(), cellHeight
-        )?.let(::sendBytes)
-      }
-      GhosttyVt.WHEEL_ARROWS -> {
-        val keyCode = if (deltaRows < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
-        repeat(abs(deltaRows)) {
-          GhosttyVt.nativeEncodeKey(handle, keyCode, 1, 0, 0, null)?.let(::sendBytes)
-        }
-      }
-      else -> {
-        GhosttyVt.nativeScroll(handle, deltaRows)
-        markScrollActivity()
-        scheduleFrame()
-      }
+  private fun scrollStep() {
+    if (handle == 0L) return
+    val flinging = scroller.computeScrollOffset()
+    if (flinging) {
+      val y = scroller.currY
+      scrollAccumulator.add((y - flingLastY).toFloat())
+      flingLastY = y
     }
+    val target = GhosttyVt.nativeWheelTarget(handle)
+    if (target == GhosttyVt.WHEEL_LOCAL) {
+      scrollLocal(settle = !fingerDown && !flinging)
+    } else {
+      resetScrollOffset()
+      sendWheelRows(target, takeReportRows())
+      if (!fingerDown && !flinging) scrollAccumulator.clear()
+    }
+    if (fingerDown || flinging) scheduleScrollStep()
+  }
+
+  private fun takeReportRows() =
+    scrollAccumulator.takeReportRows(cellHeight, MAX_WHEEL_ROWS_PER_FRAME, MAX_WHEEL_BACKLOG_ROWS)
+
+  /**
+   * Sends [rows] wheel steps (negative is up) as one write, so a frame costs the program and the
+   * attach stream one message however many rows it carries.
+   */
+  private fun sendWheelRows(target: Int, rows: Int) {
+    if (rows == 0) return
+    val batch = java.io.ByteArrayOutputStream()
+    repeat(abs(rows)) {
+      val bytes = if (target == GhosttyVt.WHEEL_MOUSE) {
+        GhosttyVt.nativeEncodeWheel(
+          handle, rows < 0, wheelX, wheelY, width, height, cellWidth.roundToInt(), cellHeight
+        )
+      } else {
+        val keyCode = if (rows < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
+        GhosttyVt.nativeEncodeKey(handle, keyCode, 1, 0, 0, null)
+      }
+      if (bytes != null) batch.write(bytes)
+    }
+    sendBytes(batch.toByteArray())
+  }
+
+  /**
+   * Moves the local scrollback by the accumulated travel: whole rows go to the viewport, the
+   * remainder is the draw offset. With [settle] the remainder is rounded to a row instead, so the
+   * grid is row-aligned again at rest.
+   */
+  private fun scrollLocal(settle: Boolean) {
+    val before = GhosttyVt.nativeScrollbar(handle)
+    val rows = if (settle) scrollAccumulator.settle(cellHeight) else scrollAccumulator.takeFloorRows(cellHeight)
+    if (rows != 0) {
+      GhosttyVt.nativeScroll(handle, rows)
+      markScrollActivity()
+    }
+    val after = GhosttyVt.nativeScrollbar(handle)
+    val atEnd = after == null || after[1] + after[2] >= after[0]
+    val clamped = rows != 0 && (before == null || after == null || after[1] - before[1] != rows.toLong())
+    if (atEnd || clamped) {
+      // No row to slide in (or no more history): the travel beyond the end is dropped.
+      scrollAccumulator.clear()
+      scroller.abortAnimation()
+    }
+    val offset = scrollAccumulator.pending
+    if (rows != 0 || offset != scrollOffsetPx) {
+      scrollOffsetPx = offset
+      markScrollActivity()
+      renderFrame()
+    }
+  }
+
+  private fun resetScrollOffset() {
+    if (scrollOffsetPx == 0f) return
+    scrollAccumulator.clear()
+    scrollOffsetPx = 0f
+    scheduleFrame()
   }
 
   private fun markScrollActivity() {
@@ -515,6 +580,8 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     cols = newCols
     rows = newRows
     if (changed || force || bitmap == null) {
+      scrollAccumulator.clear()
+      scrollOffsetPx = 0f
       GhosttyVt.nativeResize(handle, cols, rows, cellWidth.roundToInt(), cellHeight)
       allocateGridBuffers()
       onGridResize?.invoke(cols, rows)
@@ -531,6 +598,9 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     }
     val capacity = HEADER_BYTES +
       rows * (ROW_HEADER_BYTES + cols * CELL_RECORD_BYTES + cols * MAX_CELL_TEXT_UNITS * 2 + 4)
+    peekBitmap = Bitmap.createBitmap(widthPx, cellHeight, Bitmap.Config.ARGB_8888).also {
+      peekCanvas = Canvas(it)
+    }
     snapshotBuf = ByteBuffer.allocateDirect(capacity).order(ByteOrder.LITTLE_ENDIAN)
     rowChars = CharArray(cols * MAX_CELL_TEXT_UNITS)
     cellFg = IntArray(cols)
@@ -556,6 +626,9 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     val canvas = bitmapCanvas ?: return
     if (handle == 0L) return
 
+    // The peek runs first so the snapshot, selection ranges and scrollbar below describe the
+    // viewport the user is actually in.
+    if (scrollOffsetPx > 0f) renderPeekRow(buf)
     val rowCount = GhosttyVt.nativeSnapshot(handle, buf)
     if (rowCount < 0) return
     GhosttyVt.nativeScrollbar(handle)?.let { scrollbar ->
@@ -580,6 +653,33 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     repeat(rowCount) { drawRowRecord(buf, canvas, header.cols) }
     syncSelectionUi()
     invalidate()
+  }
+
+  /**
+   * Draws the row just below the viewport into [peekBitmap]: the viewport moves down one row for
+   * a snapshot and back, and only the last row of that snapshot is kept.
+   */
+  private fun renderPeekRow(buf: ByteBuffer) {
+    val canvas = peekCanvas ?: return
+    // At the end there is no row below, and moving back would leave the viewport off the bottom.
+    val bar = GhosttyVt.nativeScrollbar(handle)
+    if (bar == null || bar[1] + bar[2] >= bar[0]) {
+      scrollAccumulator.clear()
+      scrollOffsetPx = 0f
+      return
+    }
+    GhosttyVt.nativeScroll(handle, 1)
+    val rowCount = GhosttyVt.nativeSnapshot(handle, buf)
+    GhosttyVt.nativeScroll(handle, -1)
+    if (rowCount < 0) return
+    buf.position(0)
+    val header = SnapshotHeader.read(buf)
+    if (header.dirtyKind != DIRTY_FULL) return
+    canvas.save()
+    canvas.translate(0f, -((rows - 1) * cellHeight).toFloat())
+    canvas.drawColor(header.background)
+    repeat(rowCount) { drawRowRecord(buf, canvas, header.cols) }
+    canvas.restore()
   }
 
   // ── Selection ──
@@ -922,8 +1022,12 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
 
   override fun onDraw(canvas: Canvas) {
     canvas.drawColor(defaultBg)
+    canvas.save()
+    canvas.translate(0f, -scrollOffsetPx)
     bitmap?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+    if (scrollOffsetPx > 0f) peekBitmap?.let { canvas.drawBitmap(it, 0f, (rows * cellHeight).toFloat(), null) }
     drawCursor(canvas)
+    canvas.restore()
     drawSelectionHandles(canvas)
     drawScrollIndicator(canvas)
     drawJumpToBottomChip(canvas)
@@ -1011,7 +1115,21 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
   // ── Input ──
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
-    if (event.actionMasked == MotionEvent.ACTION_DOWN) scroller.abortAnimation()
+    when (event.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        scroller.abortAnimation()
+        fingerDown = true
+        // Reports the previous gesture left unsent are stale once a new one starts.
+        if (handle != 0L && GhosttyVt.nativeWheelTarget(handle) != GhosttyVt.WHEEL_LOCAL) {
+          scrollAccumulator.clear()
+        }
+      }
+      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+        fingerDown = false
+        // A fling takes over from the gesture detector below; otherwise the grid settles on a row.
+        if (scrollAccumulator.pending != 0f) scheduleScrollStep()
+      }
+    }
     scaleDetector.onTouchEvent(event)
     if (scaleDetector.isInProgress) {
       if (draggingHandle != HANDLE_NONE) {
@@ -1207,6 +1325,11 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     const val MENU_COPY = 1
     const val MENU_PASTE = 2
     const val MENU_SELECT_ALL = 3
+
+    // Wheel reports (or arrow keys) sent to a program per display frame, and the finger travel in
+    // rows that may wait behind that limit before it is dropped.
+    const val MAX_WHEEL_ROWS_PER_FRAME = 4
+    const val MAX_WHEEL_BACKLOG_ROWS = 12
 
     const val SCROLLBAR_FADE_START_MS = 800L
     const val SCROLLBAR_FADE_END_MS = 1400L
