@@ -192,6 +192,61 @@ class HostLiveTest {
         job.cancel()
     }
 
+    @Test
+    fun `a network event ends the backoff wait once and keeps the failure count`() = runTest {
+        val transport = FakeTransport()
+        var subscribes = 0
+        transport.subscribe = {
+            subscribes++
+            throw ProtocolClientException.ConnectionFailed(route, IOException("refused"))
+        }
+        val updates = mutableListOf<Pair<Long, LiveUpdate>>()
+        val live = HostLive(route, transport, config, testScheduler.timeSource, NoLog)
+        val job = launch { live.updates().collect { updates += currentTime to it } }
+        runCurrent()
+        assertEquals(1, subscribes)
+
+        live.networkAvailable()
+        live.networkAvailable()
+        runCurrent()
+        assertEquals(2, subscribes)
+        assertEquals(0L, currentTime)
+
+        // The early attempt failed as attempt 2: the next wait is the doubled one, not a fresh initial wait.
+        advanceTimeBy(999)
+        runCurrent()
+        assertEquals(2, subscribes)
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(3, subscribes)
+        job.cancel()
+    }
+
+    @Test
+    fun `a network event while connected leaves the next backoff wait alone`() = runTest {
+        val transport = FakeTransport()
+        val updates = mutableListOf<Pair<Long, LiveUpdate>>()
+        val live = HostLive(route, transport, config, testScheduler.timeSource, NoLog)
+        val job = launch { live.updates().collect { updates += currentTime to it } }
+        runCurrent()
+        assertTrue(updates.any { it.second == LiveUpdate.Connected })
+
+        live.networkAvailable()
+        runCurrent()
+        transport.subscribe = { throw ProtocolClientException.ConnectionFailed(route, IOException("refused")) }
+        transport.streams.single().inbox.trySend(lost)
+        runCurrent()
+        val before = transport.streams.size
+        advanceTimeBy(499)
+        runCurrent()
+        assertEquals(1, updates.count { it.second is LiveUpdate.Reconnecting })
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(2, updates.count { it.second is LiveUpdate.Reconnecting })
+        assertEquals(before, transport.streams.size)
+        job.cancel()
+    }
+
     private fun TestScope.attemptAfterConnectionHeld(heldMillis: Long): Int {
         val transport = FakeTransport()
         var subscribes = 0

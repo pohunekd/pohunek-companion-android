@@ -42,7 +42,7 @@ fun AppNavHost(
                 factory = viewModelFactory {
                     initializer {
                         SessionListViewModel(
-                            koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(),
+                            koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(),
                             runtime.configs.map { it.display }.distinctUntilChanged(),
                         )
                     }

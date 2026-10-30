@@ -14,6 +14,7 @@ sealed interface LogValue {
  * and numbers, never a session name, a working directory, a prompt or terminal content. Text is cut to [MAX_TEXT_LENGTH] characters.
  */
 class LogField private constructor(val name: String, val value: LogValue) {
+    @Suppress("TooManyFunctions") // One factory per closed field kind; the factories are the field policy.
     companion object {
         /** Longest text a field keeps. */
         const val MAX_TEXT_LENGTH: Int = 128
@@ -41,6 +42,9 @@ class LogField private constructor(val name: String, val value: LogValue) {
 
         /** The key of a tunable, such as `idle_threshold_secs`; the keys are a closed set fixed in code. */
         fun tunable(key: String): LogField = text("tunable", key)
+
+        /** The transport of a network (`wifi`, `cellular`, `vpn`, `ethernet`, `other`), never a network identifier. */
+        fun transport(name: String): LogField = text("transport", name)
 
         /** A counter, size or duration; [name] is a fixed identifier chosen in code. */
         fun number(name: String, value: Long): LogField = LogField(name, LogValue.Number(value))

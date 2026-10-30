@@ -5,6 +5,7 @@ package dev.pohunek.companion.sessions
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
+import dev.pohunek.companion.NetworkMonitor
 import dev.pohunek.companion.config.DisplayLimits
 import dev.pohunek.companion.core.data.actions.SessionActionRunner
 import dev.pohunek.companion.core.data.commands.CommandResult
@@ -104,6 +105,7 @@ class SessionListViewModel(
     private val actions: SessionActionRunner,
     private val processLifecycle: Lifecycle,
     private val log: AppLog,
+    private val network: NetworkMonitor,
     limits: Flow<DisplayLimits>,
 ) : BaseViewModel<SessionListState, SessionListEvent, SessionListEffect>(SessionListState()) {
     private var firstHostRequested = false
@@ -165,7 +167,12 @@ class SessionListViewModel(
                 pruneCollapsed(configured, feeds, input.limits.sectionTitleMaxChars)
             }
         }
-        viewModelScope.launch { processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { hosts.run() } }
+        viewModelScope.launch {
+            processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch { network.run() }
+                hosts.run()
+            }
+        }
     }
 
     /** The registry's feeds, emitted again when a host's grace period ends, since nothing else changes at that moment. */

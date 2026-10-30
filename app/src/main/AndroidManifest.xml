@@ -3,6 +3,8 @@
 
     <!-- The session list opens TCP connections to the owner's Pohunek daemons; the app has no other network use. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- NetworkMonitor registers a network callback so a host waiting out a reconnect backoff tries again when a network returns. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:name=".PohunekApplication"

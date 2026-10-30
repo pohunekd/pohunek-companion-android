@@ -107,6 +107,11 @@ class HostRegistry(private val factory: HostLiveFactory) {
         routes.forEach { lives[it]?.requestReseed() }
     }
 
+    /** Tells every running loop that a usable network appeared: those waiting out a backoff try now, the others are not touched. */
+    fun networkAvailable() {
+        lives.values.forEach { it.networkAvailable() }
+    }
+
     private suspend fun follow(route: HostRoute) {
         val live = factory.create(route, states.getOrPut(route) { factory.createState(route) })
         lives[route] = live
