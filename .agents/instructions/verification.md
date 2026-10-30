@@ -130,8 +130,9 @@ scripts/ui-agent pohunek ARGS...
   it) but no byte passes in either direction, so requests time out instead of failing, where `net-drop` closes the sockets and
   the app sees the loss at once. `status` shows `stall=on since=TIME` while frozen; `stall off`, `net-drop`,
   `net-restore` and `stop` resume the bridge first, and `stall` refuses a second `on` and a down bridge. It
-  works only in isolated emulator runs, like the gesture commands. A stall shorter than the liveness probe
-  timeout cannot end the live connection; a longer one ends it with `request_timeout`. Latency and packet loss
+  works only in isolated emulator runs, like the gesture commands. A stall too short to fail
+  `liveness_failures` probes in a row cannot end the live connection; one longer than the detection bound in
+  `docs/architecture.md` (Liveness) ends it with `request_timeout`. Latency and packet loss
   cannot be injected: the slot container has no `tc`, no `ip` and no capabilities, and the emulator's network
   shaping does not apply to `adb reverse` traffic. `host-stop` and `host-start` stop and restart the daemon with the same
   directories. `health` sends one `daemon.health` line from the device with

@@ -46,10 +46,16 @@
     <string name="unreachable_grace_ms_help">How long a host that lost its connection, or is connecting again, keeps looking connected in the session list before its rows dim and its status appears. A refusal by the daemon is shown at once.</string>
 
     <integer name="liveness_interval_ms">10000</integer>
-    <string name="liveness_interval_ms_help">How often a health probe detects a silently dead connection to a daemon. A dead connection is noticed within this plus the probe timeout.</string>
+    <string name="liveness_interval_ms_help">How often a health probe detects a silently dead connection to a daemon. A dead connection is noticed within this, plus the failures needed times the probe timeout, plus the retry waits between them.</string>
 
     <integer name="liveness_timeout_ms">5000</integer>
-    <string name="liveness_timeout_ms_help">How long one health probe, connecting included, may take before the connection is declared dead and re-established.</string>
+    <string name="liveness_timeout_ms_help">How long one health probe, connecting included, may take before it counts as failed.</string>
+
+    <integer name="liveness_failures">2</integer>
+    <string name="liveness_failures_help">How many failed health probes or re-seeds in a row declare the connection dead and re-establish it. A successful probe or re-seed starts the count again.</string>
+
+    <integer name="liveness_retry_ms">2000</integer>
+    <string name="liveness_retry_ms_help">How long to wait before the next health probe or re-seed after one failed. Shorter than the probe interval, so a lossy link is checked again soon.</string>
 
     <integer name="attach_liveness_interval_ms">5000</integer>
     <string name="attach_liveness_interval_ms_help">How often an attached terminal checks that its connection is alive. Applies to the next terminal you open.</string>

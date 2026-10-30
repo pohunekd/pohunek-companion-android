@@ -59,11 +59,13 @@ as the desktop companion: `v0.35.2` today.
   one published is not published again. `idle_threshold_secs` is read from the configuration in force each time a loop starts.
 - Liveness (departs from the desktop on purpose): the desktop keeps its store
   when a periodic re-seed fails and has no heartbeat, which on a phone leaves a
-  frozen list that looks live. Here a failed re-seed, or a `daemon.health` probe
-  (own connection, every `liveness_interval_ms`, bounded by
-  `liveness_timeout_ms`) that fails, ends the connection and the loop reconnects
-  with backoff. The probe detects a dead network path; it does not look at the
-  subscription socket itself.
+  frozen list that looks live. Here a `daemon.health` probe (own connection, every `liveness_interval_ms`, bounded by
+  `liveness_timeout_ms`) and a periodic re-seed are checks, and `liveness_failures` (default 2) failed checks in a row end the
+  connection; the loop then reconnects with backoff. A failed check is logged (`live.probe_failed`, `live.reseed_failed`, with the
+  count and the error code), the next probe or re-seed follows after `liveness_retry_ms` (default 2 s), and a successful probe or
+  re-seed resets the count. A broken subscription stream still ends the connection at once. A dead path is noticed within
+  `liveness_interval_ms + liveness_failures × liveness_timeout_ms + (liveness_failures − 1) × liveness_retry_ms` (22 s by
+  default). The probe detects a dead network path; it does not look at the subscription socket itself.
 - Backoff reset (departs from the desktop on purpose): the desktop resets the failure count only after a connection held
   `reconnect_max`, so on a link that drops briefly every half minute the wait ratchets to the cap while the rows stay dimmed. Here a
   connection that was seeded and held at least `backoff_reset_ms` (default 5 s, never above `reconnect_max_ms`) resets it; failed

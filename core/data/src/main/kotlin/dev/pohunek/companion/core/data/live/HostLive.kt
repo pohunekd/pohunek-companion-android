@@ -70,9 +70,9 @@ class LiveState(val store: SessionStore) {
 
 /**
  * Keeps one daemon's sessions current: subscribe first so no event is lost, seed on a second connection, apply the events that arrived
- * meanwhile, then stream. Every [LiveConfig.reseedInterval] the seed is taken again the same way. A failed re-seed or a failed health
- * probe ends the connection like a broken stream does, and the loop reconnects with a growing wait. Collecting [updates] runs the loop
- * until the collector is cancelled; each collection starts with a fresh failure count and reconciles into [state].
+ * meanwhile, then stream. Every [LiveConfig.reseedInterval] the seed is taken again the same way. A broken stream ends the connection at
+ * once; so do [Liveness.failures] failed re-seeds or health probes in a row, and the loop reconnects with a growing wait. Collecting
+ * [updates] runs the loop until the collector is cancelled; each collection starts with a fresh failure count and reconciles into [state].
  */
 class HostLive(
     route: HostRoute,
@@ -118,9 +118,36 @@ class HostLive(
         var reseedDue: ComparableTimeMark = timeSource.markNow()
         var probeDue: ComparableTimeMark = timeSource.markNow()
 
-        /** Reconciles the store with a fresh seed, then applies the events that arrived while it was fetched. */
-        suspend fun seed(initial: Boolean) {
-            val seed = transport.fetchSeed()
+        /** Probes and re-seeds that failed in a row since the last one that succeeded. */
+        var failedChecks = 0
+
+        /**
+         * Records a failed probe or re-seed and returns after logging it as [event], or throws [error] once [Liveness.failures]
+         * checks failed in a row.
+         */
+        fun checkFailed(event: String, error: ProtocolClientException) {
+            failedChecks++
+            if (failedChecks >= config.liveness.failures) throw error
+            log.warn(event, listOf(hostKey, LogField.errorCode(error.logCode()), LogField.number("failures", failedChecks.toLong())))
+        }
+
+        /**
+         * Reconciles the store with a fresh seed, then applies the events that arrived while it was fetched. A re-seed that cannot be
+         * fetched counts as a failed check and is retried after [Liveness.retry]; the initial seed fails the connection.
+         */
+        suspend fun seed(initial: Boolean): Boolean {
+            val seed = if (initial) {
+                transport.fetchSeed()
+            } else {
+                try {
+                    transport.fetchSeed()
+                } catch (e: ProtocolClientException) {
+                    checkFailed("live.reseed_failed", e)
+                    reseedDue = timeSource.markNow() + config.liveness.retry
+                    return false
+                }
+            }
+            failedChecks = 0
             val change = store.applySeed(seed.sessions, seed.notifications)
             val buffered = drain()
             val counts = listOf(
@@ -141,7 +168,8 @@ class HostLive(
             }
             val now = timeSource.markNow()
             reseedDue = now + config.reseedInterval
-            probeDue = now + config.livenessInterval
+            probeDue = now + config.liveness.interval
+            return true
         }
 
         /** Time until the next session turns Idle; unbounded while none is waiting on the idle threshold. */
@@ -163,9 +191,19 @@ class HostLive(
         }
 
         suspend fun probe() {
-            withTimeoutOrNull(config.livenessTimeout) { transport.probe() }
-                ?: throw ProtocolClientException.RequestTimeout(config.livenessTimeout.inWholeMilliseconds)
-            probeDue = timeSource.markNow() + config.livenessInterval
+            val error = try {
+                withTimeoutOrNull(config.liveness.timeout) { transport.probe() }
+                    ?: ProtocolClientException.RequestTimeout(config.liveness.timeout.inWholeMilliseconds)
+            } catch (e: ProtocolClientException) {
+                e
+            }
+            if (error is ProtocolClientException) {
+                checkFailed("live.probe_failed", error)
+                probeDue = timeSource.markNow() + config.liveness.retry
+            } else {
+                failedChecks = 0
+                probeDue = timeSource.markNow() + config.liveness.interval
+            }
         }
 
         /** Emits the sessions when they, their owner state or their waiting time differ from the last list emitted. */
@@ -221,7 +259,7 @@ class HostLive(
     }
 
     private suspend fun reseed(connection: Connection) {
-        connection.seed(initial = false)
+        if (!connection.seed(initial = false)) return
         connection.publish()
         connection.out.emit(LiveUpdate.Reseeded)
     }
