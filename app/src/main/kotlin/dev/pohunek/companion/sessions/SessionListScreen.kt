@@ -162,6 +162,7 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
         drag.onDrop = { target -> onEvent(target.event()) }
     }
     LaunchedEffect(items) { drag.dropIfGone() }
+    RevealNeedsYou(listState, state.shownNeedsYou.isNotEmpty())
     DragAutoScroll(drag, listState)
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier) {
         val rows = state.rows
