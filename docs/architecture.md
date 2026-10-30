@@ -52,6 +52,11 @@ as the desktop companion: `v0.35.2` today.
   by `notification_page_size`, halved on `notification_list_too_large`) and the
   `notification_*` events keep current. A session idle without running work becomes Idle
   after `idle_threshold_secs`; the live loop wakes at that deadline, so no event is needed.
+- Store lifetime (departs from the desktop on purpose): the desktop builds a new store per connection. Here the registry keeps one
+  store per followed route across reconnects, loop restarts and foreground returns, and drops it when the route is no longer
+  followed. A seed on a new connection reconciles into it like a re-seed: idle clocks and activity baselines of unchanged sessions
+  stay, a session on a different worker instance or runtime generation starts its idle clock again, and a list equal to the last
+  one published is not published again. `idle_threshold_secs` is read from the configuration in force each time a loop starts.
 - Liveness (departs from the desktop on purpose): the desktop keeps its store
   when a periodic re-seed fails and has no heartbeat, which on a phone leaves a
   frozen list that looks live. Here a failed re-seed, or a `daemon.health` probe

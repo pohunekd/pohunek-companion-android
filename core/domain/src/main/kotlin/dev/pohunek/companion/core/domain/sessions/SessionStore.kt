@@ -82,7 +82,10 @@ data class OwnerSession(val info: SessionInfo, val ownerState: OwnerState, val w
  * turns [OwnerState.Idle]. Not thread-safe: the owner confines it to one coroutine or serialises access.
  */
 @Suppress("TooManyFunctions") // One aggregate of seed, events and derived views; the per-event rules live in TrackedSession and AttentionSet.
-class SessionStore(val host: String, private val timeSource: TimeSource.WithComparableMarks, private val idleThreshold: Duration) {
+class SessionStore(val host: String, private val timeSource: TimeSource.WithComparableMarks, idleThreshold: Duration) {
+    /** The wait before an idle session turns Idle; a new value applies to the clocks already running. */
+    var idleThreshold: Duration = idleThreshold
+
     private val sessions = LinkedHashMap<SessionKey, TrackedSession>()
     private val attention = AttentionSet()
     private val projectLabels = HashMap<String, String>()
@@ -134,7 +137,8 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
     /**
      * Replaces all state with the `session.list` and attention `notification.list` results and returns what differs from the state that
      * was replaced. A session keeps its `agent_state` baseline while its runtime is unchanged, because the seed carries no activity
-     * revision and a buffered older event must not replace newer activity, and keeps its idle clock while it stays idle.
+     * revision and a buffered older event must not replace newer activity, and keeps its idle clock while it stays idle on that same
+     * runtime. A different worker instance or runtime generation (a restarted daemon or session) starts the clock again.
      */
     fun applySeed(seed: List<SessionInfo>, notifications: List<NotificationRecord>): SeedChange {
         for (info in seed) {
@@ -149,7 +153,8 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
             val old = previous[key(info.id)]
             val tracked = TrackedSession(info, baseline = null, idleSince = null)
             tracked.baseline = old?.baseline?.takeIf { tracked.runsOn(it.workerInstanceId, it.generation) }
-            tracked.idleSince = if (isIdleWithoutWork(info)) old?.idleSince ?: now else null
+            val sameRuntime = old != null && old.sameRuntimeAs(info)
+            tracked.idleSince = if (isIdleWithoutWork(info)) old?.idleSince?.takeIf { sameRuntime } ?: now else null
             sessions[key(info.id)] = tracked
         }
         val attentionChanged = attention.replaceWith(notifications)
