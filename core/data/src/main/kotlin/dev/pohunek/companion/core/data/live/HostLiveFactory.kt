@@ -14,8 +14,11 @@ class HostLiveFactory(
     private val timeSource: TimeSource.WithComparableMarks,
     private val log: AppLog,
 ) {
-    fun create(route: HostRoute): HostLive {
+    /** The state a route's loops share; the registry keeps it for as long as the route is followed. */
+    fun createState(route: HostRoute): LiveState = LiveState(route, timeSource, live().idleThreshold)
+
+    fun create(route: HostRoute, state: LiveState): HostLive {
         val config = live()
-        return HostLive(route, TcpHostTransport(route, client(), ioDispatcher, config.notificationPageSize), config, timeSource, log)
+        return HostLive(route, TcpHostTransport(route, client(), ioDispatcher, config.notificationPageSize), config, timeSource, log, state)
     }
 }

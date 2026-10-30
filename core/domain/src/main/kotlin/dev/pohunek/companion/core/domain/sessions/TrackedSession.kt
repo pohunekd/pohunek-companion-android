@@ -25,6 +25,15 @@ internal class TrackedSession(var info: SessionInfo, var baseline: ActivityBasel
         idleSince = if (isIdleWithoutWork(info)) idleSince ?: now else null
     }
 
+    /** Whether [next] names the same worker instance and runtime generation as the stored snapshot; two snapshots without a runtime match. */
+    fun sameRuntimeAs(next: SessionInfo): Boolean {
+        val stored = info.runtime
+        val incoming = next.runtime
+        if (stored == null || incoming == null) return stored == incoming
+        return stored.workerInstanceId == incoming.workerInstanceId &&
+            DecimalWire.parse(stored.runtimeGeneration) == DecimalWire.parse(incoming.runtimeGeneration)
+    }
+
     fun runsOn(workerInstanceId: String, generation: DecimalWire): Boolean {
         val runtime = info.runtime ?: return false
         return runtime.workerInstanceId == workerInstanceId && DecimalWire.parse(runtime.runtimeGeneration) == generation

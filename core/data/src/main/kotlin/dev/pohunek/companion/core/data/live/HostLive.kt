@@ -58,10 +58,21 @@ private sealed interface Wake {
 }
 
 /**
+ * What one host's loop keeps across its connections and restarts: the session store and the last list handed to the collector. A seed
+ * on a new connection reconciles into this store, so idle clocks survive and an unchanged list is not published again.
+ */
+class LiveState(val store: SessionStore) {
+    internal var shown: List<OwnerSession>? = null
+
+    constructor(route: HostRoute, timeSource: TimeSource.WithComparableMarks, idleThreshold: Duration) :
+        this(SessionStore(route.toString(), timeSource, idleThreshold))
+}
+
+/**
  * Keeps one daemon's sessions current: subscribe first so no event is lost, seed on a second connection, apply the events that arrived
  * meanwhile, then stream. Every [LiveConfig.reseedInterval] the seed is taken again the same way. A failed re-seed or a failed health
  * probe ends the connection like a broken stream does, and the loop reconnects with a growing wait. Collecting [updates] runs the loop
- * until the collector is cancelled; each collection starts with a fresh store and a fresh failure count.
+ * until the collector is cancelled; each collection starts with a fresh failure count and reconciles into [state].
  */
 class HostLive(
     route: HostRoute,
@@ -69,8 +80,8 @@ class HostLive(
     private val config: LiveConfig,
     private val timeSource: TimeSource.WithComparableMarks,
     private val log: AppLog,
+    private val state: LiveState = LiveState(route, timeSource, config.idleThreshold),
 ) {
-    private val hostName = route.toString()
     private val hostKey = hostKeyField(route)
     private val refresh = Channel<Unit>(Channel.CONFLATED)
 
@@ -81,8 +92,9 @@ class HostLive(
 
     fun updates(): Flow<LiveUpdate> = flow {
         var failures = 0
+        state.store.idleThreshold = config.idleThreshold
         while (true) {
-            val connection = Connection(SessionStore(hostName, timeSource, config.idleThreshold), this)
+            val connection = Connection(state.store, this)
             log.info("live.connecting", listOf(hostKey, LogField.number("attempt", failures + 1L)))
             val error = try {
                 connect(connection)
@@ -103,11 +115,10 @@ class HostLive(
     private inner class Connection(val store: SessionStore, val out: FlowCollector<LiveUpdate>) {
         val inbox = Channel<StreamMessage>(Channel.UNLIMITED)
         var establishedAt: ComparableTimeMark? = null
-        var shown: List<OwnerSession>? = null
         var reseedDue: ComparableTimeMark = timeSource.markNow()
         var probeDue: ComparableTimeMark = timeSource.markNow()
 
-        /** Replaces the store with a fresh seed, then applies the events that arrived while it was fetched. */
+        /** Reconciles the store with a fresh seed, then applies the events that arrived while it was fetched. */
         suspend fun seed(initial: Boolean) {
             val seed = transport.fetchSeed()
             val change = store.applySeed(seed.sessions, seed.notifications)
@@ -160,9 +171,9 @@ class HostLive(
         /** Emits the sessions when they, their owner state or their waiting time differ from the last list emitted. */
         suspend fun publish() {
             val current = store.ownerSessions().sortedBy { it.info.id }
-            val previous = shown
+            val previous = state.shown
             if (current == previous) return
-            shown = current
+            state.shown = current
             if (previous != null) logOwnerStateChanges(previous, current)
             out.emit(LiveUpdate.Sessions(current))
         }

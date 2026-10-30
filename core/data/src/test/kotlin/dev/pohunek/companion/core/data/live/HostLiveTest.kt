@@ -306,4 +306,31 @@ class HostLiveTest {
         assertEquals(0, updates.count { it.second == LiveUpdate.Reseeded })
         job.cancel()
     }
+
+    @Test
+    fun `a reconnect keeps the idle clock and publishes nothing for an identical seed`() = runTest {
+        val transport = FakeTransport()
+        transport.seed = { listOf(session("s-1", activity = AgentActivity.Idle)) }
+        val state = LiveState(route, testScheduler.timeSource, config.idleThreshold)
+        val updates = mutableListOf<Pair<Long, LiveUpdate>>()
+        val job = launch { HostLive(route, transport, config, testScheduler.timeSource, NoLog, state).updates().collect { updates += currentTime to it } }
+        advanceTimeBy(200.seconds)
+        transport.streams.single().inbox.trySend(lost)
+        advanceTimeBy(config.reconnectInitial + 1.milliseconds)
+        assertEquals(2, transport.streams.size)
+        assertEquals(1, updates.count { it.second is LiveUpdate.Sessions })
+
+        advanceTimeBy(100.seconds)
+        runCurrent()
+        assertEquals(listOf(OwnerState.Idle), updates.lastSessions().map { it.ownerState })
+        job.cancel()
+
+        // A later collection on the same state, as after a foreground return, finds the list unchanged.
+        val again = mutableListOf<Pair<Long, LiveUpdate>>()
+        val second = launch { HostLive(route, transport, config, testScheduler.timeSource, NoLog, state).updates().collect { again += currentTime to it } }
+        runCurrent()
+        assertTrue(again.any { it.second == LiveUpdate.Connected })
+        assertEquals(0, again.count { it.second is LiveUpdate.Sessions })
+        second.cancel()
+    }
 }

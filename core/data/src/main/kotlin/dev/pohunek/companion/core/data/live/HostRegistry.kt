@@ -45,6 +45,9 @@ data class HostFeed(
 class HostRegistry(private val factory: HostLiveFactory) {
     private val feeds = MutableStateFlow<Map<HostRoute, HostFeed>>(emptyMap())
     private val lives = ConcurrentHashMap<HostRoute, HostLive>()
+
+    /** One state per followed route; it outlives loop restarts and the gaps between [run] calls, and is dropped once the route is not followed. */
+    private val states = ConcurrentHashMap<HostRoute, LiveState>()
     private val generation = MutableStateFlow(0)
 
     val state: StateFlow<Map<HostRoute, HostFeed>> get() = feeds
@@ -68,6 +71,7 @@ class HostRegistry(private val factory: HostLiveFactory) {
                 }
                 val wantedSet = wanted.toSet()
                 val retainedSet = retained.toSet() - wantedSet
+                states.keys.retainAll(wantedSet)
                 for (gone in jobs.keys - wantedSet) {
                     jobs.remove(gone)?.cancel()
                     lives.remove(gone)
@@ -101,7 +105,7 @@ class HostRegistry(private val factory: HostLiveFactory) {
     }
 
     private suspend fun follow(route: HostRoute) {
-        val live = factory.create(route)
+        val live = factory.create(route, states.getOrPut(route) { factory.createState(route) })
         lives[route] = live
         feeds.update { it + (route to (it[route]?.copy(connection = HostConnection.Connecting, refreshing = false) ?: HostFeed())) }
         live.updates().collect { update ->

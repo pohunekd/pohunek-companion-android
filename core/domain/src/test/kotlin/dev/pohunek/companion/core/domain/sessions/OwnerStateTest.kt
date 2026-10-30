@@ -40,6 +40,7 @@ class OwnerStateTest {
         state: SessionState = SessionState.Running,
         runtimeState: RuntimeState = RuntimeState.Live,
         generation: String = "1",
+        workerInstance: String = "w-1",
         subagents: List<SubagentInfo> = emptyList(),
         background: SessionBackground? = null,
     ) = SessionInfo(
@@ -49,7 +50,7 @@ class OwnerStateTest {
         agentBase = "claude",
         cwd = "/work",
         pid = 1,
-        runtime = SessionRuntime(runtimeState, generation, workerInstanceId = "w-1"),
+        runtime = SessionRuntime(runtimeState, generation, workerInstanceId = workerInstance),
         cols = 80,
         rows = 24,
         state = state,
@@ -210,6 +211,19 @@ class OwnerStateTest {
         assertEquals(OwnerState.Working, owner())
         store.applyEvent(agentState(AgentActivity.Idle, revision = 3))
         clock += threshold - 1.seconds
+        assertEquals(OwnerState.Working, owner())
+    }
+
+    @Test
+    fun `a seed from a new runtime does not carry the idle clock over`() {
+        store.applySeed(listOf(session()), emptyList())
+        clock += 200.seconds
+        store.applySeed(listOf(session(generation = "2")), emptyList())
+        clock += 100.seconds
+        assertEquals(OwnerState.Working, owner())
+
+        store.applySeed(listOf(session(generation = "2", workerInstance = "w-2")), emptyList())
+        clock += 200.seconds
         assertEquals(OwnerState.Working, owner())
     }
 
