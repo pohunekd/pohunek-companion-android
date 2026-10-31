@@ -59,6 +59,16 @@ class HostGraceTest {
     }
 
     @Test
+    fun `a list read from disk is never in grace and is confirmed only by a list from the host`() {
+        val onDisk = HostFeed(HostConnection.Connecting, lastKnown = list, downSince = clock.markNow())
+        assertEquals(HostLink.Connecting, onDisk.link(grace))
+        assertEquals(HostLink.Connecting, onDisk.copy(connection = HostConnection.Connected, downSince = null).link(grace))
+        assertEquals(HostLink.Down, onDisk.copy(connection = reconnecting()).link(grace))
+        assertEquals(HostLink.Connected, onDisk.copy(connection = HostConnection.Connected, sessions = list, lastKnown = null).link(grace))
+        assertNull(onDisk.graceRemaining(grace))
+    }
+
+    @Test
     fun `a host that never connected shows its failure only after the grace`() {
         val unreachable = feed(reconnecting(), sessions = null)
         assertEquals(HostLink.Grace, unreachable.link(grace))

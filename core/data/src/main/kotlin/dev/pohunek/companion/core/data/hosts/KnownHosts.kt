@@ -46,6 +46,7 @@ class KnownHosts(
             FollowedHosts(
                 followed = hosts.map { it.route } + found.peers.filter { it.present }.map { it.host.route },
                 retained = found.peers.filter { !it.present }.map { it.host.route },
+                persisted = hosts.mapTo(HashSet()) { it.route },
             )
         }.distinctUntilChanged()
         val connected =

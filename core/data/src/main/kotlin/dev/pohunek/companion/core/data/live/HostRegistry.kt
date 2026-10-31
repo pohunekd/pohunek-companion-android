@@ -27,31 +27,50 @@ sealed interface HostConnection {
     data object NotReported : HostConnection
 }
 
-/** The routes the registry follows and the routes whose loop is stopped but whose last feed stays, marked [HostConnection.NotReported]. */
-data class FollowedHosts(val followed: List<HostRoute>, val retained: List<HostRoute> = emptyList())
+/**
+ * The routes the registry follows and the routes whose loop is stopped but whose last feed stays, marked [HostConnection.NotReported].
+ * [persisted] are the followed routes whose last list is kept on disk; the file holds no other host.
+ */
+data class FollowedHosts(
+    val followed: List<HostRoute>,
+    val retained: List<HostRoute> = emptyList(),
+    val persisted: Set<HostRoute> = emptySet(),
+)
 
 /** What the registry knows about one host. */
 data class HostFeed(
     val connection: HostConnection = HostConnection.Connecting,
     /** The last list the host sent; null until the first arrives, kept, though out of date, while the connection is down. */
     val sessions: List<OwnerSession>? = null,
+    /**
+     * The list read from disk at the start of the process, until the host's first list replaces it. It is display only and kept apart
+     * from [sessions]: nothing acts on it, and [link] never treats it as confirmed.
+     */
+    val lastKnown: List<OwnerSession>? = null,
     /** True from a requested re-seed until it finishes or the connection fails. */
     val refreshing: Boolean = false,
     /** When the host last stopped being [HostConnection.Connected], or started its loop; null while connected. See [link]. */
     val downSince: ComparableTimeMark? = null,
-)
+) {
+    /** The rows to display: the confirmed list, else the one read from disk; null when the host has neither. */
+    val shown: List<OwnerSession>? get() = sessions ?: lastKnown
+}
 
 /**
  * One live loop per host, each independent of the others: a host that fails or is slow never touches another host's loop or rows.
- * [state] holds the latest [HostFeed] of every host while [run] is active and is kept, out of date, after it stops.
+ * [state] holds the latest [HostFeed] of every host while [run] is active and is kept, out of date, after it stops. The list of each
+ * persisted host is written to [lastSessions] whenever it changes and read back when the host's feed is first created.
  */
-class HostRegistry(private val factory: HostLiveFactory) {
+class HostRegistry(private val factory: HostLiveFactory, private val lastSessions: LastSessionsStore) {
     private val feeds = MutableStateFlow<Map<HostRoute, HostFeed>>(emptyMap())
     private val lives = ConcurrentHashMap<HostRoute, HostLive>()
 
     /** One state per followed route; it outlives loop restarts and the gaps between [run] calls, and is dropped once the route is not followed. */
     private val states = ConcurrentHashMap<HostRoute, LiveState>()
     private val generation = MutableStateFlow(0)
+
+    @Volatile
+    private var persisted: Set<HostRoute> = emptySet()
 
     val state: StateFlow<Map<HostRoute, HostFeed>> get() = feeds
 
@@ -65,7 +84,9 @@ class HostRegistry(private val factory: HostLiveFactory) {
         var started = generation.value
         try {
             hosts.combine(generation) { followed, current -> followed to current }.collect { (followed, current) ->
-                val (wanted, retained) = followed
+                val (wanted, retained, keptOnDisk) = followed
+                persisted = keptOnDisk
+                lastSessions.retain(keptOnDisk)
                 if (current != started) {
                     started = current
                     jobs.values.forEach { it.cancel() }
@@ -115,19 +136,21 @@ class HostRegistry(private val factory: HostLiveFactory) {
     private suspend fun follow(route: HostRoute) {
         val live = factory.create(route, states.getOrPut(route) { factory.createState(route) })
         lives[route] = live
+        val restored = if (route in persisted && feeds.value[route] == null) lastSessions.restore(route) else null
         feeds.update { map ->
-            val feed = map[route] ?: HostFeed()
+            val feed = map[route] ?: HostFeed(lastKnown = restored)
             map + (route to feed.copy(connection = HostConnection.Connecting, refreshing = false, downSince = feed.downSince ?: factory.now()))
         }
         live.updates().collect { update ->
             feeds.update { map -> map[route]?.let { map + (route to it.apply(update, factory.now())) } ?: map }
+            if (update is LiveUpdate.Sessions && route in persisted) lastSessions.save(route, update.sessions)
         }
     }
 }
 
 private fun HostFeed.apply(update: LiveUpdate, now: ComparableTimeMark): HostFeed = when (update) {
     LiveUpdate.Connected -> copy(connection = HostConnection.Connected, refreshing = false, downSince = null)
-    is LiveUpdate.Sessions -> copy(sessions = update.sessions)
+    is LiveUpdate.Sessions -> copy(sessions = update.sessions, lastKnown = null)
     LiveUpdate.Reseeded -> copy(refreshing = false)
     is LiveUpdate.Reconnecting ->
         copy(connection = HostConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false, downSince = downSince ?: now)

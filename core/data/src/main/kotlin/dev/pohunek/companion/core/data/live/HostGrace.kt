@@ -7,9 +7,17 @@ import kotlin.time.Duration
  * How the host's rows are treated. A host without a connection looks connected ([HostLink.Grace]) until it has been without one for
  * [grace]: a short loss, or the start of a loop that keeps its last list, is not shown. A daemon refusal with a code, and a host that
  * discovery no longer reports, are [HostLink.Down] at once. A host that has not sent a list yet is [HostLink.Connecting].
+ * A list read from disk is not under the grace rule: until the host sends a list it is [HostLink.Connecting], or [HostLink.Down] as soon
+ * as the connection fails.
  */
 fun HostFeed?.link(grace: Duration): HostLink {
     val feed = this ?: return HostLink.Connecting
+    if (feed.sessions == null && feed.lastKnown != null) {
+        return when (feed.connection) {
+            is HostConnection.Reconnecting, HostConnection.NotReported -> HostLink.Down
+            HostConnection.Connecting, HostConnection.Connected -> HostLink.Connecting
+        }
+    }
     return when (val connection = feed.connection) {
         HostConnection.Connected -> HostLink.Connected
         HostConnection.NotReported -> HostLink.Down

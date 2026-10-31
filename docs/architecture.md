@@ -57,6 +57,14 @@ as the desktop companion: `v0.35.2` today.
   followed. A seed on a new connection reconciles into it like a re-seed: idle clocks and activity baselines of unchanged sessions
   stay, a session on a different worker instance or runtime generation starts its idle clock again, and a list equal to the last
   one published is not published again. `idle_threshold_secs` is read from the configuration in force each time a loop starts.
+- Last known sessions (departs from the desktop on purpose; decided on #160): the list of each configured host is written to
+  `last_sessions.json` (app-private files, `AtomicFile`) whenever the host publishes a changed list, and the entry is dropped when the
+  host is no longer configured. Discovered peers are not stored. The file is excluded from cloud backup and device transfer
+  (`data_extraction_rules.xml` excludes the whole `file` domain; `allowBackup` is off). After a cold start the host's feed holds the
+  stored rows as `lastKnown`, separate from `sessions`: the rows are shown dimmed (link `Connecting`), are not under the grace rule,
+  never count in Needs you, and offer no daemon action (like the rows of an unreachable host they can still be rearranged, which is client-side layout), until the host's first seed replaces them. If the host does not answer the link is
+  `Down` at once, with the unreachable text. A file that cannot be read or parsed is ignored, logged as `last_sessions.unreadable`
+  (no content), and replaced by the next published list. Log lines about the file carry a host key and an error code only.
 - Liveness (departs from the desktop on purpose): the desktop keeps its store
   when a periodic re-seed fails and has no heartbeat, which on a phone leaves a
   frozen list that looks live. Here a `daemon.health` probe (own connection, every `liveness_interval_ms`, bounded by
