@@ -1079,7 +1079,9 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
       if (len == 1 && unit.code in ASCII_PRINTABLE_FIRST..ASCII_PRINTABLE_LAST && flags and FLAG_WIDE == 0) {
         val paint = styledPaint(flags)
         val decoration = flags and RUN_DECORATION_FLAGS
-        if (runLen > 0 && (paint !== runPaint || cellFg[col] != runFg || decoration != runDecoration)) {
+        // Underline and strikethrough span the run, so skipped cells inside one would be decorated too.
+        val blankBreaksRun = pendingBlanks > 0 && decoration and (FLAG_UNDERLINE or FLAG_STRIKETHROUGH) != 0
+        if (runLen > 0 && (paint !== runPaint || cellFg[col] != runFg || decoration != runDecoration || blankBreaksRun)) {
           drawGlyphs(canvas, runChars, 0, runLen, runStartCol * cellWidth, runLen * cellWidth, top, runPaint, runFg, runDecoration)
           runLen = 0
         }
