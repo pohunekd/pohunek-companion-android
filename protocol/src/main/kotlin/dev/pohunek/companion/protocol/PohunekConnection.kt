@@ -14,6 +14,7 @@ import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
+import java.net.StandardSocketOptions
 import java.nio.ByteBuffer
 import java.nio.channels.ClosedByInterruptException
 import java.nio.channels.SocketChannel
@@ -260,6 +261,8 @@ class PohunekConnection private constructor(
             try {
                 opened = SocketChannel.open()
                 opened.socket().connect(InetSocketAddress(address, route.port), config.connectTimeout.inWholeMilliseconds.toInt())
+                // Small input writes (keys, wheel reports) must leave at once instead of waiting for the previous ACK.
+                opened.setOption(StandardSocketOptions.TCP_NODELAY, true)
                 connected = true
                 return opened
             } catch (e: IOException) {
