@@ -91,6 +91,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   private var bitmapCanvas: Canvas? = null
   private var snapshotBuf: ByteBuffer? = null
   private var rowChars = CharArray(0)
+  private var runChars = CharArray(0)
   private var cellFg = IntArray(0)
   private var cellBg = IntArray(0)
   private var cellTextOff = IntArray(0)
@@ -644,6 +645,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     }
     snapshotBuf = ByteBuffer.allocateDirect(capacity).order(ByteOrder.LITTLE_ENDIAN)
     rowChars = CharArray(cols * MAX_CELL_TEXT_UNITS)
+    runChars = CharArray(cols)
     cellFg = IntArray(cols)
     cellBg = IntArray(cols)
     cellTextOff = IntArray(cols)
@@ -1029,47 +1031,123 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     val top = (rowIndex * cellHeight).toFloat()
     val bottom = top + cellHeight
 
-    // Background pass: row clear, then per-cell backgrounds.
+    // Background pass: row clear, then one rect per run of adjacent cells with the same background.
     fillPaint.color = defaultBg
     canvas.drawRect(0f, top, canvas.width.toFloat(), bottom, fillPaint)
+    var bgRunStart = 0f
+    var bgRunEnd = 0f
+    var bgRunColor = defaultBg
     for (col in 0 until colCount) {
       val bg = cellBg[col]
       if (bg == defaultBg) continue
-      val width = if (cellFlags[col] and FLAG_WIDE != 0) cellWidth * 2 else cellWidth
       val x = col * cellWidth
-      fillPaint.color = bg
-      canvas.drawRect(x, top, x + width, bottom, fillPaint)
+      val end = x + if (cellFlags[col] and FLAG_WIDE != 0) cellWidth * 2 else cellWidth
+      if (bgRunEnd > bgRunStart && bg == bgRunColor && x <= bgRunEnd) {
+        bgRunEnd = maxOf(bgRunEnd, end)
+        continue
+      }
+      if (bgRunEnd > bgRunStart) {
+        fillPaint.color = bgRunColor
+        canvas.drawRect(bgRunStart, top, bgRunEnd, bottom, fillPaint)
+      }
+      bgRunStart = x
+      bgRunEnd = end
+      bgRunColor = bg
+    }
+    if (bgRunEnd > bgRunStart) {
+      fillPaint.color = bgRunColor
+      canvas.drawRect(bgRunStart, top, bgRunEnd, bottom, fillPaint)
     }
 
-    // Text pass.
+    // Text pass: adjacent printable-ASCII cells with the same paint, colour and decoration are drawn as
+    // one run (every glyph of the monospace font advances by exactly one cell); other cells alone.
+    var runLen = 0
+    var pendingBlanks = 0
+    var runPaint = textPaint
+    var runFg = 0
+    var runDecoration = 0
+    var runStartCol = 0
     for (col in 0 until colCount) {
       val flags = cellFlags[col]
       val len = cellTextLen[col]
-      if (len == 0 || flags and FLAG_SPACER != 0 || flags and FLAG_INVISIBLE != 0) continue
-      val codepoint = Character.codePointAt(rowChars, cellTextOff[col])
-      val paint = when {
-        symbolsPaint != null &&
-          (codepoint in PUA_BMP_FIRST..PUA_BMP_LAST || codepoint >= PUA_SUPPLEMENTARY_FIRST) ->
-          symbolsPaint
-        flags and FLAG_BOLD != 0 && flags and FLAG_ITALIC != 0 -> boldItalicPaint
-        flags and FLAG_BOLD != 0 -> boldPaint
-        flags and FLAG_ITALIC != 0 -> italicPaint
-        else -> textPaint
+      if (len == 0 || flags and FLAG_SPACER != 0 || flags and FLAG_INVISIBLE != 0) {
+        if (runLen > 0) pendingBlanks++
+        continue
       }
-      paint.color = cellFg[col]
-      if (flags and FLAG_FAINT != 0) paint.alpha = 160
-      val x = col * cellWidth
-      canvas.drawText(rowChars, cellTextOff[col], len, x, top + baseline, paint)
-      val runWidth = if (flags and FLAG_WIDE != 0) cellWidth * 2 else cellWidth
-      if (flags and FLAG_UNDERLINE != 0) {
-        canvas.drawRect(x, bottom - underlineThickness, x + runWidth, bottom, paint)
+      val textOff = cellTextOff[col]
+      val unit = rowChars[textOff]
+      if (len == 1 && unit.code in ASCII_PRINTABLE_FIRST..ASCII_PRINTABLE_LAST && flags and FLAG_WIDE == 0) {
+        val paint = styledPaint(flags)
+        val decoration = flags and RUN_DECORATION_FLAGS
+        if (runLen > 0 && (paint !== runPaint || cellFg[col] != runFg || decoration != runDecoration)) {
+          drawGlyphs(canvas, runChars, 0, runLen, runStartCol * cellWidth, runLen * cellWidth, top, runPaint, runFg, runDecoration)
+          runLen = 0
+        }
+        if (runLen == 0) {
+          runStartCol = col
+          runPaint = paint
+          runFg = cellFg[col]
+          runDecoration = decoration
+        } else {
+          repeat(pendingBlanks) { runChars[runLen++] = ' ' }
+        }
+        pendingBlanks = 0
+        runChars[runLen++] = unit
+        continue
       }
-      if (flags and FLAG_STRIKETHROUGH != 0) {
-        val mid = top + cellHeight / 2f
-        canvas.drawRect(x, mid - underlineThickness / 2, x + runWidth, mid + underlineThickness / 2, paint)
+      if (runLen > 0) {
+        drawGlyphs(canvas, runChars, 0, runLen, runStartCol * cellWidth, runLen * cellWidth, top, runPaint, runFg, runDecoration)
+        runLen = 0
       }
-      paint.alpha = 255
+      pendingBlanks = 0
+      val codepoint = Character.codePointAt(rowChars, textOff)
+      val paint = if (symbolsPaint != null &&
+        (codepoint in PUA_BMP_FIRST..PUA_BMP_LAST || codepoint >= PUA_SUPPLEMENTARY_FIRST)
+      ) {
+        symbolsPaint
+      } else {
+        styledPaint(flags)
+      }
+      val width = if (flags and FLAG_WIDE != 0) cellWidth * 2 else cellWidth
+      drawGlyphs(canvas, rowChars, textOff, len, col * cellWidth, width, top, paint, cellFg[col], flags and RUN_DECORATION_FLAGS)
     }
+    if (runLen > 0) {
+      drawGlyphs(canvas, runChars, 0, runLen, runStartCol * cellWidth, runLen * cellWidth, top, runPaint, runFg, runDecoration)
+    }
+  }
+
+  private fun styledPaint(flags: Int): Paint = when {
+    flags and FLAG_BOLD != 0 && flags and FLAG_ITALIC != 0 -> boldItalicPaint
+    flags and FLAG_BOLD != 0 -> boldPaint
+    flags and FLAG_ITALIC != 0 -> italicPaint
+    else -> textPaint
+  }
+
+  /** Draws [count] chars at [x] over [width] pixels with the faint, underline and strikethrough bits of [decoration]. */
+  private fun drawGlyphs(
+    canvas: Canvas,
+    chars: CharArray,
+    offset: Int,
+    count: Int,
+    x: Float,
+    width: Float,
+    top: Float,
+    paint: Paint,
+    fg: Int,
+    decoration: Int
+  ) {
+    val bottom = top + cellHeight
+    paint.color = fg
+    if (decoration and FLAG_FAINT != 0) paint.alpha = 160
+    canvas.drawText(chars, offset, count, x, top + baseline, paint)
+    if (decoration and FLAG_UNDERLINE != 0) {
+      canvas.drawRect(x, bottom - underlineThickness, x + width, bottom, paint)
+    }
+    if (decoration and FLAG_STRIKETHROUGH != 0) {
+      val mid = top + cellHeight / 2f
+      canvas.drawRect(x, mid - underlineThickness / 2, x + width, mid + underlineThickness / 2, paint)
+    }
+    paint.alpha = 255
   }
 
   override fun onDraw(canvas: Canvas) {
@@ -1363,6 +1441,9 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
 
     // Nerd Font glyph ranges: BMP private-use area plus the supplementary
     // private-use planes (material icons live at U+F0000+ since v3).
+    const val RUN_DECORATION_FLAGS = FLAG_FAINT or FLAG_UNDERLINE or FLAG_STRIKETHROUGH
+    const val ASCII_PRINTABLE_FIRST = 0x20
+    const val ASCII_PRINTABLE_LAST = 0x7E
     const val PUA_BMP_FIRST = 0xE000
     const val PUA_BMP_LAST = 0xF8FF
     const val PUA_SUPPLEMENTARY_FIRST = 0xF0000
