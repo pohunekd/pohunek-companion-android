@@ -99,6 +99,9 @@
     <integer name="wheel_backlog_rows">12</integer>
     <string name="wheel_backlog_rows_help">How many rows of finger travel may wait for the spacing of scroll steps before the excess is dropped, so a program does not keep scrolling after the finger stopped. Applies to the next terminal you open.</string>
 
+    <integer name="sync_output_timeout_ms">1000</integer>
+    <string name="sync_output_timeout_ms_help">How long a program may hold the screen back while it repaints (synchronized output) before the terminal shows it anyway, so a program that never finishes cannot freeze the view. Applies to the next terminal you open.</string>
+
     <integer name="group_name_max_bytes">64</integer>
     <string name="group_name_max_bytes_help">The longest group name in UTF-8 bytes. A name from another client that is longer, or that holds a control character, is ignored and the session shows in Inbox. The daemon accepts at most 4096.</string>
 

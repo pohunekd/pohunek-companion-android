@@ -145,6 +145,8 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   }
 
   private var framePending = false
+  private var syncHeldSince = NOT_HELD
+  private val syncTimeoutRunnable = Runnable { scheduleFrame() }
   private val frameCallback = Choreographer.FrameCallback {
     framePending = false
     renderFrame()
@@ -353,8 +355,30 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
       onInputBytes?.invoke(response)
     }
     drainTerminalEvents()
+    trackSyncOutput()
     holdBlinkSolid()
     scheduleFrame()
+  }
+
+  /** Records when the program took synchronized output, and forgets it once the program released it. */
+  private fun trackSyncOutput() {
+    if (!GhosttyVt.nativeSyncOutput(handle)) {
+      syncHeldSince = NOT_HELD
+      removeCallbacks(syncTimeoutRunnable)
+    } else if (syncHeldSince == NOT_HELD) {
+      syncHeldSince = android.os.SystemClock.uptimeMillis()
+    }
+  }
+
+  /** True while the program holds synchronized output and the timeout has not run out. */
+  private fun syncOutputHoldsFrame(): Boolean {
+    if (syncHeldSince == NOT_HELD) return false
+    val remaining = settings.syncOutputTimeout.inWholeMilliseconds - (android.os.SystemClock.uptimeMillis() - syncHeldSince)
+    if (remaining <= 0) return false
+    // Nothing may write again before the timeout, so a frame is scheduled for when it runs out.
+    removeCallbacks(syncTimeoutRunnable)
+    postDelayed(syncTimeoutRunnable, remaining)
+    return true
   }
 
   private fun drainTerminalEvents() {
@@ -387,6 +411,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     }
     blinkScheduled = false
     removeCallbacks(blinkRunnable)
+    removeCallbacks(syncTimeoutRunnable)
     scroller.abortAnimation()
     if (scrollFramePending) {
       Choreographer.getInstance().removeFrameCallback(scrollFrameCallback)
@@ -622,6 +647,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     val buf = snapshotBuf ?: return
     val canvas = bitmapCanvas ?: return
     if (handle == 0L) return
+    if (syncOutputHoldsFrame()) return
 
     // The peek runs first so the snapshot, selection ranges and scrollbar below describe the
     // viewport the user is actually in.
@@ -1318,6 +1344,8 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     const val HANDLE_RADIUS_DP = 8f
     const val HANDLE_HIT_SLOP_DP = 24f
     const val HANDLE_COLOR = 0xFF4C8DF5.toInt()
+
+    const val NOT_HELD = -1L
 
     const val MENU_COPY = 1
     const val MENU_PASTE = 2

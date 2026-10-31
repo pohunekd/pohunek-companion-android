@@ -43,6 +43,7 @@ class TerminalDemoActivity : ComponentActivity() {
             terminal = TerminalSettings(
                 wheelMinInterval = resources.getInteger(R.integer.wheel_min_interval_ms).milliseconds,
                 wheelBacklogRows = resources.getInteger(R.integer.wheel_backlog_rows),
+                syncOutputTimeout = resources.getInteger(R.integer.sync_output_timeout_ms).milliseconds,
             ),
         )
         setContent {

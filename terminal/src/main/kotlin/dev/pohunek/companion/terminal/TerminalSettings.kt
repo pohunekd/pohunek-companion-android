@@ -8,4 +8,6 @@ data class TerminalSettings(
     val wheelMinInterval: Duration,
     /** Finger travel in rows that may wait behind that spacing before the excess is dropped. */
     val wheelBacklogRows: Int,
+    /** How long a program may hold synchronized output before the grid is drawn anyway. */
+    val syncOutputTimeout: Duration,
 )

@@ -959,6 +959,21 @@ Java_dev_pohunek_companion_terminal_GhosttyVt_nativeWheelTarget(
   return kWheelLocal;
 }
 
+// Whether the program holds synchronized output (DEC mode 2026): a repaint is
+// in progress and the grid must not be drawn until the mode is reset.
+JNIEXPORT jboolean JNICALL
+Java_dev_pohunek_companion_terminal_GhosttyVt_nativeSyncOutput(
+    JNIEnv*, jobject, jlong handle) {
+  auto* session = fromHandle(handle);
+  if (session == nullptr) return JNI_FALSE;
+  bool sync = false;
+  if (ghostty_terminal_mode_get(session->term, GHOSTTY_MODE_SYNC_OUTPUT, &sync) !=
+      GHOSTTY_SUCCESS) {
+    return JNI_FALSE;
+  }
+  return sync ? JNI_TRUE : JNI_FALSE;
+}
+
 // Encodes one wheel step (button 4 up, button 5 down) at a pixel position of
 // the view for the active mouse tracking mode and format, or null when that
 // mode reports no wheel (X10) or the encode fails.

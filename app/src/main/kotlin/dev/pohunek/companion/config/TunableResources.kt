@@ -40,6 +40,7 @@ private val RESOURCES: Map<Tunable, TunableResources> = mapOf(
     Tunable.NEW_SESSION_ROWS to TunableResources(R.integer.new_session_rows, R.string.new_session_rows_help),
     Tunable.WHEEL_MIN_INTERVAL_MS to TunableResources(R.integer.wheel_min_interval_ms, R.string.wheel_min_interval_ms_help),
     Tunable.WHEEL_BACKLOG_ROWS to TunableResources(R.integer.wheel_backlog_rows, R.string.wheel_backlog_rows_help),
+    Tunable.SYNC_OUTPUT_TIMEOUT_MS to TunableResources(R.integer.sync_output_timeout_ms, R.string.sync_output_timeout_ms_help),
     Tunable.GROUP_NAME_MAX_BYTES to TunableResources(R.integer.group_name_max_bytes, R.string.group_name_max_bytes_help),
     Tunable.LOG_MAX_BYTES to TunableResources(R.integer.log_max_bytes, R.string.log_max_bytes_help),
 )

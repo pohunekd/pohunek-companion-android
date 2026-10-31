@@ -102,6 +102,7 @@ class AppConfig private constructor(
                 TerminalSettings(
                     wheelMinInterval = value(Tunable.WHEEL_MIN_INTERVAL_MS).milliseconds,
                     wheelBacklogRows = value(Tunable.WHEEL_BACKLOG_ROWS).toInt(),
+                    syncOutputTimeout = value(Tunable.SYNC_OUTPUT_TIMEOUT_MS).milliseconds,
                 ),
                 DisplayLimits(
                     value(Tunable.ROW_BADGE_MAX_CHARS).toInt(),
