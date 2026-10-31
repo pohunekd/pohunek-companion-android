@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "appTree": "0b829337d8209c79789577f44c24587b756bc06b",
+  "appTree": "f60bf2fc571670e4c8e163ff458e56740489e503",
   "device": "720x1600x320",
   "shots": [
     {
@@ -10,7 +10,7 @@
       "alt": "Pohunek Companion session list in the dark theme: a Needs you section with two blocked agent sessions above the working and idle sessions.",
       "width": 720,
       "height": 1600,
-      "sha256": "df2c760c27ec4aa3620f4ccaa3f213c9b26062dcc78e65ba1b74244c04281a7c"
+      "sha256": "084942727e8a2d41ecb26a2f89a1a8cde1c233533e9ac03f6cc4d4da115181d6"
     },
     {
       "id": "by-state",
@@ -19,7 +19,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the By state view selected: sessions in Needs you, Working and Idle sections.",
       "width": 720,
       "height": 1600,
-      "sha256": "f105968d3dc89c0aebef53e25ee8d20f495849e425596db808d143f8b0ddf420"
+      "sha256": "8d62656905f33ca489373a750e942b1e40402cff05bc4f1182d17121c168e73e"
     },
     {
       "id": "filters",
@@ -37,7 +37,7 @@
       "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then the Dependencies group open with its session and the Docs and Tooling groups collapsed to a header with a count.",
       "width": 720,
       "height": 1600,
-      "sha256": "609ddfc0b2daa5aa3d57fcf34a15435c6d1211c3835c7b6b0846405e18343aae"
+      "sha256": "fac37547b8c4d75a04b8cc7719e49ff8ee20d68dc509202721f7dd7e0a9f5b86"
     },
     {
       "id": "row-actions",
@@ -55,7 +55,7 @@
       "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button.",
       "width": 720,
       "height": 1600,
-      "sha256": "facaec41930d6ca1c88fcb5196b450ec81af3390cb1c4ba781899eb597b49097"
+      "sha256": "1d9be2bd47e0695e8bc2a8f86a5e7043a14e1fc9286e4bf33b29b112c07c5182"
     },
     {
       "id": "new-session",
