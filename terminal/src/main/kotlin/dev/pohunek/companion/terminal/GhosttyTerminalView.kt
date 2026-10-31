@@ -147,9 +147,13 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   private var framePending = false
   private var syncHeldSince = NOT_HELD
   private val syncTimeoutRunnable = Runnable { scheduleFrame() }
+
+  // A render was asked for and has not run yet. The scroll step renders in the same vsync it moved
+  // the viewport in, so a frame callback that finds a scroll step pending leaves the render to it.
+  private var renderRequested = false
   private val frameCallback = Choreographer.FrameCallback {
     framePending = false
-    renderFrame()
+    if (!scrollFramePending) renderFrame()
   }
 
   // Finger and fling travel not yet applied; one step per display frame turns it into scrollback
@@ -163,6 +167,11 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   private var scrollOffsetPx = 0f
   private var peekBitmap: Bitmap? = null
   private var peekCanvas: Canvas? = null
+
+  // The peek row is redrawn only when the viewport's top row changed or something was written or
+  // otherwise redrawn since; [peekRowOffset] is the scrollbar offset it was drawn for.
+  private var peekDirty = true
+  private var peekRowOffset = -1L
 
   // Last touch position of a scroll gesture; the position a wheel report
   // carries while a fling keeps going after the finger lifted.
@@ -182,6 +191,13 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   private val scrollFrameCallback = Choreographer.FrameCallback { frameTimeNanos ->
     scrollFramePending = false
     scrollStep(frameTimeNanos)
+    if (renderRequested) {
+      if (framePending) {
+        Choreographer.getInstance().removeFrameCallback(frameCallback)
+        framePending = false
+      }
+      renderFrame()
+    }
   }
 
   private val gestureDetector = GestureDetector(
@@ -514,7 +530,9 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     if (rows != 0 || offset != scrollOffsetPx) {
       scrollOffsetPx = offset
       markScrollActivity()
-      renderFrame()
+      // A sub-row move only shifts the bitmap and the cached peek row; whole rows, or a peek that
+      // does not describe the viewport, need a render in this vsync's scroll callback.
+      if (rows != 0 || (offset > 0f && peekStale(after))) renderRequested = true else invalidate()
     }
   }
 
@@ -620,6 +638,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     }
     val capacity = HEADER_BYTES +
       rows * (ROW_HEADER_BYTES + cols * CELL_RECORD_BYTES + cols * MAX_CELL_TEXT_UNITS * 2 + 4)
+    peekDirty = true
     peekBitmap = Bitmap.createBitmap(widthPx, cellHeight, Bitmap.Config.ARGB_8888).also {
       peekCanvas = Canvas(it)
     }
@@ -638,12 +657,15 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   // ── Rendering ──
 
   private fun scheduleFrame() {
+    peekDirty = true
+    renderRequested = true
     if (framePending) return
     framePending = true
     Choreographer.getInstance().postFrameCallback(frameCallback)
   }
 
   private fun renderFrame() {
+    renderRequested = false
     val buf = snapshotBuf ?: return
     val canvas = bitmapCanvas ?: return
     if (handle == 0L) return
@@ -678,6 +700,10 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     invalidate()
   }
 
+  /** Whether [peekBitmap] no longer shows the row below the viewport described by [scrollbar]. */
+  private fun peekStale(scrollbar: LongArray?): Boolean =
+    scrollbar != null && (peekDirty || peekRowOffset != scrollbar[1])
+
   /**
    * Draws the row just below the viewport into [peekBitmap]: the viewport moves down one row for
    * a snapshot and back, and only the last row of that snapshot is kept.
@@ -691,6 +717,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
       scrollOffsetPx = 0f
       return
     }
+    if (!peekStale(bar)) return
     GhosttyVt.nativeScroll(handle, 1)
     val rowCount = GhosttyVt.nativeSnapshot(handle, buf)
     GhosttyVt.nativeScroll(handle, -1)
@@ -698,6 +725,8 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     buf.position(0)
     val header = SnapshotHeader.read(buf)
     if (header.dirtyKind != DIRTY_FULL) return
+    peekDirty = false
+    peekRowOffset = bar[1]
     canvas.save()
     canvas.translate(0f, -((rows - 1) * cellHeight).toFloat())
     canvas.drawColor(header.background)
