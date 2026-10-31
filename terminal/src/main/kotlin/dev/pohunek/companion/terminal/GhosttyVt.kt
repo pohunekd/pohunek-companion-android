@@ -100,6 +100,9 @@ internal object GhosttyVt {
    */
   external fun nativeWheelTarget(handle: Long): Int
 
+  /** Whether the program holds synchronized output (DEC mode 2026), so a repaint is still in progress. */
+  external fun nativeSyncOutput(handle: Long): Boolean
+
   /**
    * Encode one wheel step ([up] = button 4, else button 5) at the view pixel
    * ([x], [y]) for the active mouse mode and format, or null when the mode

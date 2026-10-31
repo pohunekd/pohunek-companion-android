@@ -40,6 +40,7 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long =
     NEW_SESSION_ROWS(1, TunableUnit.Count, MAX_TERMINAL_SIDE),
     WHEEL_MIN_INTERVAL_MS(1, TunableUnit.Milliseconds),
     WHEEL_BACKLOG_ROWS(1, TunableUnit.Count),
+    SYNC_OUTPUT_TIMEOUT_MS(1, TunableUnit.Milliseconds),
     GROUP_NAME_MAX_BYTES(1, TunableUnit.Bytes, MAX_GROUP_NAME_BYTES),
     LOG_MAX_BYTES(MIN_LOG_MAX_BYTES, TunableUnit.Bytes),
     ;
