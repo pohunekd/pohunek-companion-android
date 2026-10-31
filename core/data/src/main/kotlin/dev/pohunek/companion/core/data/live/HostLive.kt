@@ -74,7 +74,8 @@ class LiveState(val store: SessionStore) {
 /**
  * Keeps one daemon's sessions current: subscribe first so no event is lost, seed on a second connection, apply the events that arrived
  * meanwhile, then stream. Every [LiveConfig.reseedInterval] the seed is taken again the same way. A broken stream ends the connection at
- * once; so do [Liveness.failures] failed re-seeds or health probes in a row, and the loop reconnects with a growing wait. Collecting
+ * once; so do [Liveness.failures] failed re-seeds or health probes in a row, and a re-seed that finds a change no buffered event
+ * explains when no event follows within [Liveness.retry] (a dead subscription the probes cannot see). The loop then reconnects with a growing wait. Collecting
  * [updates] runs the loop until the collector is cancelled; each collection starts with a fresh failure count and reconciles into [state].
  */
 @Suppress("TooManyFunctions") // The loop and its helpers share the wake channels and the connection state.
@@ -154,6 +155,12 @@ class HostLive(
         var failedChecks = 0
 
         /**
+         * Set by a re-seed that changed the store although no event was waiting to explain it: the time by which an event must arrive
+         * (one still in flight on a healthy stream), else the subscription is taken as dead.
+         */
+        var suspectDue: ComparableTimeMark? = null
+
+        /**
          * Records a failed probe or re-seed and returns after logging it as [event], or throws [error] once [Liveness.failures]
          * checks failed in a row.
          */
@@ -196,7 +203,10 @@ class HostLive(
             when {
                 initial -> log.info("live.seeded", counts)
                 change.isEmpty || buffered > 0 -> log.info("live.reseeded", counts)
-                else -> log.warn("live.reseed_corrected", counts)
+                else -> {
+                    log.warn("live.reseed_corrected", counts)
+                    suspectDue = timeSource.markNow() + config.liveness.retry
+                }
             }
             val now = timeSource.markNow()
             reseedDue = now + config.reseedInterval
@@ -219,7 +229,20 @@ class HostLive(
         /** Returns whether the store changed. */
         fun apply(message: StreamMessage): Boolean = when (message) {
             is StreamMessage.Failed -> throw message.error
-            is StreamMessage.Event -> store.applyEvent(message.event) == EventOutcome.Applied
+            is StreamMessage.Event -> {
+                suspectDue = null
+                store.applyEvent(message.event) == EventOutcome.Applied
+            }
+        }
+
+        /** Time until a suspected dead subscription is given up on; unbounded while none is suspected. */
+        fun untilSuspectDue(): Duration = suspectDue?.let { until(it) } ?: Duration.INFINITE
+
+        /** The subscription is the only way events reach the store, and the seed and probe connections cannot tell that it is dead. */
+        fun failIfSuspectExpired() {
+            if (suspectDue?.hasPassedNow() == true) {
+                throw ProtocolClientException.ConnectionLost("the re-seed found a change the event stream never delivered")
+            }
         }
 
         suspend fun probe() {
@@ -276,10 +299,12 @@ class HostLive(
         val wake = select {
             connection.inbox.onReceive { Wake.Message(it) }
             refresh.onReceive { Wake.Refresh }
-            onTimeout(minOf(until(connection.reseedDue), until(connection.probeDue), connection.untilIdleDeadline())) { Wake.Timer }
+            val timeout = minOf(until(connection.reseedDue), until(connection.probeDue), connection.untilIdleDeadline(), connection.untilSuspectDue())
+            onTimeout(timeout) { Wake.Timer }
         }
         when {
             wake is Wake.Message -> if (connection.apply(wake.message)) connection.publish()
+            wake == Wake.Timer && connection.suspectDue?.hasPassedNow() == true -> connection.failIfSuspectExpired()
             wake == Wake.Refresh || connection.reseedDue.hasPassedNow() -> reseed(connection)
             connection.probeDue.hasPassedNow() -> {
                 connection.probe()

@@ -174,6 +174,48 @@ class HostLiveTest {
     }
 
     @Test
+    fun `a re-seed that finds a change no event explained ends the connection`() = runTest {
+        val transport = FakeTransport()
+        transport.seed = { listOf(session("s-1", name = "old")) }
+        val updates = mutableListOf<Pair<Long, LiveUpdate>>()
+        val job = collect(transport, updates)
+        runCurrent()
+
+        transport.seed = { listOf(session("s-1", "2026-01-01T10:00:09Z", name = "new")) }
+        advanceTimeBy(config.reseedInterval)
+        runCurrent()
+        assertEquals(listOf<String?>("new"), updates.lastSessions().map { it.info.name })
+        assertTrue(updates.none { it.second is LiveUpdate.Reconnecting })
+
+        advanceTimeBy(config.liveness.retry)
+        runCurrent()
+        assertTrue(updates.last().second is LiveUpdate.Reconnecting)
+        advanceTimeBy(config.reconnectInitial + 1.milliseconds)
+        assertEquals(2, transport.streams.size)
+        job.cancel()
+    }
+
+    @Test
+    fun `an event that arrives after an unexplained re-seed change keeps the connection`() = runTest {
+        val transport = FakeTransport()
+        transport.seed = { listOf(session("s-1", name = "old")) }
+        val updates = mutableListOf<Pair<Long, LiveUpdate>>()
+        val job = collect(transport, updates)
+        runCurrent()
+
+        transport.seed = { listOf(session("s-1", "2026-01-01T10:00:09Z", name = "new")) }
+        advanceTimeBy(config.reseedInterval)
+        runCurrent()
+        transport.streams.single().inbox.trySend(DaemonEvent.SessionUpdated(session("s-1", "2026-01-01T10:00:09Z", name = "new")))
+        advanceTimeBy(config.liveness.retry * 2)
+        runCurrent()
+
+        assertTrue(updates.none { it.second is LiveUpdate.Reconnecting })
+        assertEquals(1, transport.streams.size)
+        job.cancel()
+    }
+
+    @Test
     fun `reconnect waits double up to the maximum`() = runTest {
         val transport = FakeTransport()
         transport.subscribe = { throw ProtocolClientException.ConnectionFailed(route, IOException("refused")) }
@@ -315,7 +357,7 @@ class HostLiveTest {
         val transport = FakeTransport()
         var seeds = 0
         transport.seed = {
-            if (++seeds == 2) throw ProtocolClientException.ConnectionLost("seed") else listOf(session("s-$seeds"))
+            if (++seeds == 2) throw ProtocolClientException.ConnectionLost("seed") else listOf(session("s-1"))
         }
         val updates = mutableListOf<Pair<Long, LiveUpdate>>()
         val job = collect(transport, updates)
@@ -325,7 +367,7 @@ class HostLiveTest {
 
         assertEquals(3, seeds)
         assertTrue(updates.none { it.second is LiveUpdate.Reconnecting })
-        assertEquals(listOf("s-3"), updates.lastSessions().map { it.info.id })
+        assertTrue(updates.any { it.second == LiveUpdate.Reseeded })
         job.cancel()
     }
 
