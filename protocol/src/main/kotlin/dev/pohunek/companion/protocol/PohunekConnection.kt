@@ -1,19 +1,22 @@
 package dev.pohunek.companion.protocol
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.builtins.ListSerializer
 import java.io.IOException
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
 import java.nio.channels.ClosedByInterruptException
 import java.nio.channels.SocketChannel
-import java.nio.channels.UnresolvedAddressException
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 
@@ -212,14 +215,20 @@ class PohunekConnection private constructor(
             PohunekConnection(openChannel(route, config, ioDispatcher), config, ioDispatcher)
 
         /** A connected blocking channel to [route]; shared with the raw attach connection. */
-        internal suspend fun openChannel(route: HostRoute, config: ClientConfig, ioDispatcher: CoroutineDispatcher): SocketChannel {
+        internal suspend fun openChannel(
+            route: HostRoute,
+            config: ClientConfig,
+            ioDispatcher: CoroutineDispatcher,
+            resolver: (String) -> InetAddress = InetAddress::getByName,
+        ): SocketChannel {
             // A connect that finishes as the timeout fires or the caller is cancelled has its result discarded by
             // the coroutine machinery, so the channel is recorded here and closed unless it is handed to the caller.
             val connected = AtomicReference<SocketChannel?>(null)
             var handedOver = false
             try {
                 val channel = withTimeoutOrNull(config.connectTimeout) {
-                    runInterruptible(ioDispatcher) { connect(route, config).also { connected.set(it) } }
+                    val address = resolve(route, config, ioDispatcher, resolver)
+                    runInterruptible(ioDispatcher) { connect(route, address, config).also { connected.set(it) } }
                 } ?: throw ProtocolClientException.ConnectTimeout(route, config.connectTimeout.inWholeMilliseconds)
                 handedOver = true
                 return channel
@@ -234,20 +243,35 @@ class PohunekConnection private constructor(
             }
         }
 
-        /** Resolves and connects; the socket timeout bounds the handshake, the caller's timeout also bounds name resolution. */
-        private fun connect(route: HostRoute, config: ClientConfig): SocketChannel {
+        /**
+         * Resolves the host name on a task of its own: a lookup cannot be interrupted, so the caller's timeout is
+         * honoured by abandoning the wait while the lookup finishes on its dispatcher thread.
+         */
+        private suspend fun resolve(route: HostRoute, config: ClientConfig, ioDispatcher: CoroutineDispatcher, resolver: (String) -> InetAddress): InetAddress {
+            val answer = CompletableDeferred<Result<InetAddress>>()
+            CoroutineScope(ioDispatcher).launch { answer.complete(runCatching { resolver(route.host) }) }
+            return answer.await().getOrElse { e -> throw if (e is IOException) connectFailure(route, config, e) else e }
+        }
+
+        /** Connects to the resolved [address]; the socket timeout bounds the handshake. */
+        private fun connect(route: HostRoute, address: InetAddress, config: ClientConfig): SocketChannel {
             var opened: SocketChannel? = null
+            var connected = false
             try {
                 opened = SocketChannel.open()
-                opened.socket().connect(InetSocketAddress(route.host, route.port), config.connectTimeout.inWholeMilliseconds.toInt())
+                opened.socket().connect(InetSocketAddress(address, route.port), config.connectTimeout.inWholeMilliseconds.toInt())
+                connected = true
                 return opened
             } catch (e: IOException) {
-                opened?.close()
                 throw connectFailure(route, config, e)
-            } catch (e: UnresolvedAddressException) {
-                // The channel API's own signal for a name that does not resolve; the socket adaptor normally translates it to UnknownHostException.
-                opened?.close()
-                throw connectFailure(route, config, e)
+            } finally {
+                if (!connected) {
+                    try {
+                        opened?.close()
+                    } catch (_: IOException) {
+                        // The failure in flight must not be replaced by a failed close.
+                    }
+                }
             }
         }
 
