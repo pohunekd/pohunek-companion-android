@@ -3,6 +3,19 @@
 User-facing changes of Pohunek Companion Android, newest version first. Each
 section is folded from the fragments in `changelog.d/` when its release is prepared.
 
+## 0.1.0-pre.7 - 2026-10-31
+
+### Changed
+
+- The terminal draws text and backgrounds in runs instead of cell by cell, which makes each redraw cheaper and scrolling smoother. ([#183](https://github.com/pohunekd/pohunek-companion-android/issues/183))
+
+### Fixed
+
+- Scrolling the terminal history while output is arriving is smoother: the grid is drawn once per display frame instead of up to four times. ([#183](https://github.com/pohunekd/pohunek-companion-android/issues/183))
+- A program that repaints the screen in synchronized-output mode, such as Claude Code, no longer shows half-drawn frames in the terminal. ([#183](https://github.com/pohunekd/pohunek-companion-android/issues/183))
+- Keystrokes and scrolling in the terminal reach the host without waiting for network acknowledgements, so input feels smoother over Wi-Fi. ([#183](https://github.com/pohunekd/pohunek-companion-android/issues/183))
+- Scrolling a full-screen program such as Claude Code by touch now sends one evenly spaced scroll step at a time instead of bursts, so it scrolls steadily on any display rate. ([#183](https://github.com/pohunekd/pohunek-companion-android/issues/183))
+
 ## 0.1.0-pre.6 - 2026-10-31
 
 ### Added
