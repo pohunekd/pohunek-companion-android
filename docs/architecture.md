@@ -62,7 +62,7 @@ as the desktop companion: `v0.35.2` today.
   host is no longer configured. Discovered peers are not stored. The file is excluded from cloud backup and device transfer
   (`data_extraction_rules.xml` excludes the whole `file` domain; `allowBackup` is off). After a cold start the host's feed holds the
   stored rows as `lastKnown`, separate from `sessions`: the rows are shown dimmed (link `Connecting`), are not under the grace rule,
-  never count in Needs you, and offer no action, until the host's first seed replaces them. If the host does not answer the link is
+  never count in Needs you, and offer no daemon action (like the rows of an unreachable host they can still be rearranged, which is client-side layout), until the host's first seed replaces them. If the host does not answer the link is
   `Down` at once, with the unreachable text. A file that cannot be read or parsed is ignored, logged as `last_sessions.unreadable`
   (no content), and replaced by the next published list. Log lines about the file carry a host key and an error code only.
 - Liveness (departs from the desktop on purpose): the desktop keeps its store
