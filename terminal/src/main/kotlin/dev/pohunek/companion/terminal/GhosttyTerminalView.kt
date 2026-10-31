@@ -47,7 +47,7 @@ import kotlin.math.roundToInt
  * snapshots from JNI once per Choreographer frame and patches them onto a
  * grid-sized bitmap; [onDraw] blits the bitmap and overlays the cursor.
  */
-internal class GhosttyTerminalView(context: Context) : View(context) {
+internal class GhosttyTerminalView(context: Context, private val settings: TerminalSettings) : View(context) {
   var onInputBytes: ((ByteArray) -> Unit)? = null
   var onGridResize: ((cols: Int, rows: Int) -> Unit)? = null
   var onBell: (() -> Unit)? = null
@@ -177,9 +177,9 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
   private val scrollbarPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val jumpChipPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val jumpChipArrow = Path()
-  private val scrollFrameCallback = Choreographer.FrameCallback {
+  private val scrollFrameCallback = Choreographer.FrameCallback { frameTimeNanos ->
     scrollFramePending = false
-    scrollStep()
+    scrollStep(frameTimeNanos)
   }
 
   private val gestureDetector = GestureDetector(
@@ -425,7 +425,7 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
    * program that asked for mouse reporting, arrow keys on the alternate screen under
    * alternate-scroll mode, else the local scrollback. The route is read again every frame.
    */
-  private fun scrollStep() {
+  private fun scrollStep(frameTimeNanos: Long) {
     if (handle == 0L) return
     val flinging = scroller.computeScrollOffset()
     if (flinging) {
@@ -438,34 +438,31 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
       scrollLocal(settle = !fingerDown && !flinging)
     } else {
       resetScrollOffset()
-      sendWheelRows(target, takeReportRows())
-      if (!fingerDown && !flinging) scrollAccumulator.clear()
+      sendWheelStep(target, takeReportStep(frameTimeNanos))
+      // Whole rows still waiting behind the spacing are reported after the gesture ended too.
+      if (!fingerDown && !flinging && !scrollAccumulator.hasReportRow(cellHeight)) scrollAccumulator.clear()
     }
-    if (fingerDown || flinging) scheduleScrollStep()
+    if (fingerDown || flinging || (target != GhosttyVt.WHEEL_LOCAL && scrollAccumulator.hasReportRow(cellHeight))) {
+      scheduleScrollStep()
+    }
   }
 
-  private fun takeReportRows() =
-    scrollAccumulator.takeReportRows(cellHeight, MAX_WHEEL_ROWS_PER_FRAME, MAX_WHEEL_BACKLOG_ROWS)
+  private fun takeReportStep(frameTimeNanos: Long) = scrollAccumulator.takeReportStep(
+    cellHeight, frameTimeNanos, settings.wheelMinInterval.inWholeNanoseconds, settings.wheelBacklogRows
+  )
 
-  /**
-   * Sends [rows] wheel steps (negative is up) as one write, so a frame costs the program and the
-   * attach stream one message however many rows it carries.
-   */
-  private fun sendWheelRows(target: Int, rows: Int) {
-    if (rows == 0) return
-    val batch = java.io.ByteArrayOutputStream()
-    repeat(abs(rows)) {
-      val bytes = if (target == GhosttyVt.WHEEL_MOUSE) {
-        GhosttyVt.nativeEncodeWheel(
-          handle, rows < 0, wheelX, wheelY, width, height, cellWidth.roundToInt(), cellHeight
-        )
-      } else {
-        val keyCode = if (rows < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
-        GhosttyVt.nativeEncodeKey(handle, keyCode, 1, 0, 0, null)
-      }
-      if (bytes != null) batch.write(bytes)
+  /** Sends one wheel step (negative is up) as its own write, so the program sees evenly spaced events. */
+  private fun sendWheelStep(target: Int, step: Int) {
+    if (step == 0) return
+    val bytes = if (target == GhosttyVt.WHEEL_MOUSE) {
+      GhosttyVt.nativeEncodeWheel(
+        handle, step < 0, wheelX, wheelY, width, height, cellWidth.roundToInt(), cellHeight
+      )
+    } else {
+      val keyCode = if (step < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
+      GhosttyVt.nativeEncodeKey(handle, keyCode, 1, 0, 0, null)
     }
-    sendBytes(batch.toByteArray())
+    if (bytes != null) sendBytes(bytes)
   }
 
   /**
@@ -1325,11 +1322,6 @@ internal class GhosttyTerminalView(context: Context) : View(context) {
     const val MENU_COPY = 1
     const val MENU_PASTE = 2
     const val MENU_SELECT_ALL = 3
-
-    // Wheel reports (or arrow keys) sent to a program per display frame, and the finger travel in
-    // rows that may wait behind that limit before it is dropped.
-    const val MAX_WHEEL_ROWS_PER_FRAME = 4
-    const val MAX_WHEEL_BACKLOG_ROWS = 12
 
     const val SCROLLBAR_FADE_START_MS = 800L
     const val SCROLLBAR_FADE_END_MS = 1400L

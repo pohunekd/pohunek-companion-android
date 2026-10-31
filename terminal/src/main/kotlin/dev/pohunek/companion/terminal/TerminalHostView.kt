@@ -6,8 +6,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.LinearLayout
 
 /** Terminal grid with the key accessory bar below it. */
-internal class TerminalHostView(context: Context) : LinearLayout(context) {
-    val terminal = GhosttyTerminalView(context)
+internal class TerminalHostView(context: Context, settings: TerminalSettings) : LinearLayout(context) {
+    val terminal = GhosttyTerminalView(context, settings)
     private val accessoryBar = TerminalAccessoryBar(context)
 
     init {

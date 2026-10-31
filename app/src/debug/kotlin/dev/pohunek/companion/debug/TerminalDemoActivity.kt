@@ -27,7 +27,9 @@ import androidx.compose.ui.unit.dp
 import dev.pohunek.companion.R
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.terminal.TerminalController
+import dev.pohunek.companion.terminal.TerminalSettings
 import dev.pohunek.companion.terminal.TerminalView
+import kotlin.time.Duration.Companion.milliseconds
 
 /** Debug-only screen that exercises the terminal view without a daemon: scripted ANSI output and a local echo. */
 class TerminalDemoActivity : ComponentActivity() {
@@ -38,6 +40,10 @@ class TerminalDemoActivity : ComponentActivity() {
         val config = TerminalDemoConfig(
             redrawFrames = resources.getInteger(R.integer.terminal_demo_redraw_frames),
             frameDelayMs = resources.getInteger(R.integer.terminal_demo_frame_delay_ms).toLong(),
+            terminal = TerminalSettings(
+                wheelMinInterval = resources.getInteger(R.integer.wheel_min_interval_ms).milliseconds,
+                wheelBacklogRows = resources.getInteger(R.integer.wheel_backlog_rows),
+            ),
         )
         setContent {
             PohunekTheme {
@@ -49,7 +55,7 @@ class TerminalDemoActivity : ComponentActivity() {
 
 @Composable
 private fun TerminalDemoScreen(config: TerminalDemoConfig, modifier: Modifier = Modifier) {
-    val controller = remember { TerminalController() }
+    val controller = remember { TerminalController(config.terminal) }
     val scope = rememberCoroutineScope()
     val session = remember { TerminalDemoSession(controller, config, scope) }
     LaunchedEffect(session) { session.start() }

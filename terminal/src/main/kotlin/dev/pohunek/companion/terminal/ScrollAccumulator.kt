@@ -11,6 +11,8 @@ internal class ScrollAccumulator {
     var pending = 0f
         private set
 
+    private var lastReportNanos = NO_REPORT
+
     fun add(pixels: Float) {
         pending += pixels
     }
@@ -37,16 +39,26 @@ internal class ScrollAccumulator {
     }
 
     /**
-     * Rows to report to a program this frame, rounded toward zero, at most [maxRows] in magnitude.
-     * What the cap holds back stays pending for the next frame, except what exceeds
-     * [maxBacklogRows]: a backlog is dropped rather than replayed after the finger stopped.
+     * One report step (-1, 0 or 1) for a program at [nowNanos], never closer than [minIntervalNanos] to the previous
+     * step. Travel that waits behind that spacing stays pending, except what exceeds [maxBacklogRows]: a backlog is
+     * dropped rather than replayed after the finger stopped.
      */
-    fun takeReportRows(cellHeight: Int, maxRows: Int, maxBacklogRows: Int): Int {
+    fun takeReportStep(cellHeight: Int, nowNanos: Long, minIntervalNanos: Long, maxBacklogRows: Int): Int {
         val backlogPixels = maxBacklogRows.toFloat() * cellHeight
         pending = pending.coerceIn(-backlogPixels, backlogPixels)
         val whole = (pending / cellHeight).toInt()
-        val rows = if (abs(whole) > maxRows) maxRows * Integer.signum(whole) else whole
-        pending -= rows * cellHeight
-        return rows
+        if (whole == 0) return 0
+        if (lastReportNanos != NO_REPORT && nowNanos - lastReportNanos < minIntervalNanos) return 0
+        val step = Integer.signum(whole)
+        pending -= step * cellHeight
+        lastReportNanos = nowNanos
+        return step
+    }
+
+    /** Whether at least one whole row of travel still waits to be reported. */
+    fun hasReportRow(cellHeight: Int): Boolean = abs(pending) >= cellHeight
+
+    private companion object {
+        const val NO_REPORT = Long.MIN_VALUE
     }
 }
