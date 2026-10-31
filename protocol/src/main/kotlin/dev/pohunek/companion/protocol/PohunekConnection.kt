@@ -14,6 +14,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.ClosedByInterruptException
 import java.nio.channels.SocketChannel
 import java.nio.channels.UnresolvedAddressException
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 
 /** Timeouts of a connection; both are required and positive. */
@@ -211,9 +212,27 @@ class PohunekConnection private constructor(
             PohunekConnection(openChannel(route, config, ioDispatcher), config, ioDispatcher)
 
         /** A connected blocking channel to [route]; shared with the raw attach connection. */
-        internal suspend fun openChannel(route: HostRoute, config: ClientConfig, ioDispatcher: CoroutineDispatcher): SocketChannel =
-            withTimeoutOrNull(config.connectTimeout) { runInterruptible(ioDispatcher) { connect(route, config) } }
-                ?: throw ProtocolClientException.ConnectTimeout(route, config.connectTimeout.inWholeMilliseconds)
+        internal suspend fun openChannel(route: HostRoute, config: ClientConfig, ioDispatcher: CoroutineDispatcher): SocketChannel {
+            // A connect that finishes as the timeout fires or the caller is cancelled has its result discarded by
+            // the coroutine machinery, so the channel is recorded here and closed unless it is handed to the caller.
+            val connected = AtomicReference<SocketChannel?>(null)
+            var handedOver = false
+            try {
+                val channel = withTimeoutOrNull(config.connectTimeout) {
+                    runInterruptible(ioDispatcher) { connect(route, config).also { connected.set(it) } }
+                } ?: throw ProtocolClientException.ConnectTimeout(route, config.connectTimeout.inWholeMilliseconds)
+                handedOver = true
+                return channel
+            } finally {
+                if (!handedOver) {
+                    try {
+                        connected.getAndSet(null)?.close()
+                    } catch (_: IOException) {
+                        // The cancellation or timeout in flight must not be replaced by a failed close.
+                    }
+                }
+            }
+        }
 
         /** Resolves and connects; the socket timeout bounds the handshake, the caller's timeout also bounds name resolution. */
         private fun connect(route: HostRoute, config: ClientConfig): SocketChannel {
