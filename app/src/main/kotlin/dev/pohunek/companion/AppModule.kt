@@ -19,6 +19,7 @@ import dev.pohunek.companion.core.data.layout.LayoutRepository
 import dev.pohunek.companion.core.data.layout.LayoutStore
 import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.live.HostRegistry
+import dev.pohunek.companion.core.data.live.LastSessionsStore
 import dev.pohunek.companion.core.data.log.JsonLineLog
 import dev.pohunek.companion.core.data.log.LogMirror
 import dev.pohunek.companion.core.data.log.RotatingLogFile
@@ -45,6 +46,7 @@ val mainDispatcher = named("main")
 /** The hosts live in this file of the app's private files directory. */
 private const val HOSTS_FILE = "hosts.json"
 private const val LAYOUT_FILE = "layout.json"
+private const val LAST_SESSIONS_FILE = "last_sessions.json"
 
 /** The structured log lives in this directory and file of the app's private files directory. */
 private const val LOG_DIRECTORY = "logs"
@@ -79,8 +81,9 @@ val appModule = module {
     // One registry for the process: the session list and the hosts screen read the same loops.
     single {
         val runtime = get<RuntimeConfig>()
-        HostRegistry(HostLiveFactory({ runtime.current().client }, { runtime.current().live }, get(ioDispatcher), TimeSource.Monotonic, get()))
+        HostRegistry(HostLiveFactory({ runtime.current().client }, { runtime.current().live }, get(ioDispatcher), TimeSource.Monotonic, get()), get())
     }
+    single { LastSessionsStore(AtomicFile(File(get<Context>().filesDir, LAST_SESSIONS_FILE)), get(ioDispatcher), get()) }
     single { NetworkMonitor(get<Context>().getSystemService(ConnectivityManager::class.java), get(), get()) }
     // One discovery for the process: the hosts screen shows what the session list's foreground period found.
     single {

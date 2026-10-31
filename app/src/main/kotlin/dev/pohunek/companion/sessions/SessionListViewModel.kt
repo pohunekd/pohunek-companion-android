@@ -600,7 +600,7 @@ private fun listed(
     val sectionTitleMaxChars = limits.sectionTitleMaxChars
     val unreachableGrace = limits.unreachableGrace
     val hostList = (configured as? HostsState.Loaded)?.hosts.orEmpty()
-    val entries = hostList.map { host -> HostSessions(host, feeds[host.route].link(unreachableGrace), feeds[host.route]?.sessions.orEmpty()) }
+    val entries = hostList.map { host -> HostSessions(host, feeds[host.route].link(unreachableGrace), feeds[host.route]?.shown.orEmpty()) }
     val listing = partitionNeedsYou(entries)
     // A host in its grace period has no status line yet.
     val statuses = entries.mapNotNull { entry ->
@@ -664,9 +664,9 @@ private fun SessionListState.filtered(): SessionListState {
     )
 }
 
-/** True until a list can be shown: no host has sent one, or the lists sent are empty while a host's first one is still expected. */
+/** True until a list can be shown: no host has a list (sent or stored), or the lists are empty while a host's first one is still expected. */
 private fun awaitsList(hostList: List<ConfiguredHost>, feeds: Map<HostRoute, HostFeed>, empty: Boolean): Boolean {
-    val received = hostList.any { feeds[it.route]?.sessions != null }
+    val received = hostList.any { feeds[it.route]?.shown != null }
     // A host that has neither sent a list nor failed is still expected to send one.
     val expecting = hostList.any { feeds[it.route]?.let { feed -> feed.sessions == null && feed.connection.expectsList() } ?: true }
     return !received || (empty && expecting)
