@@ -224,7 +224,13 @@ class PohunekConnection private constructor(
                 handedOver = true
                 return channel
             } finally {
-                if (!handedOver) connected.getAndSet(null)?.close()
+                if (!handedOver) {
+                    try {
+                        connected.getAndSet(null)?.close()
+                    } catch (_: IOException) {
+                        // The cancellation or timeout in flight must not be replaced by a failed close.
+                    }
+                }
             }
         }
 
