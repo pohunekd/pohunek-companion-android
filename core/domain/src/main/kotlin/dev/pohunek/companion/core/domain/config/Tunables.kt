@@ -38,6 +38,8 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long =
     NOTIFICATION_PAGE_SIZE(1, TunableUnit.Count),
     NEW_SESSION_COLS(1, TunableUnit.Count, MAX_TERMINAL_SIDE),
     NEW_SESSION_ROWS(1, TunableUnit.Count, MAX_TERMINAL_SIDE),
+    WHEEL_MIN_INTERVAL_MS(1, TunableUnit.Milliseconds),
+    WHEEL_BACKLOG_ROWS(1, TunableUnit.Count),
     GROUP_NAME_MAX_BYTES(1, TunableUnit.Bytes, MAX_GROUP_NAME_BYTES),
     LOG_MAX_BYTES(MIN_LOG_MAX_BYTES, TunableUnit.Bytes),
     ;

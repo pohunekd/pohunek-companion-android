@@ -1,6 +1,7 @@
 package dev.pohunek.companion.debug
 
 import dev.pohunek.companion.terminal.TerminalController
+import dev.pohunek.companion.terminal.TerminalSettings
 import dev.pohunek.companion.terminal.TerminalSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -10,7 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** Tunables of the demo, read from resources by the activity. */
-internal data class TerminalDemoConfig(val redrawFrames: Int, val frameDelayMs: Long)
+internal data class TerminalDemoConfig(val redrawFrames: Int, val frameDelayMs: Long, val terminal: TerminalSettings)
 
 /**
  * Daemon-free driver of a [TerminalController]: scripted ANSI output plus a local echo of the user's input.

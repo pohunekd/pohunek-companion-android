@@ -18,7 +18,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 fun TerminalView(controller: TerminalController, testTag: String, modifier: Modifier = Modifier) {
     val imeVisible = WindowInsets.isImeVisible
     AndroidView(
-        factory = { context -> TerminalHostView(context).also { controller.attach(it.terminal) } },
+        factory = { context -> TerminalHostView(context, controller.settings).also { controller.attach(it.terminal) } },
         modifier = modifier.imePadding(),
         update = {
             it.setAccessoryBarVisible(imeVisible)

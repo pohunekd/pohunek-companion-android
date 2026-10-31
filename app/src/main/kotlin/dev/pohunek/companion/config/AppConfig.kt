@@ -9,6 +9,7 @@ import dev.pohunek.companion.core.domain.config.Tunable
 import dev.pohunek.companion.protocol.AttachPolicy
 import dev.pohunek.companion.protocol.ClientConfig
 import dev.pohunek.companion.protocol.LivenessPolicy
+import dev.pohunek.companion.terminal.TerminalSettings
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -43,6 +44,7 @@ class AppConfig private constructor(
     val live: LiveConfig,
     val discovery: DiscoveryConfig,
     val logMaxBytes: Long,
+    val terminal: TerminalSettings,
     val display: DisplayLimits,
 ) {
     companion object {
@@ -97,6 +99,10 @@ class AppConfig private constructor(
                     timeout = value(Tunable.DISCOVER_TIMEOUT_SECS).seconds,
                 ),
                 value(Tunable.LOG_MAX_BYTES),
+                TerminalSettings(
+                    wheelMinInterval = value(Tunable.WHEEL_MIN_INTERVAL_MS).milliseconds,
+                    wheelBacklogRows = value(Tunable.WHEEL_BACKLOG_ROWS).toInt(),
+                ),
                 DisplayLimits(
                     value(Tunable.ROW_BADGE_MAX_CHARS).toInt(),
                     value(Tunable.SECTION_TITLE_MAX_CHARS).toInt(),

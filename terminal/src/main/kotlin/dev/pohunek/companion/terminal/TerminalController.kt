@@ -18,7 +18,7 @@ data class TerminalSize(val cols: Int, val rows: Int)
  * A controller is bound to the view that [TerminalView] creates for it; [write] is valid only while a view
  * is attached and only on the main thread, because the emulator state lives in that view.
  */
-class TerminalController {
+class TerminalController(internal val settings: TerminalSettings) {
     private val inputChannel = Channel<ByteArray>(Channel.UNLIMITED)
     private val sizeState = MutableStateFlow<TerminalSize?>(null)
     private var terminal: GhosttyTerminalView? = null

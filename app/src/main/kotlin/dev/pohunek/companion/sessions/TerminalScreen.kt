@@ -73,7 +73,7 @@ private class TerminalSession(val controller: TerminalController, val attachment
 @Composable
 private fun BoxScope.AttachedTerminal(config: AppConfig, route: HostRoute, sessionId: String, onBack: () -> Unit) {
     val session = remember(route, sessionId) {
-        val controller = TerminalController()
+        val controller = TerminalController(config.terminal)
         val koin = KoinPlatform.getKoin()
         val attachment = TerminalAttachment(
             route, sessionId, controller, config.attachSettings, TimeSource.Monotonic,

@@ -93,6 +93,12 @@
     <integer name="new_session_rows">24</integer>
     <string name="new_session_rows_help">The terminal height in rows that a new session starts with; the terminal view resizes it when you open the session.</string>
 
+    <integer name="wheel_min_interval_ms">16</integer>
+    <string name="wheel_min_interval_ms_help">The shortest time between two scroll steps sent to a program that reads the mouse wheel or arrow keys, such as Claude Code. The steps leave evenly spaced, so the program sees a steady wheel on any display rate. Applies to the next terminal you open.</string>
+
+    <integer name="wheel_backlog_rows">12</integer>
+    <string name="wheel_backlog_rows_help">How many rows of finger travel may wait for the spacing of scroll steps before the excess is dropped, so a program does not keep scrolling after the finger stopped. Applies to the next terminal you open.</string>
+
     <integer name="group_name_max_bytes">64</integer>
     <string name="group_name_max_bytes_help">The longest group name in UTF-8 bytes. A name from another client that is longer, or that holds a control character, is ignored and the session shows in Inbox. The daemon accepts at most 4096.</string>
 

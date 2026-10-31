@@ -1,6 +1,7 @@
 package dev.pohunek.companion.terminal
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScrollAccumulatorTest {
@@ -17,22 +18,37 @@ class ScrollAccumulatorTest {
         assertEquals(15f, down.pending, 0f)
     }
 
+    private val interval = 16_000_000L
+
     @Test
-    fun reportRowsKeepTheRemainderAndNetOutReversals() {
+    fun reportStepsKeepTheRemainderAndNetOutReversals() {
         val acc = ScrollAccumulator()
         acc.add(100f)
-        assertEquals(2, acc.takeReportRows(cell, maxRows = 5, maxBacklogRows = 10))
+        assertEquals(1, acc.takeReportStep(cell, 0, interval, maxBacklogRows = 10))
         acc.add(-30f)
-        assertEquals(0, acc.takeReportRows(cell, maxRows = 5, maxBacklogRows = 10))
-        assertEquals(-10f, acc.pending, 0f)
+        assertEquals(0, acc.takeReportStep(cell, interval, interval, maxBacklogRows = 10))
+        assertEquals(30f, acc.pending, 0f)
     }
 
     @Test
-    fun reportRowsAreRateLimitedAndTheBacklogIsBounded() {
-        val acc = ScrollAccumulator()
-        acc.add(-4000f)
-        assertEquals(-3, acc.takeReportRows(cell, maxRows = 3, maxBacklogRows = 10))
-        assertEquals(-280f, acc.pending, 0f)
+    fun reportStepsAreNeverCloserThanTheIntervalAndLoseNoTravel() {
+        val acc = ScrollAccumulator().apply { add(-4 * cell.toFloat()) }
+        val sent = mutableListOf<Long>()
+        var now = 0L
+        while (acc.hasReportRow(cell)) {
+            if (acc.takeReportStep(cell, now, interval, maxBacklogRows = 10) != 0) sent += now
+            now += 4_000_000L
+        }
+        assertEquals(4, sent.size)
+        assertTrue(sent.zipWithNext().all { (a, b) -> b - a >= interval })
+        assertEquals(0f, acc.pending, 0f)
+    }
+
+    @Test
+    fun theBacklogIsBoundedAndTheExcessDropped() {
+        val acc = ScrollAccumulator().apply { add(4000f) }
+        assertEquals(1, acc.takeReportStep(cell, 0, interval, maxBacklogRows = 3))
+        assertEquals(2 * cell.toFloat(), acc.pending, 0f)
     }
 
     @Test
