@@ -152,7 +152,9 @@ scripts/ui-agent pohunek ARGS...
   `localhost:PORT`; the log's `discovery.peers` line carries the counts of followed, left and incompatible peers. The form shows `HostForm.error`
   for a refused route or a duplicate route; `HostForm.cancel` (when a host exists) and `HostForm.clear`
   (remove the host being edited; removing the last host reopens the empty form) appear. A route is listed
-  once: for the same daemon twice use `localhost:PORT` next to `127.0.0.1:PORT`. The list shows
+  once: for the same daemon twice use `localhost:PORT` next to `127.0.0.1:PORT`. The top bar title is the view button
+  `SessionList.viewMenu` (it reads the current view's name); a tap opens a menu with the items `SessionList.view.my-groups`,
+  `.by-state`, `.by-project` and `.by-work-item`, the current one checked. The list shows
   `SessionList.row` nodes from every host (the row text is the title, then `<owner state> · <agent>`, then
   the runtime detail of a conflict or incompatible runtime, then `host unreachable` when its host is down)
   with the host's label, else its route, in `SessionList.host`, and follows the daemons without a tap

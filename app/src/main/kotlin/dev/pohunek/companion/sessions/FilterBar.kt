@@ -153,7 +153,7 @@ internal fun SearchField(query: String, onEvent: (SessionListEvent) -> Unit, mod
     )
 }
 
-/** The logo and the title, or the search field while it is open; the overflow menu carries Refresh, Hosts and Settings. */
+/** The logo and the view menu, or the search field while it is open; the overflow menu carries Refresh, Hosts and Settings. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SessionListTopBar(
@@ -175,6 +175,8 @@ internal fun SessionListTopBar(
         title = {
             if (search != null) {
                 SearchField(search, onEvent, Modifier.fillMaxWidth())
+            } else if (listShown) {
+                ViewTitle(state.view, onEvent)
             } else {
                 Text(stringResource(R.string.app_name), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
