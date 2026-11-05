@@ -2,6 +2,8 @@
 // Repository: https://github.com/pohunekd/pohunek-companion, MIT, Copyright (c) 2026 pohunekd. See THIRD_PARTY_NOTICES.md.
 package dev.pohunek.companion.core.domain.layout
 
+import dev.pohunek.companion.core.domain.sessions.OwnerState
+
 /** Which project a view is narrowed to. */
 sealed interface ProjectSelection {
     /** Every session. */
@@ -43,6 +45,31 @@ fun projectChips(projects: Collection<String?>, selected: ProjectSelection): Lis
         chips += ProjectChip(ProjectSelection.NoProject, null, selected == ProjectSelection.NoProject)
     }
     return chips
+}
+
+/** One row of the project picker; [label] is null for All projects and No project, whose texts the view owns. */
+data class ProjectPickerRow(
+    val selection: ProjectSelection,
+    val label: String?,
+    /** Sessions of the project after the state, host and search filters. */
+    val count: Int,
+    /** Whether one of those sessions needs the owner. */
+    val needsYou: Boolean,
+    val selected: Boolean,
+)
+
+/**
+ * The picker rows: All projects, then the labels of [chips] in their order, then No project when [chips] has it. [narrowed] are the
+ * sessions that pass the state, host and search filters. [pickerQuery] narrows the label rows by the session search's match; the
+ * selected row, All projects and No project stay whatever it says.
+ */
+fun projectPickerRows(chips: List<ProjectChip>, narrowed: List<FilterFacts>, pickerQuery: String): List<ProjectPickerRow> {
+    val query = SessionFilter(pickerQuery, StateSelection(OwnerState.entries.toSet()))
+    return chips.mapNotNull { chip ->
+        val inProject = narrowed.filter { chip.selection.admits(it.project) }
+        val row = ProjectPickerRow(chip.selection, chip.label, inProject.size, inProject.any { it.ownerState == OwnerState.NeedsOwner }, chip.selected)
+        row.takeIf { chip.label == null || chip.selected || query.matches(FilterFacts(OwnerState.Working, listOf(chip.label), emptyList(), null, "")) }
+    }
 }
 
 /** Whether a followed host answers. */

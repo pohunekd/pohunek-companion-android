@@ -98,12 +98,18 @@ class SessionFilter(
 
     fun matches(facts: FilterFacts): Boolean = facts.ownerState in states && matchesIgnoringState(facts)
 
+    /** The [all] rows that pass the state selection, host and query, whatever their project: what the project picker counts. */
+    fun narrowedIgnoringProject(all: List<FilterFacts>): List<FilterFacts> =
+        all.filter { it.ownerState in states && admitsHost(it.host) && matchesQuery(it) }
+
     /** How many of [all] each owner state has once the project, host and query have narrowed them; the state selection is ignored. */
     fun countByState(all: List<FilterFacts>): Map<OwnerState, Int> =
         all.filter(::matchesIgnoringState).groupingBy { it.ownerState }.eachCount()
 
-    private fun matchesIgnoringState(facts: FilterFacts): Boolean {
-        if (!project.admits(facts.project) || !admitsHost(facts.host)) return false
+    private fun matchesIgnoringState(facts: FilterFacts): Boolean =
+        project.admits(facts.project) && admitsHost(facts.host) && matchesQuery(facts)
+
+    private fun matchesQuery(facts: FilterFacts): Boolean {
         if (tokens.isEmpty()) return true
         val texts = facts.texts.map(::codePoints)
         val identifiers = facts.identifiers.map(::codePoints)

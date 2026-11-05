@@ -133,7 +133,6 @@ private fun SessionListContent(
                 state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
                 state.groupNote?.let { GroupNoteBanner(it) { onEvent(SessionListEvent.DismissGroupNote) } }
                 HostStatusLines(state.statuses, onOpenHosts)
-                if (state.projectChips.size > 1) ProjectChips(state.projectChips, onEvent)
                 if (state.hostOptions.isNotEmpty()) HostChips(state.hostOptions, onEvent)
                 SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())
                 RowWindows(state, onEvent)

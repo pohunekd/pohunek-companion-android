@@ -133,6 +133,8 @@ data class SessionListState(
     val stateChips: List<OwnerState> = emptyList(),
     /** Sessions per state once the project, host and search have narrowed them; the state selection is ignored. */
     val stateCounts: Map<OwnerState, Int> = emptyMap(),
+    /** The sessions that pass the state, host and search filters whatever their project: what the project picker counts. */
+    val projectPool: List<FilterFacts> = emptyList(),
     /** Whether the shown view's states, project or host differ from its default. */
     val filtersChanged: Boolean = false,
     val states: StateSelection = StateSelection.DEFAULT,
