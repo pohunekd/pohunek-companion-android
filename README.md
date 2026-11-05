@@ -75,6 +75,26 @@ the app and [docs/architecture.md](docs/architecture.md) how it works.
   </tr>
 </table>
 
+## Claude Code without torn rows
+
+Claude Code can repaint a frame in pieces, and the terminal then shows the top
+half of the new frame above the bottom half of the old one for a moment. The
+app honors synchronized output (DEC 2026) and draws no torn rows when Claude
+Code uses it. Claude Code uses it only when a terminal answers its startup
+query, and a session started with no client attached gets no answer. To make
+it use synchronized output in every session, set
+`CLAUDE_CODE_FORCE_SYNC_OUTPUT=1` under `[env]` of the Claude agent profiles in
+`~/.config/pohunek/agents/*.toml` on the host:
+
+```toml
+[env]
+CLAUDE_CODE_FORCE_SYNC_OUTPUT = "1"
+```
+
+The variable is an undocumented Claude Code switch (found in 2.1.310) and may
+change. Terminals without DEC 2026 ignore it. The full explanation is in the
+[Pohunek docs](https://github.com/zajca/pohunek/blob/main/docs/knowledge/guides/claude-package.md#synchronized-output-for-torn-frames).
+
 The Android robot is reproduced or modified from work created and shared by
 Google and used according to terms described in the Creative Commons 3.0
 Attribution License.
