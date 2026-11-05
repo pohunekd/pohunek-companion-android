@@ -35,8 +35,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import dev.pohunek.companion.R
@@ -151,7 +149,6 @@ private fun SearchInput(query: String, onEvent: (SessionListEvent) -> Unit, onFo
                     onFocusChange(false)
                 }
             }
-            .semantics { contentDescription = label }
             .testTag("SessionList.search"),
     )
 }
