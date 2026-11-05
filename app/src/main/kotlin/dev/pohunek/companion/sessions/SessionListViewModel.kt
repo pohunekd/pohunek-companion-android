@@ -22,7 +22,9 @@ import dev.pohunek.companion.core.data.live.graceRemaining
 import dev.pohunek.companion.core.data.live.link
 import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
+import dev.pohunek.companion.core.domain.hosts.HostOutage
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
+import dev.pohunek.companion.core.domain.hosts.summarizeHostStatus
 import dev.pohunek.companion.core.domain.layout.Edit
 import dev.pohunek.companion.core.domain.layout.GROUP_METADATA_KEY
 import dev.pohunek.companion.core.domain.layout.GroupError
@@ -603,10 +605,13 @@ private fun listed(
     val entries = hostList.map { host -> HostSessions(host, feeds[host.route].link(unreachableGrace), feeds[host.route]?.shown.orEmpty()) }
     val listing = partitionNeedsYou(entries)
     // A host in its grace period has no status line yet.
-    val statuses = entries.mapNotNull { entry ->
-        (feeds[entry.host.route]?.connection as? HostConnection.Reconnecting)?.takeIf { entry.link == HostLink.Down }
-            ?.let { HostStatus(hostDisplayLabel(entry.host), it) }
-    }
+    val statuses = summarizeHostStatus(
+        entries.mapNotNull { entry ->
+            (feeds[entry.host.route]?.connection as? HostConnection.Reconnecting)?.takeIf { entry.link == HostLink.Down }
+                ?.let { HostOutage(hostDisplayLabel(entry.host), it.attempt, it.reason, it.code) }
+        },
+        followed = hostList.size,
+    )
     val awaiting = awaitsList(hostList, feeds, empty = listing.needsYou.isEmpty() && listing.others.isEmpty())
     val others = listing.others.map { it.toRow(badgeMaxChars, notShared) }
     val available = layout as? LayoutState.Available

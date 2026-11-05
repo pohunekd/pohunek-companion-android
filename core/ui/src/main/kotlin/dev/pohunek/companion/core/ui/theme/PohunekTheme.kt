@@ -91,6 +91,9 @@ object PohunekTheme {
     val progressSize: Dp = 18.dp
     val progressStroke: Dp = 2.dp
 
+    /** Smallest height of a row that is a single tap target. */
+    val minTouchTarget: Dp = 48.dp
+
     /** Opacity of content that may be out of date, such as session rows while the host is unreachable. */
     const val DIMMED_ALPHA: Float = 0.5f
 

@@ -1,7 +1,7 @@
 package dev.pohunek.companion.sessions
 
 import dev.pohunek.companion.core.data.layout.LayoutIssue
-import dev.pohunek.companion.core.data.live.HostConnection
+import dev.pohunek.companion.core.domain.hosts.HostStatusSummary
 import dev.pohunek.companion.core.domain.layout.FilterFacts
 import dev.pohunek.companion.core.domain.layout.Group
 import dev.pohunek.companion.core.domain.layout.GroupPlacement
@@ -91,9 +91,6 @@ data class RowRef(val route: HostRoute, val sessionId: String) {
 /** The details screen of one session; [details] is null once the session has left its host's list, [name] is then its last known name. */
 data class DetailsView(val ref: RowRef, val name: String, val details: SessionDetails?)
 
-/** A host whose connection is down, for the status lines above the list. */
-data class HostStatus(val hostLabel: String, val connection: HostConnection.Reconnecting)
-
 /**
  * The confirmation of a stop or remove, kept apart from the row so that it survives the session leaving the list. [action] turns from
  * [SessionAction.Remove] into [SessionAction.RemoveAnyway] when the daemon cannot confirm the runtime's processes ended; that consent
@@ -148,8 +145,8 @@ data class SessionListState(
     val noMatch: Boolean = false,
     /** Why the layout file is not, or not fully, saved; the list is shown regardless. */
     val layoutIssue: LayoutIssue? = null,
-    /** One entry per host that is not connected, in host order. */
-    val statuses: List<HostStatus> = emptyList(),
+    /** The hosts that are not connected, as the status lines above the list. */
+    val statuses: HostStatusSummary = HostStatusSummary(),
     /** True from a requested re-seed until every host finished it or failed. */
     val refreshing: Boolean = false,
     /** Why the last tapped session was not opened; shown until dismissed, refreshed, or another session opens. */
