@@ -111,7 +111,7 @@ private fun SessionListContent(
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = { NewSessionButton(listShown, onNewSession, Modifier.traversalGroup(FAB_ORDER)) },
         topBar = { SessionListTopBar(state, listShown, onEvent, onOpenHosts, onOpenSettings, Modifier.traversalGroup(TOP_BAR_ORDER)) },
-        bottomBar = { if (listShown) SessionFilterBar(state.query, onEvent, Modifier.traversalGroup(FILTER_BAR_ORDER)) },
+        bottomBar = { if (listShown) SessionFilterBar(state.query, onEvent, Modifier.traversalGroup(FILTER_BAR_ORDER)) { FilterBarChips(state, onEvent) } },
     ) { padding ->
         val body = Modifier.padding(padding).fillMaxSize().traversalGroup(LIST_ORDER)
         when {
@@ -133,7 +133,6 @@ private fun SessionListContent(
                 state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
                 state.groupNote?.let { GroupNoteBanner(it) { onEvent(SessionListEvent.DismissGroupNote) } }
                 HostStatusLines(state.statuses, onOpenHosts)
-                StateChips(state.stateChips, state.states, onEvent)
                 if (state.projectChips.size > 1) ProjectChips(state.projectChips, onEvent)
                 if (state.hostOptions.isNotEmpty()) HostChips(state.hostOptions, onEvent)
                 SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())

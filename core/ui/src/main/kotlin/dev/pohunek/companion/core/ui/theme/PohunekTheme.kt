@@ -74,6 +74,9 @@ object PohunekTheme {
     val filterBarMinHeight: Dp = 64.dp
     val filterBarSearchMinWidth: Dp = 112.dp
 
+    /** Least height of a check row in a filter sheet. */
+    val stateRowHeight: Dp = 56.dp
+
     /** Edge of the Pohunek logo at the left of the session list top bar. */
     val logoSize: Dp = 32.dp
 

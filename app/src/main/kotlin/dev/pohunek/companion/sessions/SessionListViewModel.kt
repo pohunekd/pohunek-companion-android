@@ -42,6 +42,7 @@ import dev.pohunek.companion.core.domain.layout.SessionFilter
 import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.WorkItem
 import dev.pohunek.companion.core.domain.layout.checkGroupName
+import dev.pohunek.companion.core.domain.layout.differsFromDefault
 import dev.pohunek.companion.core.domain.layout.groupFact
 import dev.pohunek.companion.core.domain.layout.groupStepDown
 import dev.pohunek.companion.core.domain.layout.groupStepUp
@@ -254,10 +255,8 @@ class SessionListViewModel(
     private fun onLayoutEvent(event: SessionListEvent.LayoutEvent) {
         when (event) {
             is SessionListEvent.SetSectionCollapsed -> viewModelScope.launch { layouts.setCollapsed(event.id, event.collapsed) }
-            is SessionListEvent.ToggleState -> viewModelScope.launch { layouts.toggleState(event.state) }
-            is SessionListEvent.TapProject -> viewModelScope.launch { layouts.tapProject(event.chip) }
-            is SessionListEvent.TapHost -> viewModelScope.launch { layouts.tapHost(event.key) }
             is SessionListEvent.SelectView -> viewModelScope.launch { layouts.selectView(event.view) }
+            is SessionListEvent.FilterEvent -> onFilterEvent(event)
             is SessionListEvent.GroupEvent -> onGroupEvent(event)
             is SessionListEvent.OpenMoveToGroup -> updateState { it.copy(actionSheet = null, movePicker = event.ref) }
             SessionListEvent.DismissMoveToGroup -> updateState { it.copy(movePicker = null) }
@@ -266,6 +265,17 @@ class SessionListViewModel(
             is SessionListEvent.DropGroup -> editing { editor.dropGroup(event.id, event.placement) }
             is SessionListEvent.StepSession -> stepSession(event.ref, event.direction)
             is SessionListEvent.StepGroup -> stepGroup(event.id, event.direction)
+        }
+    }
+
+    private fun onFilterEvent(event: SessionListEvent.FilterEvent) {
+        viewModelScope.launch {
+            when (event) {
+                is SessionListEvent.ToggleState -> layouts.toggleState(event.state)
+                SessionListEvent.ClearFilters -> layouts.clearFilters()
+                is SessionListEvent.TapProject -> layouts.tapProject(event.chip)
+                is SessionListEvent.TapHost -> layouts.tapHost(event.key)
+            }
         }
     }
 
@@ -630,6 +640,7 @@ private fun listed(
         rows = if (awaiting || available == null) null else others,
         view = view,
         states = available?.layout?.states(view) ?: StateSelection.DEFAULT,
+        filtersChanged = available?.layout?.filter(view)?.differsFromDefault == true,
         stateChips = stateChips((listing.needsYou + listing.others).mapTo(HashSet()) { it.session.ownerState }),
         project = project,
         projectChips = projectChips((listing.needsYou + listing.others).map { sessionProjectLabel(it.session.info) }, project),
@@ -655,6 +666,7 @@ private fun SessionListState.filtered(): SessionListState {
     val sections = filter.filterSections(groups, SessionRow::filterFacts)
     val listed = needsYou.isNotEmpty() || rows.orEmpty().isNotEmpty()
     return copy(
+        stateCounts = filter.countByState((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         shownNeedsYou = needs,
         shownGroups = sections,
         noMatch = filter.isActive && listed && needs.isEmpty() && sections.all { it.rows.isEmpty() },
