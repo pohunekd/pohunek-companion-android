@@ -46,26 +46,6 @@ import dev.pohunek.companion.core.domain.layout.filterKey
 import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** The chip row that narrows the list to one project; a tap on the selected chip clears it. */
-@Composable
-internal fun ProjectChips(chips: List<ProjectChip>, onEvent: (SessionListEvent) -> Unit) {
-    ChipRow {
-        for (chip in chips) {
-            val (tag, text) = when (chip.selection) {
-                ProjectSelection.All -> "SessionList.projectAll" to stringResource(R.string.project_chip_all)
-                ProjectSelection.NoProject -> "SessionList.projectNone" to stringResource(R.string.project_chip_none)
-                is ProjectSelection.Project -> "SessionList.project" to chip.label.orEmpty()
-            }
-            FilterChip(
-                selected = chip.selected,
-                onClick = { onEvent(SessionListEvent.TapProject(chip.selection)) },
-                label = { ChipText(text) },
-                modifier = Modifier.testTag(tag),
-            )
-        }
-    }
-}
-
 /** The chip row that narrows the list to one host: All hosts, then each host with its connection. */
 @Composable
 internal fun HostChips(options: List<HostOption>, onEvent: (SessionListEvent) -> Unit) {

@@ -235,4 +235,39 @@ class SessionFilterTest {
         )
         assertEquals(mapOf(OwnerState.Working to 1), filter(query = "b").countByState(all))
     }
+
+    private fun pickerFacts() = listOf(
+        row("1", "a", OwnerState.Working, project = "alpha"),
+        row("2", "b", OwnerState.NeedsOwner, project = "alpha"),
+        row("3", "c", OwnerState.Working, project = "beta"),
+        row("4", "d", OwnerState.Working),
+    ).map { facts.getValue(it) }
+
+    private fun pickerRows(selected: ProjectSelection, pickerQuery: String = "", narrowed: List<FilterFacts> = pickerFacts()) =
+        projectPickerRows(projectChips(pickerFacts().map { it.project }, selected), narrowed, pickerQuery)
+
+    @Test
+    fun `picker rows carry counts and the needs-you mark`() {
+        val rows = pickerRows(ProjectSelection.All)
+        assertEquals(listOf(null, "alpha", "beta", null), rows.map { it.label })
+        assertEquals(listOf(4, 2, 1, 1), rows.map { it.count })
+        assertEquals(listOf(true, true, false, false), rows.map { it.needsYou })
+        assertTrue(rows.first().selected)
+    }
+
+    @Test
+    fun `picker counts follow the narrowed sessions and a gone selection keeps a zero row`() {
+        val narrowed = filter(states = StateSelection(setOf(OwnerState.NeedsOwner))).narrowedIgnoringProject(pickerFacts())
+        assertEquals(listOf(1, 1, 0, 0), pickerRows(ProjectSelection.All, narrowed = narrowed).map { it.count })
+        val gone = projectPickerRows(projectChips(emptyList(), ProjectSelection.Project("old")), emptyList(), "")
+        assertEquals(listOf(null, "old"), gone.map { it.label })
+        assertEquals(listOf(0, 0), gone.map { it.count })
+        assertTrue(gone.last().selected)
+    }
+
+    @Test
+    fun `the picker query narrows labels but keeps All No project and the selected row`() {
+        assertEquals(listOf(null, "beta", null), pickerRows(ProjectSelection.All, "bt").map { it.label })
+        assertEquals(listOf(null, "alpha", null), pickerRows(ProjectSelection.Project("alpha"), "zzz").map { it.label })
+    }
 }

@@ -42,6 +42,7 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 internal fun FilterBarChips(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.sm)) {
         StateFilter(state, onEvent)
+        ProjectFilter(state, onEvent)
         if (state.filtersChanged) {
             IconButton(onClick = { onEvent(SessionListEvent.ClearFilters) }, modifier = Modifier.testTag("SessionList.clearFilters")) {
                 Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.filters_clear))
