@@ -79,10 +79,11 @@ the app and [docs/architecture.md](docs/architecture.md) how it works.
 
 When Claude Code redraws its screen, a frame can reach the app in pieces, and
 the terminal then shows the top half of the new frame above the bottom half of
-the old one for a moment. Claude Code avoids this by wrapping each frame in
-synchronized output (DEC 2026), which the app honors. To make sure it does so
-in every session, set `CLAUDE_CODE_FORCE_SYNC_OUTPUT=1` under `[env]` of the
-Claude agent profiles in `~/.config/pohunek/agents/*.toml` on the host:
+the old one for a moment. When Claude Code knows the terminal supports
+synchronized output (DEC 2026), it wraps each frame in it, and the app honors
+that. To make it do so even in sessions started with no client attached, set
+`CLAUDE_CODE_FORCE_SYNC_OUTPUT=1` under `[env]` of the Claude agent profiles in
+`~/.config/pohunek/agents/*.toml` on the host:
 
 ```toml
 [env]
@@ -90,19 +91,21 @@ CLAUDE_CODE_FORCE_SYNC_OUTPUT = "1"
 ```
 
 Why it is needed: Claude Code turns synchronized output on only when a terminal
-answers its startup query. The daemon answers no terminal queries; only an
-attached client does. A session started while no client is attached (a new
-session from the session list, the CLI, a resume) gets no answer, so Claude
-Code repaints without synchronization for its whole life, even after the phone
-attaches. The variable skips the query.
+answers its startup query. The Pohunek daemon answers no terminal queries; only
+an attached client does. A session started while no client is attached (for
+example from the CLI or a resume) typically gets no answer, so Claude Code
+repaints without synchronization for its whole life, even after the phone
+attaches. The variable turns synchronized output on without waiting for an
+answer.
 
 Notes:
 
-- `CLAUDE_CODE_FORCE_SYNC_OUTPUT` is an undocumented Claude Code switch,
-  observed in 2.1.310. It may change or disappear in a later release.
-- A terminal without DEC 2026 support ignores the sequences, so the setting
-  does no harm there.
-- It takes effect for sessions started after the change.
+- `CLAUDE_CODE_FORCE_SYNC_OUTPUT` is an undocumented Claude Code switch, found
+  in Claude Code 2.1.310. It may change or disappear in a later release.
+- It has no effect when Claude Code runs inside tmux.
+- A terminal without DEC 2026 support ignores the sequences.
+- It is an environment variable read when Claude Code starts; running sessions
+  are not affected.
 
 The Android robot is reproduced or modified from work created and shared by
 Google and used according to terms described in the Creative Commons 3.0
