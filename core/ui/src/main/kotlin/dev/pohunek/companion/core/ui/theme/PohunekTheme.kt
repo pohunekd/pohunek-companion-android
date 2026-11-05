@@ -70,6 +70,9 @@ object PohunekTheme {
     /** Space below a scrolling list so that its last item can be scrolled clear of the floating action button. */
     val fabClearance: Dp = 88.dp
 
+    /** Edge of the Pohunek logo at the left of the session list top bar. */
+    val logoSize: Dp = 32.dp
+
     /** Diameter of the owner state dot on a row. */
     val stateDotSize: Dp = 10.dp
 
