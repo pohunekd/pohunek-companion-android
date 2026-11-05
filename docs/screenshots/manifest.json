@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "appTree": "3a391848e0b30976d54372ef1ed898cbddfbeba0",
+  "appTree": "59d072324d7539623e5c79afdc5de0e8032c28e5",
   "device": "720x1600x320",
   "shots": [
     {
@@ -10,7 +10,7 @@
       "alt": "Pohunek Companion session list in the dark theme: a Needs you section with two blocked agent sessions above the working and idle sessions.",
       "width": 720,
       "height": 1600,
-      "sha256": "b6e0ff6f4db6ae9d6f597b5a61f5007ba0998a0d9c2aadd60ac052586cd91b7c"
+      "sha256": "8d0877c378e74bf73151f059e2b9253530bf9f2fd815b5ad428376f6b09fcc35"
     },
     {
       "id": "by-state",
@@ -19,7 +19,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the By state view selected: sessions in Needs you, Working and Idle sections.",
       "width": 720,
       "height": 1600,
-      "sha256": "d0fca074eda08b9c6d9588465a1ea1db70a7b5c45a6c68f46105c9c6a0976d15"
+      "sha256": "49cecbf8cb9a3755da7bf1bdea3dfd5f966d3ae688c0a0015e5bcf6ebe5a745c"
     },
     {
       "id": "filters",
@@ -28,7 +28,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the Ended state chip on and one project selected, showing only that project's sessions.",
       "width": 720,
       "height": 1600,
-      "sha256": "ffa3aeb30e59da10c08f7e980a742358445393a4407b2f1e01e1bb1a2991d5e7"
+      "sha256": "81144c62d5042b34911f70a7d195061377aa0a4177e25cccd283b9b70a2851f2"
     },
     {
       "id": "groups",
@@ -37,7 +37,7 @@
       "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then the Dependencies group open with its session and the Docs and Tooling groups collapsed to a header with a count.",
       "width": 720,
       "height": 1600,
-      "sha256": "609ddfc0b2daa5aa3d57fcf34a15435c6d1211c3835c7b6b0846405e18343aae"
+      "sha256": "cea1023fe2ef030ca7b9fa083fd4673f200dcdde878a2bc3eba364e37735c860"
     },
     {
       "id": "row-actions",
@@ -46,7 +46,7 @@
       "alt": "Pohunek Companion action sheet for one session in the dark theme, listing Open terminal, Details, Rename, New session here, Move to group, Open link, Stop and Remove.",
       "width": 720,
       "height": 1600,
-      "sha256": "055e3a2ffbd150836b1e44855a687de6e9637c2ea9868cc0914dc22b3adaf5bf"
+      "sha256": "3a24340c4b97974e9a8f44d7be98cb0b1f60227dbd1ce2d79abc451db95f36d6"
     },
     {
       "id": "session-details",
@@ -55,7 +55,7 @@
       "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button.",
       "width": 720,
       "height": 1600,
-      "sha256": "3e002107dc5e23291a4161a2e8e2c3a8c914b901d0cd8e018ba3af9da408e775"
+      "sha256": "e1b600f118197f6b06c2c1b50793ff1a0ac6b701926f73edc1a02f2e04066560"
     },
     {
       "id": "new-session",
@@ -73,7 +73,7 @@
       "alt": "Pohunek Companion Hosts screen in the dark theme: one host with its address and a Connected status, and an Add a host button.",
       "width": 720,
       "height": 1600,
-      "sha256": "02987f9197ecf6f6ea9f09c703528026ac30e016d427a16773c973ae0934541f"
+      "sha256": "036a778304304967a51ce5d3f02ed9edabdccf90ce5809008bc21e6614b2df61"
     },
     {
       "id": "settings",
