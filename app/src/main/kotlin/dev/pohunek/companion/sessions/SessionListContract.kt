@@ -135,6 +135,8 @@ data class SessionListState(
     val stateCounts: Map<OwnerState, Int> = emptyMap(),
     /** The sessions that pass the state, host and search filters whatever their project: what the project picker counts. */
     val projectPool: List<FilterFacts> = emptyList(),
+    /** The sessions that pass the state, project and search filters whatever their host: what the host sheet counts. */
+    val hostPool: List<FilterFacts> = emptyList(),
     /** Whether the shown view's states, project or host differ from its default. */
     val filtersChanged: Boolean = false,
     val states: StateSelection = StateSelection.DEFAULT,

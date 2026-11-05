@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -62,18 +61,11 @@ internal fun ProjectFilter(state: SessionListState, onEvent: (SessionListEvent) 
     } else {
         stringResource(R.string.project_filter_selected_description, value)
     }
-    FilterChip(
+    BarChip(
         selected = value != null,
         onClick = { open = true },
-        label = {
-            Text(
-                value ?: stringResource(R.string.project_filter),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = PohunekTheme.filterChipMaxWidth),
-            )
-        },
-        trailingIcon = { Icon(painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null) },
+        label = value ?: stringResource(R.string.project_filter),
+        labelMaxWidth = if (value == null) null else PohunekTheme.filterBarProjectMaxWidth,
         modifier = Modifier.semantics { contentDescription = description }.testTag("SessionList.filter.project"),
     )
     if (open) {

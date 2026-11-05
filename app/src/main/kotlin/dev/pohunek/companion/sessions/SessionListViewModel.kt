@@ -668,6 +668,7 @@ private fun SessionListState.filtered(): SessionListState {
     return copy(
         stateCounts = filter.countByState((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         projectPool = filter.narrowedIgnoringProject((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
+        hostPool = filter.narrowedIgnoringHost((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         shownNeedsYou = needs,
         shownGroups = sections,
         noMatch = filter.isActive && listed && needs.isEmpty() && sections.all { it.rows.isEmpty() },

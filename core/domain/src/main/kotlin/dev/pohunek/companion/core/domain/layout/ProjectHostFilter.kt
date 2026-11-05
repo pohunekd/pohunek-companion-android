@@ -94,5 +94,14 @@ fun hostOptions(hosts: List<HostEntry>, selected: String?): List<HostOption> {
     return options
 }
 
+/** One row of the host sheet; [key] and [label] are null for All hosts, whose text the view owns, and [reach] is null for it too. */
+data class HostPickerRow(val key: String?, val label: String?, val reach: HostReach?, val count: Int, val selected: Boolean)
+
+/** The host sheet rows for [options]; [narrowed] are the sessions that pass the state, project and search filters, whatever their host. */
+fun hostPickerRows(options: List<HostOption>, narrowed: List<FilterFacts>): List<HostPickerRow> =
+    options.map { option ->
+        HostPickerRow(option.key, option.label, option.reach, narrowed.count { option.key == null || it.host == option.key }, option.selected)
+    }
+
 /** The host selected after a tap on [key] (null: All hosts): that host, or every host when it is already selected. */
 fun tappedHost(selected: String?, key: String?): String? = if (key == selected) null else key

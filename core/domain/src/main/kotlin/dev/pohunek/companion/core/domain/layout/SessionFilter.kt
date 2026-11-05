@@ -98,6 +98,10 @@ class SessionFilter(
 
     fun matches(facts: FilterFacts): Boolean = facts.ownerState in states && matchesIgnoringState(facts)
 
+    /** The [all] rows that pass the state selection, project and query, whatever their host: what the host sheet counts. */
+    fun narrowedIgnoringHost(all: List<FilterFacts>): List<FilterFacts> =
+        all.filter { it.ownerState in states && project.admits(it.project) && matchesQuery(it) }
+
     /** The [all] rows that pass the state selection, host and query, whatever their project: what the project picker counts. */
     fun narrowedIgnoringProject(all: List<FilterFacts>): List<FilterFacts> =
         all.filter { it.ownerState in states && admitsHost(it.host) && matchesQuery(it) }

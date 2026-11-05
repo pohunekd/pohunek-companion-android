@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import dev.pohunek.companion.R
@@ -130,7 +131,7 @@ private fun SearchInput(query: String, onEvent: (SessionListEvent) -> Unit, onFo
         onSearch = { keyboard?.hide() },
         expanded = false,
         onExpandedChange = {},
-        placeholder = { Text(label) },
+        placeholder = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingIcon = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onEvent(SessionListEvent.EditSearch("")) }, modifier = Modifier.testTag("SessionList.searchClear")) {

@@ -72,7 +72,17 @@ object PohunekTheme {
 
     /** Least height of the bottom filter bar, and the narrowest the search field gets before it collapses to an icon. */
     val filterBarMinHeight: Dp = 64.dp
-    val filterBarSearchMinWidth: Dp = 112.dp
+    val filterBarSearchMinWidth: Dp = 136.dp
+
+    /** The bar's chips: visual height, padding before the label, dropdown arrow size and the outline width of an unselected one. */
+    val filterBarChipHeight: Dp = 32.dp
+    val filterBarChipPadding: Dp = 12.dp
+    val filterBarChipIconSize: Dp = 24.dp
+    val chipBorderWidth: Dp = 1.dp
+
+    /** Widest the selected project and host labels on the bar's chips grow before they are cut. */
+    val filterBarProjectMaxWidth: Dp = 64.dp
+    val filterBarHostMaxWidth: Dp = 56.dp
 
     /** Least height of a check row in a filter sheet. */
     val stateRowHeight: Dp = 56.dp
@@ -93,9 +103,6 @@ object PohunekTheme {
 
     /** Widest a host chip on a session row grows before its label is cut. */
     val hostChipMaxWidth: Dp = 120.dp
-
-    /** Widest a project or host filter chip grows before its label is cut. */
-    val filterChipMaxWidth: Dp = 160.dp
 
     /** Diameter and stroke width of a progress indicator inside a button. */
     val progressSize: Dp = 18.dp

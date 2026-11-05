@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,9 +39,10 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 /** The bar's filter chips and its Clear button; a Clear that has nothing to reset is absent. */
 @Composable
 internal fun FilterBarChips(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.sm)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.xs)) {
         StateFilter(state, onEvent)
         ProjectFilter(state, onEvent)
+        HostFilter(state, onEvent)
         if (state.filtersChanged) {
             IconButton(onClick = { onEvent(SessionListEvent.ClearFilters) }, modifier = Modifier.testTag("SessionList.clearFilters")) {
                 Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.filters_clear))
@@ -57,11 +57,10 @@ private fun StateFilter(state: SessionListState, onEvent: (SessionListEvent) -> 
     var open by remember { mutableStateOf(false) }
     val count = state.states.selectedCountOrNull(state.stateChips)
     val description = stringResource(R.string.state_filter_description, state.stateChips.count { it in state.states })
-    FilterChip(
+    BarChip(
         selected = count != null,
         onClick = { open = true },
-        label = { Text(if (count == null) stringResource(R.string.state_filter) else stringResource(R.string.state_filter_count, count)) },
-        trailingIcon = { Icon(painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null) },
+        label = if (count == null) stringResource(R.string.state_filter) else stringResource(R.string.state_filter_count, count),
         modifier = Modifier.semantics { contentDescription = description }.testTag("SessionList.filter.state"),
     )
     if (open) StateSheet(state, onToggle = { onEvent(SessionListEvent.ToggleState(it)) }, onDismiss = { open = false })
