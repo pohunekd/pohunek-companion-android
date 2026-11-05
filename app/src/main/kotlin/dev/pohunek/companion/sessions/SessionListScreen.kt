@@ -2,6 +2,7 @@ package dev.pohunek.companion.sessions
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -37,10 +39,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
+import dev.pohunek.companion.core.domain.hosts.HostStatusSummary
 import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.protocol.HostRoute
@@ -125,7 +131,7 @@ private fun SessionListContent(
                 state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
                 state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
                 state.groupNote?.let { GroupNoteBanner(it) { onEvent(SessionListEvent.DismissGroupNote) } }
-                state.statuses.forEach { HostStatusLine(it) }
+                HostStatusLines(state.statuses, onOpenHosts)
                 ViewChips(state.view, onEvent)
                 StateChips(state.stateChips, state.states, onEvent)
                 if (state.projectChips.size > 1) ProjectChips(state.projectChips, onEvent)
@@ -172,7 +178,7 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
             contentPadding = PaddingValues(bottom = PohunekTheme.fabClearance),
         ) {
             when {
-                rows == null && state.statuses.isNotEmpty() -> item { Spacer(Modifier.fillParentMaxSize()) }
+                rows == null && !state.statuses.isEmpty -> item { Spacer(Modifier.fillParentMaxSize()) }
                 rows == null -> item {
                     Centered(Modifier.fillParentMaxSize()) { Message(stringResource(R.string.session_list_loading), "SessionList.loading") }
                 }
@@ -235,21 +241,35 @@ private fun SectionHeader(text: String, tag: String) {
     )
 }
 
+/** One tappable line for all reconnecting hosts, and a line of its own for each refusal. */
 @Composable
-private fun HostStatusLine(status: HostStatus) {
-    val connection = status.connection
-    val code = connection.code
-    val text = if (code != null) {
-        stringResource(R.string.host_status_refused, status.hostLabel, code, connection.reason)
-    } else {
-        stringResource(R.string.host_status_reconnecting, status.hostLabel, connection.attempt, connection.reason)
+private fun HostStatusLines(summary: HostStatusSummary, onOpenHosts: () -> Unit) {
+    summary.refused.forEach { outage ->
+        Text(
+            text = stringResource(R.string.host_status_refused, outage.hostLabel, outage.code.orEmpty(), outage.reason),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.fillMaxWidth().padding(PohunekTheme.spacing.gutter).testTag("SessionList.statusRefused"),
+        )
     }
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.error,
-        modifier = Modifier.fillMaxWidth().padding(PohunekTheme.spacing.gutter).testTag("SessionList.status"),
-    )
+    val first = summary.firstReconnecting ?: return
+    val count = summary.reconnecting.size
+    val text = if (count == 1) {
+        stringResource(R.string.host_status_reconnecting, first.hostLabel, first.attempt, first.reason)
+    } else {
+        stringResource(R.string.host_status_reconnecting_many, count, summary.followed, first.hostLabel, first.attempt, first.reason)
+    }
+    val label = stringResource(R.string.host_status_reconnecting_open_hosts, count, summary.followed)
+    Box(
+        modifier = Modifier.fillMaxWidth().heightIn(min = PohunekTheme.minTouchTarget)
+            .clickable(role = Role.Button, onClick = onOpenHosts)
+            .semantics { contentDescription = label }
+            .padding(horizontal = PohunekTheme.spacing.gutter)
+            .testTag("SessionList.status"),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 @Composable

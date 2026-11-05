@@ -173,10 +173,11 @@ scripts/ui-agent pohunek ARGS...
   be read (`app-file put layout.json` with broken JSON, then `restart`) shows `Layout.error` above the list, keeps the
   file byte for byte, and runs with an unsaved Inbox-only layout. A host that lost its connection (or restarted its loop with a list) looks connected for
   `unreachable_grace_ms`: rows undimmed, Needs you unchanged, no `SessionList.status`, a tap opens the terminal; a refusal with a code
-  is shown at once. After that grace the rows of a host that is not connected stay, dimmed, never count in Needs you, and a tap
-  opens nothing and shows `SessionList.refusal`; one `SessionList.status` line per such host names it, the
-  attempt and the reason (`<label>: Reconnecting (attempt N): reason`, `<label>: Connection refused (code):
-  reason` for a daemon refusal such as `version_mismatch`). Recovery can take up to the current backoff, so
+  is shown at once as its own `SessionList.statusRefused` line. After that grace the rows of a host that is not connected stay, dimmed, never count in Needs you, and a tap
+  opens nothing and shows `SessionList.refusal`; one `SessionList.status` line covers every reconnecting host: with one it reads
+  `<label>: Reconnecting (attempt N): reason`, with more `N of M hosts reconnecting · <first host>: attempt K (reason)`; a tap opens the Hosts screen
+  (`Hosts.status` holds each reason in full). A daemon refusal such as `version_mismatch` keeps its own `SessionList.statusRefused` line
+  (`<label>: Connection refused (code): reason`). Recovery can take up to the current backoff, so
   wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh and
   `SessionList.refresh` ask every host for a re-seed, `SessionList.empty` and `SessionList.loading` carry the
   other states, each row has `SessionList.rowWork` (project, Work badge and role) and, on a connected host, `SessionRow.more`, which opens the action sheet `RowSheet` (a long press does too, except on a row of My groups outside Needs you, where it lifts the row for a drag) (`RowSheet.title`, `RowSheet.openTerminal`, `RowSheet.details`, `RowSheet.rename` on a connected host's non-external session, `RowSheet.resume` on an ended session the daemon can resume (`RowSheet.resuming` while the request runs), `RowSheet.resumeRefusal` with the daemon's reason on an ended session it cannot, `RowSheet.openLink` when the session has an openable link, `RowSheet.stop` and `RowSheet.remove` per the desktop's offer rules, `RowSheet.moveUp` and `RowSheet.moveDown` for a row shown in a group of My groups (absent at the first or last shown row); the sheet is a separate window, so `tree` lists it only while it is open), `RowSheet.details` opens `SessionDetails.list` full screen (`SessionDetails.title`, `SessionDetails.back`,
