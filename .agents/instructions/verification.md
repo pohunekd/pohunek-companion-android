@@ -140,7 +140,7 @@ scripts/ui-agent pohunek ARGS...
 - **Session list.** `MainActivity` opens the Hosts screen with the host form on a fresh install (no host
   configured): tap `HostForm.route`, `type 127.0.0.1:PORT` (PORT from `status`), optionally tap
   `HostForm.label` and type a name, then `click HostForm.save`; saving the first host returns to the list.
-  `SessionList.hosts` (and `SessionList.addHost` on an empty list) opens the Hosts screen: `Hosts.row` per
+  `SessionList.overflow` (the top bar's More options menu: items `SessionList.refresh`, `SessionList.hosts`, `SessionList.settings`; tap the icon, then the item) and its item `SessionList.hosts` (and `SessionList.addHost` on an empty list) open the Hosts screen: `Hosts.row` per
   host (tap to edit), `Hosts.status` with its connection (Connected, Connecting, `Reconnecting (attempt N):
   reason`, `Connection refused (code): reason`), `Hosts.add`, `Hosts.back`. Below the configured hosts the screen shows `Hosts.discoveryError` (one line per configured host whose
   `host.discover` failed: the isolated daemon has no NetBird CLI, so it answers `netbird_cli_missing` and the app log has one
@@ -179,7 +179,7 @@ scripts/ui-agent pohunek ARGS...
   (`Hosts.status` holds each reason in full). A daemon refusal such as `version_mismatch` keeps its own `SessionList.statusRefused` line
   (`<label>: Connection refused (code): reason`). Recovery can take up to the current backoff, so
   wait up to `reconnect_max_ms` after `net-restore` or `host-start`. Pull-to-refresh and
-  `SessionList.refresh` ask every host for a re-seed, `SessionList.empty` and `SessionList.loading` carry the
+  the menu item `SessionList.refresh` ask every host for a re-seed, `SessionList.empty` and `SessionList.loading` carry the
   other states, each row has `SessionList.rowWork` (project, Work badge and role) and, on a connected host, `SessionRow.more`, which opens the action sheet `RowSheet` (a long press does too, except on a row of My groups outside Needs you, where it lifts the row for a drag) (`RowSheet.title`, `RowSheet.openTerminal`, `RowSheet.details`, `RowSheet.rename` on a connected host's non-external session, `RowSheet.resume` on an ended session the daemon can resume (`RowSheet.resuming` while the request runs), `RowSheet.resumeRefusal` with the daemon's reason on an ended session it cannot, `RowSheet.openLink` when the session has an openable link, `RowSheet.stop` and `RowSheet.remove` per the desktop's offer rules, `RowSheet.moveUp` and `RowSheet.moveDown` for a row shown in a group of My groups (absent at the first or last shown row); the sheet is a separate window, so `tree` lists it only while it is open), `RowSheet.details` opens `SessionDetails.list` full screen (`SessionDetails.title`, `SessionDetails.back`,
   `SessionDetails.copyAll`, and per field `SessionDetails.value.KEY` and `SessionDetails.copy.KEY`, KEY being `session_id`, `host`,
   `cwd`, `work_link`, ...; scroll with `swipe SessionDetails.list up`); it follows the daemon live and shows
@@ -198,7 +198,7 @@ scripts/ui-agent pohunek ARGS...
   `session.command` or `session.command_failed` with method `session.set_metadata`, group and session ids only, and `layout.json` shows the result, `ConfigError.message` replaces the app when a value in
   `app/src/main/res/values/config.xml` is invalid. `SessionList.state.KEY` chips (KEY is `needs-you`, `working`, `idle`, `ended`, and `runtime-problem` and `no-agent-state` while a session has
   that state; a tap toggles the state of the shown view, Ended is off by default, and `layout.json` keeps the selection under `filters`, nothing when it is the default),
-  `SessionList.openSearch` replacing the title by the field `SessionList.search` with `SessionList.searchClose` (type to narrow the list; the query is not stored;
+  `SessionList.openSearch` (the top bar's Search icon) replacing the title by the field `SessionList.search` with `SessionList.searchClose` (type to narrow the list; the query is not stored;
   `SessionList.noMatch` when nothing matches; the project chips `SessionList.projectAll`, `SessionList.project` per label (`click TAG N` counts from 0) and
   `SessionList.projectNone` (shown while some session has no project; a tap selects the project, a second tap clears it) and, with two or more hosts, the host chips
   `SessionList.hostFilterAll` and `SessionList.hostFilter` per host (text `<label> (connected)` or `(unreachable)`); both choices are stored per view under `filters`
@@ -213,7 +213,7 @@ scripts/ui-agent pohunek ARGS...
   `restart`. `ui-agent` has no way to clear a text field yet: delete characters
   with `podman exec pohunek-ui-agent-slot-N adb -s SERIAL shell input keyevent
   KEYCODE_DEL` (SERIAL from `status`).
-- **Settings.** `SessionList.settings` opens `Settings.list`: per tunable `Settings.key.KEY`, the field `Settings.value.KEY`
+- **Settings.** The overflow menu item `SessionList.settings` opens `Settings.list`: per tunable `Settings.key.KEY`, the field `Settings.value.KEY`
   (KEY is the `config.xml` key), `Settings.default.KEY` (or `Settings.error.KEY` with the refusal reason), `Settings.reset.KEY` when the
   text is not the default; `Settings.resetAll`, `Settings.save` (enabled when an entry differs from the value in force),
   `Settings.refusal` (nothing saved; one line per broken rule), `Settings.saved`, `Settings.storageError`, `Settings.about`, `Settings.back`.

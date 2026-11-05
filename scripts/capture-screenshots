@@ -243,10 +243,12 @@ shot_new_session() {
 
 after_new_session() {
   "$agent" click NewSession.back >/dev/null
-  wait_tag SessionList.hosts
+  wait_tag SessionList.overflow
 }
 
 shot_hosts() {
+  "$agent" click SessionList.overflow >/dev/null
+  wait_tag SessionList.hosts
   "$agent" click SessionList.hosts >/dev/null
   wait_tag Hosts.row
   wait_text "$connected_text"
@@ -255,17 +257,19 @@ shot_hosts() {
 
 after_hosts() {
   "$agent" click Hosts.back >/dev/null
-  wait_tag SessionList.settings
+  wait_tag SessionList.overflow
 }
 
 shot_settings() {
+  "$agent" click SessionList.overflow >/dev/null
+  wait_tag SessionList.settings
   "$agent" click SessionList.settings >/dev/null
   wait_tag Settings.list
 }
 
 after_settings() {
   "$agent" click Settings.back >/dev/null
-  wait_tag SessionList.settings
+  wait_tag SessionList.overflow
 }
 
 shot_function() { printf 'shot_%s' "${1//-/_}"; }
@@ -325,17 +329,17 @@ wait_tag HostForm.route
 "$agent" click HostForm.label >/dev/null
 "$agent" type "$host_label" >/dev/null
 "$agent" click HostForm.save >/dev/null
-wait_tag SessionList.settings
+wait_tag SessionList.overflow
 
 # The showcase's idle sessions show as Idle once they have been idle for the app's
 # idle_threshold_secs, which is minutes by default; the override makes them Idle now.
 printf '{"version":1,"overrides":{"idle_threshold_secs":%s}}' "$idle_threshold_secs" | "$agent" app-file put settings.json >/dev/null
 "$agent" restart >&2
-wait_tag SessionList.settings
+wait_tag SessionList.overflow
 
 "$agent" night on >&2
 "$agent" demo-mode on >&2
-wait_tag SessionList.settings
+wait_tag SessionList.overflow
 
 png_size() { # FILE -> WIDTHxHEIGHT from the PNG header
   od -An -tu1 -j16 -N8 "$1" | awk '{ printf "%d", $1*16777216 + $2*65536 + $3*256 + $4; printf "x%d", $5*16777216 + $6*65536 + $7*256 + $8 }'

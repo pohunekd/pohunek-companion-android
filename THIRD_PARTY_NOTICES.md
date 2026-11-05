@@ -203,3 +203,21 @@ packages. Re-take it when `ghostty_commit` changes.
   are captured from the isolated daemon of the same tag
   (`protocol/src/test/resources/captured/`, see its README); those are this
   project's own files.
+
+## Pohunek logo
+
+- Repository: https://github.com/pohunekd/pohunek-companion
+- File: `assets/pohunek-icon-master.svg` (derived from
+  `zajca/pohunek/assets/pohunek_icon_mark.png`)
+- License: MIT
+- Use: converted to the vector drawable `app/src/main/res/drawable/ic_pohunek_logo.xml`
+  (the two filled paths, the SVG's flip and scale expressed as a `group`), shown at the
+  left of the session list top bar.
+
+## Material Symbols
+
+- Source: https://fonts.google.com/icons (Material Symbols, Outlined, weight 400, 24 dp)
+- License: Apache-2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+- Use: the vector drawables `ic_search.xml`, `ic_more_vert.xml`, `ic_arrow_drop_down.xml`,
+  `ic_close.xml` and `ic_check.xml` in `app/src/main/res/drawable/`. The
+  `material-icons-extended` library is not a dependency.

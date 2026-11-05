@@ -20,7 +20,8 @@
     <string name="host_status_refused">%1$s: Connection refused (%2$s): %3$s</string>
     <string name="session_list_needs_you">Needs you</string>
     <string name="session_list_no_match">No sessions match</string>
-    <string name="session_list_search">Search</string>
+    <string name="session_list_search_action">Search sessions</string>
+    <string name="session_list_more">More options</string>
     <string name="search_placeholder">Search sessions</string>
     <string name="search_close">Close</string>
     <string name="state_chip_needs_you">Needs you</string>
