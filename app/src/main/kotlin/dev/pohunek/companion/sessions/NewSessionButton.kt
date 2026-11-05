@@ -10,9 +10,9 @@ import dev.pohunek.companion.R
 
 /** The button that opens the new session form; it is shown while the list is. */
 @Composable
-internal fun NewSessionButton(shown: Boolean, onClick: () -> Unit) {
+internal fun NewSessionButton(shown: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     if (shown) {
-        ExtendedFloatingActionButton(onClick = onClick, modifier = Modifier.testTag("SessionList.newSession")) {
+        ExtendedFloatingActionButton(onClick = onClick, modifier = modifier.testTag("SessionList.newSession")) {
             Text(stringResource(R.string.new_session_fab))
         }
     }

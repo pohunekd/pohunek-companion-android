@@ -109,10 +109,11 @@ private fun SessionListContent(
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = { NewSessionButton(listShown, onNewSession) },
-        topBar = { SessionListTopBar(state, listShown, onEvent, onOpenHosts, onOpenSettings) },
+        floatingActionButton = { NewSessionButton(listShown, onNewSession, Modifier.traversalGroup(FAB_ORDER)) },
+        topBar = { SessionListTopBar(state, listShown, onEvent, onOpenHosts, onOpenSettings, Modifier.traversalGroup(TOP_BAR_ORDER)) },
+        bottomBar = { if (listShown) SessionFilterBar(state.query, onEvent, Modifier.traversalGroup(FILTER_BAR_ORDER)) },
     ) { padding ->
-        val body = Modifier.padding(padding).fillMaxSize()
+        val body = Modifier.padding(padding).fillMaxSize().traversalGroup(LIST_ORDER)
         when {
             !state.hostsRead -> Centered(body) { CircularProgressIndicator() }
             state.storageError != null -> Centered(body) {
