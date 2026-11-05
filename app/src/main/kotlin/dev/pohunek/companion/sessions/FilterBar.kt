@@ -46,25 +46,6 @@ import dev.pohunek.companion.core.domain.layout.filterKey
 import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** The chip row that narrows the list by owner state; a chip toggles its state, and the row scrolls sideways when the labels do not fit. */
-@Composable
-internal fun StateChips(chips: List<OwnerState>, selection: StateSelection, onEvent: (SessionListEvent) -> Unit) {
-    val spacing = PohunekTheme.spacing
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = spacing.gutter),
-        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-    ) {
-        for (state in chips) {
-            FilterChip(
-                selected = state in selection,
-                onClick = { onEvent(SessionListEvent.ToggleState(state)) },
-                label = { Text(stringResource(state.chipLabelRes())) },
-                modifier = Modifier.testTag("SessionList.state.${state.filterKey}"),
-            )
-        }
-    }
-}
-
 /** The chip row that narrows the list to one project; a tap on the selected chip clears it. */
 @Composable
 internal fun ProjectChips(chips: List<ProjectChip>, onEvent: (SessionListEvent) -> Unit) {
@@ -119,16 +100,6 @@ private fun ChipRow(content: @Composable RowScope.() -> Unit) {
 @Composable
 private fun ChipText(text: String) {
     Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = PohunekTheme.filterChipMaxWidth))
-}
-
-@StringRes
-private fun OwnerState.chipLabelRes(): Int = when (this) {
-    OwnerState.NeedsOwner -> R.string.state_chip_needs_you
-    OwnerState.Working -> R.string.state_chip_working
-    OwnerState.Idle -> R.string.state_chip_idle
-    OwnerState.RuntimeProblem -> R.string.state_chip_problem
-    OwnerState.Ended -> R.string.state_chip_ended
-    OwnerState.NoAgentState -> R.string.state_chip_no_agent
 }
 
 /** The logo and the view menu; the overflow menu carries Refresh, Hosts and Settings. */

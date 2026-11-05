@@ -63,6 +63,13 @@ data class StoredFilter(
     val host: String? = null,
 )
 
+/**
+ * Whether the filter differs from the view's default: states other than the default selection, a project or a host. A stored state
+ * list that spells out the default selection is the default.
+ */
+val StoredFilter.differsFromDefault: Boolean
+    get() = StateSelection.fromStored(states) != StateSelection.DEFAULT || projectLabel != null || noProject || !host.isNullOrEmpty()
+
 /** One group with its rows in display order. */
 data class GroupSection<R>(val id: String, val name: String, val collapsed: Boolean, val rows: List<R>)
 

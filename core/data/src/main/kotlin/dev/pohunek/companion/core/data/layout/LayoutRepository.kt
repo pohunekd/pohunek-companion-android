@@ -14,6 +14,7 @@ import dev.pohunek.companion.core.domain.layout.MoveError
 import dev.pohunek.companion.core.domain.layout.Placement
 import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.RowFacts
+import dev.pohunek.companion.core.domain.layout.StoredFilter
 import dev.pohunek.companion.core.domain.layout.tappedHost
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
@@ -172,6 +173,15 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
             val next = layout.states(view).toggled(state)
             log.info("layout.states_changed", listOf(LogField.state(view.id), LogField.number("selected", next.states.size.toLong())))
             layout.withStates(view, next)
+        }
+    }
+
+    /** Resets the states, project and host of the selected view to its default, which is stored as no entry. */
+    suspend fun clearFilters() {
+        change { layout ->
+            val view = layout.view
+            log.info("layout.filters_cleared", listOf(LogField.state(view.id)))
+            layout.withFilter(view, StoredFilter())
         }
     }
 

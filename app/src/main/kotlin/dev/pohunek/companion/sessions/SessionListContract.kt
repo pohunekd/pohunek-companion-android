@@ -131,6 +131,10 @@ data class SessionListState(
     val query: String = "",
     /** The state chips shown, and the states of the shown view that pass. */
     val stateChips: List<OwnerState> = emptyList(),
+    /** Sessions per state once the project, host and search have narrowed them; the state selection is ignored. */
+    val stateCounts: Map<OwnerState, Int> = emptyMap(),
+    /** Whether the shown view's states, project or host differ from its default. */
+    val filtersChanged: Boolean = false,
     val states: StateSelection = StateSelection.DEFAULT,
     /** The project chips of every session and the project the shown view is narrowed to. */
     val projectChips: List<ProjectChip> = emptyList(),
@@ -299,17 +303,23 @@ sealed interface SessionListEvent {
     /** The events that change the owner's layout. */
     sealed interface LayoutEvent : SessionListEvent
 
+    /** The events that change the shown view's filter. */
+    sealed interface FilterEvent : LayoutEvent
+
     /** Collapses or expands a section of the shown view; the state is saved with the layout. */
     data class SetSectionCollapsed(val id: String, val collapsed: Boolean) : LayoutEvent
 
     /** Toggles [state] in the selection of the shown view; the choice is saved with the layout. */
-    data class ToggleState(val state: OwnerState) : LayoutEvent
+    data class ToggleState(val state: OwnerState) : FilterEvent
+
+    /** Resets the states, project and host of the shown view to its default; the search query stays. */
+    data object ClearFilters : FilterEvent
 
     /** Taps a project chip of the shown view: selects the project, or clears it when it is already selected. */
-    data class TapProject(val chip: ProjectSelection) : LayoutEvent
+    data class TapProject(val chip: ProjectSelection) : FilterEvent
 
     /** Taps a host of the shown view (null: All hosts): selects it, or shows every host when it is already selected. */
-    data class TapHost(val key: String?) : LayoutEvent
+    data class TapHost(val key: String?) : FilterEvent
 
     /** Shows [view]; the choice is saved with the layout. */
     data class SelectView(val view: LayoutView) : LayoutEvent

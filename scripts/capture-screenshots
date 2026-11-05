@@ -172,12 +172,20 @@ after_by_state() {
 
 shot_filters() {
   click_tagged SessionList.project "$filter_project"
-  "$agent" click SessionList.state.ended >/dev/null
+  "$agent" click SessionList.filter.state >/dev/null
+  wait_tag StateSheet.state.ended
+  "$agent" click StateSheet.state.ended >/dev/null
+  "$agent" key esc >/dev/null
+  wait_no_tag StateSheet.state.ended
   wait_text "$ended_session"
 }
 
 after_filters() {
-  "$agent" click SessionList.state.ended >/dev/null
+  "$agent" click SessionList.filter.state >/dev/null
+  wait_tag StateSheet.state.ended
+  "$agent" click StateSheet.state.ended >/dev/null
+  "$agent" key esc >/dev/null
+  wait_no_tag StateSheet.state.ended
   "$agent" click SessionList.projectAll >/dev/null
   wait_no_tag SessionList.noMatch
 }

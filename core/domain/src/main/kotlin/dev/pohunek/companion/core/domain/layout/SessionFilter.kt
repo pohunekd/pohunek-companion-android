@@ -42,6 +42,9 @@ data class StateSelection(val states: Set<OwnerState>) {
     /** The selection with Problem on, which a loaded file never leaves off. */
     fun withRuntimeProblem(): StateSelection = StateSelection(states + OwnerState.RuntimeProblem)
 
+    /** How many of the [offered] states are selected when the selection differs from the default; null for the default. */
+    fun selectedCountOrNull(offered: List<OwnerState>): Int? = if (this == DEFAULT) null else offered.count { it in states }
+
     /** The keys to store in chip order, or null for the default selection, which is stored as no entry. */
     fun storedKeys(): List<String>? = if (this == DEFAULT) null else CHIP_ORDER.filter { it in states }.map { it.filterKey }
 
@@ -93,8 +96,14 @@ class SessionFilter(
     /** Whether any part of the filter hides rows. */
     val isActive: Boolean get() = isSearching || !states.isAll
 
-    fun matches(facts: FilterFacts): Boolean {
-        if (facts.ownerState !in states || !project.admits(facts.project) || !admitsHost(facts.host)) return false
+    fun matches(facts: FilterFacts): Boolean = facts.ownerState in states && matchesIgnoringState(facts)
+
+    /** How many of [all] each owner state has once the project, host and query have narrowed them; the state selection is ignored. */
+    fun countByState(all: List<FilterFacts>): Map<OwnerState, Int> =
+        all.filter(::matchesIgnoringState).groupingBy { it.ownerState }.eachCount()
+
+    private fun matchesIgnoringState(facts: FilterFacts): Boolean {
+        if (!project.admits(facts.project) || !admitsHost(facts.host)) return false
         if (tokens.isEmpty()) return true
         val texts = facts.texts.map(::codePoints)
         val identifiers = facts.identifiers.map(::codePoints)

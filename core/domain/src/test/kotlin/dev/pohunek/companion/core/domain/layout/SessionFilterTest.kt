@@ -195,4 +195,44 @@ class SessionFilterTest {
         assertEquals("h2", tappedHost("h1", "h2"))
         assertNull(tappedHost("h1", null))
     }
+
+    @Test
+    fun `the chip summary is empty for the default selection and counts the offered states otherwise`() {
+        val offered = stateChips(setOf(OwnerState.NeedsOwner))
+        assertNull(StateSelection.DEFAULT.selectedCountOrNull(offered))
+        assertEquals(4, StateSelection.DEFAULT.toggled(OwnerState.Ended).selectedCountOrNull(offered))
+        assertEquals(1, StateSelection.DEFAULT.toggled(OwnerState.Idle).toggled(OwnerState.Working).selectedCountOrNull(offered))
+        assertEquals(6, StateSelection.DEFAULT.toggled(OwnerState.Ended).selectedCountOrNull(stateChips(OwnerState.entries.toSet())))
+    }
+
+    @Test
+    fun `a stored filter differs from the default only by states project or host`() {
+        assertFalse(StoredFilter().differsFromDefault)
+        assertTrue(StoredFilter(states = listOf("working")).differsFromDefault)
+        assertTrue(StoredFilter(projectLabel = "a").differsFromDefault)
+        assertTrue(StoredFilter(noProject = true).differsFromDefault)
+        assertTrue(StoredFilter(host = "h1").differsFromDefault)
+        // The default states spelled out, Problem included, are still the default.
+        assertFalse(StoredFilter(states = StateSelection.DEFAULT.storedKeys() ?: StateSelection.DEFAULT.states.map { it.filterKey }).differsFromDefault)
+    }
+
+    @Test
+    fun `state counts follow project host and query but not the state selection`() {
+        val ids = listOf(
+            row("1", "a", OwnerState.Working, project = "p"),
+            row("2", "b", OwnerState.Working, project = "q"),
+            row("3", "c", OwnerState.Ended, project = "p"),
+            row("4", "d", OwnerState.NeedsOwner, project = "p", host = "h2"),
+        )
+        val all = ids.map { facts.getValue(it) }
+        assertEquals(
+            mapOf(OwnerState.Working to 2, OwnerState.Ended to 1, OwnerState.NeedsOwner to 1),
+            filter(states = StateSelection(setOf(OwnerState.Idle))).countByState(all),
+        )
+        assertEquals(
+            mapOf(OwnerState.Working to 1, OwnerState.Ended to 1),
+            filter(project = ProjectSelection.Project("p"), host = "h1").countByState(all),
+        )
+        assertEquals(mapOf(OwnerState.Working to 1), filter(query = "b").countByState(all))
+    }
 }
