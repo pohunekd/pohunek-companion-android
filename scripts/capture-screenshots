@@ -157,11 +157,15 @@ shot_terminal() {
 }
 
 shot_by_state() {
+  "$agent" click SessionList.viewMenu >/dev/null
+  wait_tag SessionList.view.by-state
   "$agent" click SessionList.view.by-state >/dev/null
   wait_tag SessionList.groupHeader
 }
 
 after_by_state() {
+  "$agent" click SessionList.viewMenu >/dev/null
+  wait_tag SessionList.view.my-groups
   "$agent" click SessionList.view.my-groups >/dev/null
   wait_tag SessionList.needsYou
 }

@@ -31,27 +31,8 @@ import dev.pohunek.companion.core.domain.layout.INBOX_ID
 import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** The chip row that switches the list between its views; it scrolls sideways when the labels do not fit. */
-@Composable
-internal fun ViewChips(selected: LayoutView, onEvent: (SessionListEvent) -> Unit) {
-    val spacing = PohunekTheme.spacing
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = spacing.gutter, vertical = spacing.sm),
-        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-    ) {
-        for (view in LayoutView.entries) {
-            FilterChip(
-                selected = view == selected,
-                onClick = { onEvent(SessionListEvent.SelectView(view)) },
-                label = { Text(stringResource(view.labelRes())) },
-                modifier = Modifier.testTag("SessionList.view.${view.id}"),
-            )
-        }
-    }
-}
-
 @StringRes
-private fun LayoutView.labelRes(): Int = when (this) {
+internal fun LayoutView.labelRes(): Int = when (this) {
     LayoutView.MY_GROUPS -> R.string.view_my_groups
     LayoutView.BY_STATE -> R.string.view_by_state
     LayoutView.BY_PROJECT -> R.string.view_by_project

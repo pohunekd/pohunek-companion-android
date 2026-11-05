@@ -132,7 +132,6 @@ private fun SessionListContent(
                 state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
                 state.groupNote?.let { GroupNoteBanner(it) { onEvent(SessionListEvent.DismissGroupNote) } }
                 HostStatusLines(state.statuses, onOpenHosts)
-                ViewChips(state.view, onEvent)
                 StateChips(state.stateChips, state.states, onEvent)
                 if (state.projectChips.size > 1) ProjectChips(state.projectChips, onEvent)
                 if (state.hostOptions.isNotEmpty()) HostChips(state.hostOptions, onEvent)
