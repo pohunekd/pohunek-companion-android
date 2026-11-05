@@ -175,7 +175,8 @@ shot_filters() {
   "$agent" click SessionList.filter.state >/dev/null
   wait_tag StateSheet.state.ended
   "$agent" click StateSheet.state.ended >/dev/null
-  "$agent" key esc >/dev/null
+  # Escape does not close a modal sheet; a tap on the scrim above it does.
+  "$agent" click StateSheet >/dev/null
   wait_no_tag StateSheet.state.ended
   wait_text "$ended_session"
 }
@@ -184,7 +185,8 @@ after_filters() {
   "$agent" click SessionList.filter.state >/dev/null
   wait_tag StateSheet.state.ended
   "$agent" click StateSheet.state.ended >/dev/null
-  "$agent" key esc >/dev/null
+  # Escape does not close a modal sheet; a tap on the scrim above it does.
+  "$agent" click StateSheet >/dev/null
   wait_no_tag StateSheet.state.ended
   "$agent" click SessionList.projectAll >/dev/null
   wait_no_tag SessionList.noMatch
