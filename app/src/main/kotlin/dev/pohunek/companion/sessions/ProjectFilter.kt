@@ -1,7 +1,6 @@
 package dev.pohunek.companion.sessions
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -130,7 +130,7 @@ private fun ProjectRow(row: ProjectPickerRow, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .heightIn(min = PohunekTheme.stateRowHeight)
-            .clickable(role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = row.selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = PohunekTheme.spacing.gutter)
             .testTag(tag),
         verticalAlignment = Alignment.CenterVertically,
