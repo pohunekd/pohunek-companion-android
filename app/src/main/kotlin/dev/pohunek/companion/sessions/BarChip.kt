@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import dev.pohunek.companion.R
@@ -37,7 +39,7 @@ internal fun BarChip(selected: Boolean, onClick: () -> Unit, label: String, modi
         color = if (selected) colors.secondaryContainer else Color.Transparent,
         contentColor = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
         border = if (selected) null else BorderStroke(PohunekTheme.chipBorderWidth, colors.outlineVariant),
-        modifier = modifier.minimumInteractiveComponentSize(),
+        modifier = modifier.minimumInteractiveComponentSize().semantics { role = Role.Button },
     ) {
         Row(
             Modifier.heightIn(min = PohunekTheme.filterBarChipHeight).padding(start = PohunekTheme.filterBarChipPadding),

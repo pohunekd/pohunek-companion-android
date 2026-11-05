@@ -94,7 +94,8 @@ private fun FilterBarRow(
         val trailingPlaceables = if (expanded) {
             emptyList()
         } else {
-            subcompose("trailing", trailing).map { it.measure(Constraints(maxWidth = total)) }
+            // The search icon keeps its width even when the chips would take the whole bar.
+            subcompose("trailing", trailing).map { it.measure(Constraints(maxWidth = (total - PohunekTheme.minTouchTarget.roundToPx()).coerceAtLeast(0))) }
         }
         val trailingWidth = trailingPlaceables.sumOf { it.width }
         val remaining = total - trailingWidth
