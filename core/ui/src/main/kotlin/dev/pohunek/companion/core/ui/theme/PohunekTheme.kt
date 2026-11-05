@@ -70,6 +70,10 @@ object PohunekTheme {
     /** Space below a scrolling list so that its last item can be scrolled clear of the floating action button. */
     val fabClearance: Dp = 88.dp
 
+    /** Least height of the bottom filter bar, and the narrowest the search field gets before it collapses to an icon. */
+    val filterBarMinHeight: Dp = 64.dp
+    val filterBarSearchMinWidth: Dp = 112.dp
+
     /** Edge of the Pohunek logo at the left of the session list top bar. */
     val logoSize: Dp = 32.dp
 

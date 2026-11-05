@@ -127,8 +127,8 @@ data class SessionListState(
     val groups: List<GroupSection<SessionRow>> = emptyList(),
     /** The owner's groups in order, whatever [view] is: the targets of "Move to group". */
     val ownerGroups: List<Group> = emptyList(),
-    /** The open search field's text, or null while the field is closed. The text is never stored. */
-    val search: String? = null,
+    /** The text in the search field; empty means no filter. The text is never stored. */
+    val query: String = "",
     /** The state chips shown, and the states of the shown view that pass. */
     val stateChips: List<OwnerState> = emptyList(),
     val states: StateSelection = StateSelection.DEFAULT,
@@ -293,15 +293,8 @@ sealed interface SessionListEvent {
 
     data object DismissRefusal : SessionListEvent
 
-    /** The events of the search field. */
-    sealed interface SearchEvent : SessionListEvent
-
-    data object OpenSearch : SearchEvent
-
-    data class EditSearch(val text: String) : SearchEvent
-
-    /** Clears the query and closes the search field. */
-    data object CloseSearch : SearchEvent
+    /** Sets the text of the search field. */
+    data class EditSearch(val text: String) : SessionListEvent
 
     /** The events that change the owner's layout. */
     sealed interface LayoutEvent : SessionListEvent

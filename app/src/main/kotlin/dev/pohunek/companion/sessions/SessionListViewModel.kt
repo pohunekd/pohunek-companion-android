@@ -231,7 +231,7 @@ class SessionListViewModel(
             is SessionListEvent.ActionEvent -> onActionEvent(event)
             SessionListEvent.LinkNotHandled -> log.error("session.open_link_failed", listOf(LogField.errorCode("no_activity")))
             SessionListEvent.DismissRefusal -> updateState { it.copy(refusal = null) }
-            is SessionListEvent.SearchEvent -> onSearchEvent(event)
+            is SessionListEvent.EditSearch -> updateState { it.copy(query = event.text).filtered() }
             is SessionListEvent.LayoutEvent -> onLayoutEvent(event)
         }
     }
@@ -240,14 +240,6 @@ class SessionListViewModel(
         when (event) {
             is SessionListEvent.OpenLink -> openLink(event.ref)
             is SessionListEvent.NewSessionHere -> newSessionHere(event.ref)
-        }
-    }
-
-    private fun onSearchEvent(event: SessionListEvent.SearchEvent) {
-        when (event) {
-            SessionListEvent.OpenSearch -> updateState { it.copy(search = it.search ?: "") }
-            is SessionListEvent.EditSearch -> updateState { it.copy(search = event.text).filtered() }
-            SessionListEvent.CloseSearch -> updateState { it.copy(search = null).filtered() }
         }
     }
 
@@ -658,7 +650,7 @@ private fun listed(
 
 /** The lists the screen shows: [SessionListState.needsYou] and [SessionListState.groups] narrowed by the state selection and the search. */
 private fun SessionListState.filtered(): SessionListState {
-    val filter = SessionFilter(search.orEmpty(), states, project, host)
+    val filter = SessionFilter(query, states, project, host)
     val needs = filter.filterRows(needsYou, SessionRow::filterFacts)
     val sections = filter.filterSections(groups, SessionRow::filterFacts)
     val listed = needsYou.isNotEmpty() || rows.orEmpty().isNotEmpty()

@@ -200,7 +200,7 @@ scripts/ui-agent pohunek ARGS...
   `session.command` or `session.command_failed` with method `session.set_metadata`, group and session ids only, and `layout.json` shows the result, `ConfigError.message` replaces the app when a value in
   `app/src/main/res/values/config.xml` is invalid. `SessionList.state.KEY` chips (KEY is `needs-you`, `working`, `idle`, `ended`, and `runtime-problem` and `no-agent-state` while a session has
   that state; a tap toggles the state of the shown view, Ended is off by default, and `layout.json` keeps the selection under `filters`, nothing when it is the default),
-  `SessionList.openSearch` (the top bar's Search icon) replacing the title by the field `SessionList.search` with `SessionList.searchClose` (type to narrow the list; the query is not stored;
+  the bottom bar `SessionList.filterBar` with the always-present field `SessionList.search` (a tap focuses it and opens the keyboard, the bar rides on the keyboard; it takes the whole bar while focused and collapses to the icon `SessionList.searchIcon` when too narrow; `SessionList.searchClear` empties it; Back with the field focused closes the keyboard and keeps the query; type to narrow the list; the query is not stored;
   `SessionList.noMatch` when nothing matches; the project chips `SessionList.projectAll`, `SessionList.project` per label (`click TAG N` counts from 0) and
   `SessionList.projectNone` (shown while some session has no project; a tap selects the project, a second tap clears it) and, with two or more hosts, the host chips
   `SessionList.hostFilterAll` and `SessionList.hostFilter` per host (text `<label> (connected)` or `(unreachable)`); both choices are stored per view under `filters`

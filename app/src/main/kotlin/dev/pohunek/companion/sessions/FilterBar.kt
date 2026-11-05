@@ -131,29 +131,7 @@ private fun OwnerState.chipLabelRes(): Int = when (this) {
     OwnerState.NoAgentState -> R.string.state_chip_no_agent
 }
 
-/** The search field that takes the place of the title in the top app bar; it takes the focus when it opens. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun SearchField(query: String, onEvent: (SessionListEvent) -> Unit, modifier: Modifier = Modifier) {
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    SearchBarDefaults.InputField(
-        query = query,
-        onQueryChange = { onEvent(SessionListEvent.EditSearch(it)) },
-        onSearch = {},
-        expanded = false,
-        onExpandedChange = {},
-        placeholder = { Text(stringResource(R.string.search_placeholder)) },
-        trailingIcon = {
-            TextButton(onClick = { onEvent(SessionListEvent.CloseSearch) }, modifier = Modifier.testTag("SessionList.searchClose")) {
-                Text(stringResource(R.string.search_close))
-            }
-        },
-        modifier = modifier.focusRequester(focus).testTag("SessionList.search"),
-    )
-}
-
-/** The logo and the view menu, or the search field while it is open; the overflow menu carries Refresh, Hosts and Settings. */
+/** The logo and the view menu; the overflow menu carries Refresh, Hosts and Settings. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SessionListTopBar(
@@ -162,9 +140,10 @@ internal fun SessionListTopBar(
     onEvent: (SessionListEvent) -> Unit,
     onOpenHosts: () -> Unit,
     onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val search = state.search.takeIf { listShown }
     TopAppBar(
+        modifier = modifier,
         navigationIcon = {
             Image(
                 painter = painterResource(R.drawable.ic_pohunek_logo),
@@ -173,21 +152,13 @@ internal fun SessionListTopBar(
             )
         },
         title = {
-            if (search != null) {
-                SearchField(search, onEvent, Modifier.fillMaxWidth())
-            } else if (listShown) {
+            if (listShown) {
                 ViewTitle(state.view, onEvent)
             } else {
                 Text(stringResource(R.string.app_name), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
         actions = {
-            if (search != null) return@TopAppBar
-            if (listShown) {
-                IconButton(onClick = { onEvent(SessionListEvent.OpenSearch) }, modifier = Modifier.testTag("SessionList.openSearch")) {
-                    Icon(painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.session_list_search_action))
-                }
-            }
             OverflowMenu(state, listShown, onEvent, onOpenHosts, onOpenSettings)
         },
     )
