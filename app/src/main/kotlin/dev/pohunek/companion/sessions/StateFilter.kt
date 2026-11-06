@@ -39,7 +39,7 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 /** The bar's filter chips and its Clear button; a Clear that has nothing to reset is absent. */
 @Composable
 internal fun FilterBarChips(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
-    // The project label, the only unbounded one, is cut to the width that the other controls leave, so Clear stays on screen.
+    // Only the project chip takes the width the other controls leave, so Clear stays on screen.
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.xs),
