@@ -89,6 +89,7 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
     private val sessions = LinkedHashMap<SessionKey, TrackedSession>()
     private val attention = AttentionSet()
     private val projectLabels = HashMap<String, String>()
+    private val seededProjects = HashSet<String>()
     private var seeds = 0
     private val applied = HashMap<String, Int>()
     private val ignored = HashMap<Pair<String, IgnoreReason>, Int>()
@@ -101,6 +102,9 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
 
     /** The project label last seen in a seed for [projectId]; events omit it. */
     fun projectLabel(projectId: String): String? = projectLabels[projectId]
+
+    /** Whether a session sits in a project no seed has listed yet, so only a seed can tell its label. */
+    fun hasUnseededProject(): Boolean = sessions.values.any { tracked -> tracked.info.projectId?.let { it !in seededProjects } == true }
 
     /** Open attention notifications (`agent_blocked`, `approval_required` that are unread or read). */
     fun attention(): List<NotificationRecord> = attention.all()
@@ -142,9 +146,9 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
      */
     fun applySeed(seed: List<SessionInfo>, notifications: List<NotificationRecord>): SeedChange {
         for (info in seed) {
-            val projectId = info.projectId
-            val label = info.projectLabel
-            if (projectId != null && label != null) projectLabels[projectId] = label
+            val projectId = info.projectId ?: continue
+            seededProjects += projectId
+            info.projectLabel?.let { projectLabels[projectId] = it }
         }
         val now = timeSource.markNow()
         val previous = LinkedHashMap(sessions)
@@ -211,7 +215,8 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
      * Replaces a known session's snapshot unless it is older than the stored one. An unknown session is added when [insertIfAbsent]
      * (`session_created`) and otherwise ignored.
      */
-    private fun replaceSnapshot(info: SessionInfo, insertIfAbsent: Boolean, now: ComparableTimeMark): EventOutcome {
+    private fun replaceSnapshot(eventInfo: SessionInfo, insertIfAbsent: Boolean, now: ComparableTimeMark): EventOutcome {
+        val info = withKnownLabel(eventInfo)
         val stored = sessions[key(info.id)]
         return when {
             stored == null && !insertIfAbsent -> EventOutcome.Ignored(IgnoreReason.UnknownSession)
@@ -225,6 +230,12 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
                 }
             }
         }
+    }
+
+    /** Events omit the project label, so a snapshot from one gets the label a seed gave its project. */
+    private fun withKnownLabel(info: SessionInfo): SessionInfo {
+        val label = info.projectId?.let(projectLabels::get)
+        return if (info.projectLabel == null && label != null) info.copy(projectLabel = label) else info
     }
 
     private fun ownerSession(tracked: TrackedSession, waiting: Map<String, OffsetDateTime?>): OwnerSession {

@@ -209,7 +209,8 @@ class HostLive(
                 }
             }
             val now = timeSource.markNow()
-            reseedDue = now + config.reseedInterval
+            // A session that arrived while the seed was fetched may sit in a project that seed did not list.
+            reseedDue = if (store.hasUnseededProject()) now else now + config.reseedInterval
             probeDue = now + config.liveness.interval
             return true
         }
@@ -231,7 +232,10 @@ class HostLive(
             is StreamMessage.Failed -> throw message.error
             is StreamMessage.Event -> {
                 suspectDue = null
-                store.applyEvent(message.event) == EventOutcome.Applied
+                val applied = store.applyEvent(message.event) == EventOutcome.Applied
+                // Events carry no project label; a session in a project no seed has listed is labelled by an immediate re-seed.
+                if (applied && failedChecks == 0 && store.hasUnseededProject()) reseedDue = timeSource.markNow()
+                applied
             }
         }
 

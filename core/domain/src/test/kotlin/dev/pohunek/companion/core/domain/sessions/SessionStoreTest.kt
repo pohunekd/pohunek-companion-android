@@ -6,7 +6,9 @@ import dev.pohunek.companion.protocol.SessionInfo
 import dev.pohunek.companion.protocol.SessionState
 import dev.pohunek.companion.protocol.StateSource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TestTimeSource
@@ -124,13 +126,28 @@ class SessionStoreTest {
     fun `the project label survives an update without one`() {
         store.applySeed(listOf(session("s-1", projectId = "p-1", projectLabel = "proj")), emptyList())
         store.applyEvent(DaemonEvent.SessionUpdated(session("s-1", "2026-01-01T10:00:05Z", projectId = "p-1")))
-        assertNull(store.session("s-1")?.projectLabel)
+        assertEquals("proj", store.session("s-1")?.projectLabel)
         assertEquals("proj", store.projectLabel("p-1"))
 
         // The seed carries the label while events omit it, so that difference alone is not a change.
         assertEquals(SeedChange(), store.applySeed(listOf(session("s-1", "2026-01-01T10:00:05Z", projectId = "p-1", projectLabel = "proj")), emptyList()))
         val relabelled = session("s-1", "2026-01-01T10:00:05Z", projectId = "p-1", projectLabel = "other")
         assertEquals(SeedChange(changed = 1), store.applySeed(listOf(relabelled), emptyList()))
+    }
+
+    @Test
+    fun `a session created in a seeded project gets its label and one in an unseeded project asks for a seed`() {
+        store.applySeed(listOf(session("s-1", projectId = "p-1", projectLabel = "proj"), session("s-2", projectId = "p-3")), emptyList())
+        store.applyEvent(DaemonEvent.SessionCreated(session("s-4", "2026-01-01T10:00:05Z", projectId = "p-1")))
+        assertEquals("proj", store.session("s-4")?.projectLabel)
+        assertFalse(store.hasUnseededProject())
+
+        store.applyEvent(DaemonEvent.SessionCreated(session("s-5", "2026-01-01T10:00:06Z", projectId = "p-new")))
+        assertNull(store.session("s-5")?.projectLabel)
+        assertTrue(store.hasUnseededProject())
+
+        store.applySeed(listOf(session("s-5", projectId = "p-new", projectLabel = "fresh")), emptyList())
+        assertFalse(store.hasUnseededProject())
     }
 
     @Test
