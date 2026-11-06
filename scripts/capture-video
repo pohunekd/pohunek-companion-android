@@ -70,8 +70,34 @@ clips=(
   "terminal-fling|0|1.5|scene_terminal_fling"
   "back|0|1.5|scene_back"
 )
-# Clip whose raw frame intervals are reported.
+# Clip that scrolls by fling: its frame pacing is measured and gated, and its raw frame intervals are reported.
 fling_clip="terminal-fling"
+
+# Pacing gate for the fling clip, measured on the raw recording (before the constant-rate conversion):
+# frame intervals between two moving frames and the scroll offset of each moving frame. Roughness is the
+# relative deviation of a step from the mean of its two neighbours, over bursts of at least
+# pacing_min_burst_frames frames that move in one direction. A clip outside any limit is recorded again, at
+# most pacing_attempts times, then the command fails: a juddering clip is never written to docs/media.
+pacing_attempts=3
+pacing_max_p95_ms=20
+pacing_max_p99_ms=40
+pacing_max_roughness_median=0.12
+pacing_max_roughness_p90=0.40
+pacing_min_burst_frames=15
+# Frame height of the scroll offset measurement (one column-averaged brightness profile per frame), the
+# rows compared and the largest offset searched, in profile rows.
+pacing_profile_rows=800
+pacing_compare_from=150
+pacing_compare_to=650
+pacing_max_shift=150
+# A frame counts as moving from this many profile rows of offset.
+pacing_moving_rows=2
+
+# Recording waits for a quiet host: no other ui-agent slot running and a one-minute load average of at most
+# quiet_load_max, for at most quiet_wait_secs; then it goes on and the pacing gate decides.
+quiet_load_max=6
+quiet_wait_secs=600
+quiet_poll_secs=10
 
 # Text alternative of the video and one line per scene (the two terminal clips are one scene), which the site shows.
 alt="Screen recording of the Pohunek Companion app on demo data: it filters the session list, then opens a live terminal and scrolls through its history."
@@ -264,25 +290,116 @@ frame_stats() { # FILE HEAD TAIL
       }'
 }
 
+# Prints the number of ui-agent slot containers other than this worktree's run.
+other_slots() {
+  local all ours
+  all="$(podman ps --format '{{.Names}}' | grep '^pohunek-ui-agent-slot-' | sort || true)"
+  ours="$(podman ps --filter "label=ui-agent.worktree=$root" --format '{{.Names}}' | sort)"
+  comm -23 <(printf '%s\n' "$all" | sed '/^$/d') <(printf '%s\n' "$ours" | sed '/^$/d') | wc -l
+}
+
+wait_quiet() {
+  local deadline=$((SECONDS + quiet_wait_secs)) load others
+  while :; do
+    load="$(cut -d' ' -f1 /proc/loadavg)"
+    others="$(other_slots)"
+    if [ "$others" -eq 0 ] && awk -v l="$load" -v max="$quiet_load_max" 'BEGIN { exit !(l <= max) }'; then
+      echo "capture-video: host is quiet (load $load, no other ui-agent slot)" >&2
+      return 0
+    fi
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "capture-video: host not quiet after ${quiet_wait_secs}s (load $load, $others other ui-agent slots); recording anyway, the pacing gate decides" >&2
+      return 0
+    fi
+    sleep "$quiet_poll_secs"
+  done
+}
+
+# Prints "RUNS MEDIAN P90" of the scroll roughness of the raw clip FILE (see pacing_max_roughness_*).
+scroll_roughness() { # FILE
+  ffmpeg -v fatal -nostdin -i "$1" -vf "scale=1:$pacing_profile_rows:flags=area,format=gray,setpts=N/30/TB" \
+    -fps_mode passthrough -f rawvideo - |
+    od -An -v -tu1 -w"$pacing_profile_rows" |
+    awk -v from="$pacing_compare_from" -v to="$pacing_compare_to" -v maxshift="$pacing_max_shift" \
+      -v moving="$pacing_moving_rows" -v minburst="$pacing_min_burst_frames" '
+      function shift_of(p, c,    s, i, d, best, bestd) {
+        bestd = -1
+        for (s = -maxshift; s <= maxshift; s++) {
+          d = 0
+          for (i = from; i <= to; i++) { e = p[i] - c[i + s]; d += e < 0 ? -e : e }
+          if (bestd < 0 || d < bestd) { bestd = d; best = s }
+        }
+        return best
+      }
+      function flush(   i, nb, a, b, c) {
+        if (n >= minburst) {
+          runs++
+          for (i = 2; i < n; i++) {
+            a = run[i - 1] < 0 ? -run[i - 1] : run[i - 1]
+            b = run[i] < 0 ? -run[i] : run[i]
+            c = run[i + 1] < 0 ? -run[i + 1] : run[i + 1]
+            nb = (a + c) / 2
+            printf "DEV %.4f\n", (b - nb < 0 ? nb - b : b - nb) / (nb < 1 ? 1 : nb)
+          }
+        }
+        n = 0
+      }
+      NR > 1 {
+        s = shift_of(prev, cur)
+      }
+      { for (i = 1; i <= NF; i++) { prev[i] = cur[i]; cur[i] = $i } }
+      NR == 1 { for (i = 1; i <= NF; i++) prev[i] = $i }
+      NR > 1 {
+        if ((s < 0 ? -s : s) >= moving && (n == 0 || (s < 0) == (run[1] < 0))) run[++n] = s
+        else { flush(); if ((s < 0 ? -s : s) >= moving) run[++n] = s }
+      }
+      END { flush(); print "RUNS " runs + 0 }' |
+    sort -k1,1 -k2,2n |
+    awk '/^DEV/ { d[++m] = $2; next } /^RUNS/ { runs = $2 }
+      END { if (m < 1) { print runs + 0, "-", "-"; exit } printf "%d %.3f %.3f\n", runs, d[int((m + 1) / 2)], d[int(m * 0.9 + 0.5) < 1 ? 1 : int(m * 0.9 + 0.5)] }'
+}
+
+# Prints the pacing numbers of the raw clip FILE (moving between HEAD and TAIL seconds) and succeeds when
+# they are inside the limits of the pacing gate.
+pacing_verdict() { # FILE HEAD TAIL
+  local stats p95 p99 runs median p90
+  stats="$(frame_stats "$1" "$2" "$3")"
+  p95="$(sed -n -E 's/.* p95=([0-9.]+).*/\1/p' <<<"$stats")"
+  p99="$(sed -n -E 's/.* p99=([0-9.]+).*/\1/p' <<<"$stats")"
+  read -r runs median p90 <<<"$(scroll_roughness "$1")"
+  echo "capture-video: pacing: $stats; scroll bursts=$runs roughness median=$median p90=$p90" >&2
+  [ -n "$p95" ] && [ -n "$p99" ] || { echo "capture-video: no frame interval statistics" >&2; return 1; }
+  [ "$runs" -ge 1 ] && [ "$median" != "-" ] || { echo "capture-video: no scroll burst of ${pacing_min_burst_frames}+ frames in the clip" >&2; return 1; }
+  awk -v p95="$p95" -v p99="$p99" -v med="$median" -v p90="$p90" -v a="$pacing_max_p95_ms" -v b="$pacing_max_p99_ms" \
+    -v c="$pacing_max_roughness_median" -v d="$pacing_max_roughness_p90" \
+    'BEGIN { exit !(p95 <= a && p99 <= b && med <= c && p90 <= d) }'
+}
+
 # Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv.
 record_clip() { # N ENTRY
   local n="$1" id head_hold tail_hold fn raw head tail keep word from to spans
   IFS='|' read -r id head_hold tail_hold fn <<<"$2"
   echo "capture-video: $id" >&2
   raw="$work/raw-$id.mp4"
-  "$agent" record start >&2
-  "$fn"
-  "$agent" record stop "$raw" >/dev/null
-  spans="$(motion_span "$raw")"
-  read -r head tail <<<"$(sed -n 1p <<<"$spans")"
+  local attempt=0
+  while :; do
+    attempt=$((attempt + 1))
+    "$agent" record start >&2
+    "$fn"
+    "$agent" record stop "$raw" >/dev/null
+    spans="$(motion_span "$raw")"
+    read -r head tail <<<"$(sed -n 1p <<<"$spans")"
+    [ "$id" = "$fling_clip" ] || break
+    pacing_verdict "$raw" "$head" "$tail" && break
+    [ "$attempt" -lt "$pacing_attempts" ] || die "$id: frame pacing outside the limits in $pacing_attempts recordings; run again on a quieter host"
+    echo "capture-video: $id: pacing outside the limits (attempt $attempt of $pacing_attempts); recording it again" >&2
+    wait_quiet
+  done
   keep="between(t,$head,$tail)"
   while read -r word from to; do
     [ "$word" = CUT ] && keep="$keep*not(between(t,$from,$to))"
   done < <(sed 1d <<<"$spans")
   echo "capture-video: $id keeps ${head}s..${tail}s of the raw clip, holds ${head_hold}s and ${tail_hold}s" >&2
-  if [ "$id" = "$fling_clip" ]; then
-    echo "capture-video: raw frame intervals of $id: $(frame_stats "$raw" "$head" "$tail")" >&2
-  fi
   ffmpeg -hide_banner -loglevel error -nostdin -y -i "$raw" \
     -vf "fps=$fps,select='$keep',setpts=N/($fps*TB),scale=$video_width:-2,tpad=start_mode=clone:start_duration=$head_hold:stop_mode=clone:stop_duration=$tail_hold,format=yuv420p" \
     -an -c:v ffv1 "$work/seg-$n.mkv"
@@ -316,6 +433,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+wait_quiet
 # ui-agent start removes its own claim when it fails, so the run is ours to stop only once it succeeded.
 "$agent" start --showcase >&2
 started=1
