@@ -15,6 +15,7 @@ import dev.pohunek.companion.core.data.hosts.HostsState
 import dev.pohunek.companion.core.data.hosts.KnownHosts
 import dev.pohunek.companion.core.data.layout.LayoutRepository
 import dev.pohunek.companion.core.data.layout.LayoutState
+import dev.pohunek.companion.core.data.layout.RecentProjectsStore
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostFeed
 import dev.pohunek.companion.core.data.live.HostRegistry
@@ -99,10 +100,11 @@ import kotlinx.coroutines.launch
  * The union list of every known host, configured or discovered. The live loops run in [registry] while [processLifecycle] is started,
  * that is while the app is visible; each return to the foreground reconnects every host and re-seeds at once.
  */
-@Suppress("TooManyFunctions") // One state holder for the events of the list screen; the row and list derivations live below it.
+@Suppress("TooManyFunctions", "LongParameterList") // One state holder fed by one store per source; the list derivations live below it.
 class SessionListViewModel(
     private val hosts: KnownHosts,
     private val layouts: LayoutRepository,
+    private val recents: RecentProjectsStore,
     private val registry: HostRegistry,
     private val commands: SessionCommands,
     private val actions: SessionActionRunner,
@@ -151,8 +153,13 @@ class SessionListViewModel(
         val notShared: Set<SessionKey>,
     )
 
+    /** How many recent projects the picker keeps per view, as of the last configuration. */
+    private var recentSize = 0
+
     init {
         viewModelScope.launch { hosts.load() }
+        viewModelScope.launch { recents.load() }
+        viewModelScope.launch { recents.state.collect { recent -> updateState { it.copy(recentProjects = recent) } } }
         viewModelScope.launch {
             layouts.load()
             for (seed in seeds) applySeed(seed)
@@ -164,6 +171,8 @@ class SessionListViewModel(
                     firstHostRequested = true
                     sendEffect(SessionListEffect.OpenHosts)
                 }
+                recentSize = input.limits.recentProjectsSize
+                updateState { it.copy(recentSize = input.limits.recentProjectsSize) }
                 editor.configure(input.limits.groupNameMaxBytes, (configured as? HostsState.Loaded)?.hosts.orEmpty())
                 queueSeeds(configured, feeds, layout, input.limits.groupNameMaxBytes)
                 updateState { listed(it, configured, feeds, layout, input.notShared, input.limits) }
@@ -273,10 +282,17 @@ class SessionListViewModel(
             when (event) {
                 is SessionListEvent.ToggleState -> layouts.toggleState(event.state)
                 SessionListEvent.ClearFilters -> layouts.clearFilters()
-                is SessionListEvent.TapProject -> layouts.tapProject(event.chip)
+                is SessionListEvent.TapProject -> tapProject(event.chip)
                 is SessionListEvent.TapHost -> layouts.tapHost(event.key)
             }
         }
+    }
+
+    /** A project chosen in the picker is remembered as recent; clearing it, or choosing All or No project, is not a pick. */
+    private suspend fun tapProject(chip: ProjectSelection) {
+        val state = currentState
+        if (chip is ProjectSelection.Project && chip != state.project) recents.pick(state.view.id, chip.label, recentSize)
+        layouts.tapProject(chip)
     }
 
     private fun onGroupEvent(event: SessionListEvent.GroupEvent) {

@@ -290,4 +290,33 @@ class SessionFilterTest {
         assertEquals(HostReach.Unreachable, rows.last().reach)
         assertTrue(rows.last().selected)
     }
+
+    @Test
+    fun `a pick moves the label to the front of its view and cuts every list to the size`() {
+        val first = RecentProjects().picked("my-groups", "a", 3).picked("my-groups", "b", 3).picked("my-groups", "c", 3)
+        assertEquals(listOf("c", "b", "a"), first.views["my-groups"])
+        assertEquals(listOf("a", "c", "b"), first.picked("my-groups", "a", 3).views["my-groups"])
+        assertEquals(listOf("d", "c", "b"), first.picked("my-groups", "d", 3).views["my-groups"])
+        val other = first.picked("by-project", "x", 3)
+        assertEquals(listOf("x"), other.views["by-project"])
+        assertEquals(listOf("c", "b", "a"), other.views["my-groups"])
+        // A lowered size shrinks the lists of the other views on the same write; size 0 empties everything.
+        assertEquals(listOf("y"), other.picked("by-project", "y", 1).views["by-project"])
+        assertEquals(listOf("c"), other.picked("by-project", "y", 1).views["my-groups"])
+        assertTrue(other.picked("by-project", "y", 0).views.isEmpty())
+    }
+
+    @Test
+    fun `recent labels show only while some project row has them and only up to the size`() {
+        val recent = RecentProjects(mapOf("my-groups" to listOf("gone", "beta", "alpha")))
+        val chips = projectChips(listOf("alpha", "beta"), ProjectSelection.All)
+        assertEquals(listOf("beta", "alpha"), recent.shown("my-groups", 3, chips))
+        assertEquals(listOf("beta"), recent.shown("my-groups", 2, chips))
+        assertEquals(emptyList<String>(), recent.shown("my-groups", 0, chips))
+        assertEquals(emptyList<String>(), recent.shown("by-project", 3, chips))
+        // A selected project keeps its chip, so its recent entry stays while its sessions are gone.
+        assertEquals(listOf("gone", "beta", "alpha"), recent.shown("my-groups", 3, projectChips(listOf("alpha", "beta"), ProjectSelection.Project("gone"))))
+        val rows = projectPickerRows(chips, emptyList(), "")
+        assertEquals(listOf("beta", "alpha"), recentPickerRows(rows, listOf("beta", "alpha")).map { it.label })
+    }
 }

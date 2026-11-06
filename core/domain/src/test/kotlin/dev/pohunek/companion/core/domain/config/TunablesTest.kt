@@ -11,6 +11,7 @@ class TunablesTest {
         it[Tunable.REATTACH_INITIAL_MS] = 500
         it[Tunable.REATTACH_MAX_MS] = 10_000
         it[Tunable.LOG_MAX_BYTES] = 1_048_576
+        it[Tunable.RECENT_PROJECTS_SIZE] = 3
     }
 
     private fun entered(vararg changes: Pair<Tunable, String>): Map<Tunable, String> = defaults.mapValues { it.value.toString() } + changes
@@ -117,5 +118,13 @@ class TunablesTest {
     fun `every key is lowercase of its name and unique`() {
         assertEquals(Tunable.entries.size, Tunable.entries.map { it.key }.toSet().size)
         assertEquals("idle_threshold_secs", Tunable.IDLE_THRESHOLD_SECS.key)
+    }
+
+    @Test
+    fun `the recent projects size may be zero and at most ten`() {
+        assertEquals(OverrideCheck.Valid(mapOf(Tunable.RECENT_PROJECTS_SIZE to 0L)), checkOverrides(defaults, entered(Tunable.RECENT_PROJECTS_SIZE to "0")))
+        assertEquals(OverrideCheck.Valid(mapOf(Tunable.RECENT_PROJECTS_SIZE to 10L)), checkOverrides(defaults, entered(Tunable.RECENT_PROJECTS_SIZE to "10")))
+        assertEquals(listOf(Tunable.RECENT_PROJECTS_SIZE), invalid(checkOverrides(defaults, entered(Tunable.RECENT_PROJECTS_SIZE to "11"))).map { it.tunable })
+        assertEquals(listOf(Tunable.RECENT_PROJECTS_SIZE), invalid(checkOverrides(defaults, entered(Tunable.RECENT_PROJECTS_SIZE to "-1"))).map { it.tunable })
     }
 }

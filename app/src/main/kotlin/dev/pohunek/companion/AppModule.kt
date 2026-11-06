@@ -17,6 +17,7 @@ import dev.pohunek.companion.core.data.hosts.HostsRepository
 import dev.pohunek.companion.core.data.hosts.KnownHosts
 import dev.pohunek.companion.core.data.layout.LayoutRepository
 import dev.pohunek.companion.core.data.layout.LayoutStore
+import dev.pohunek.companion.core.data.layout.RecentProjectsStore
 import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.live.LastSessionsStore
@@ -47,6 +48,7 @@ val mainDispatcher = named("main")
 private const val HOSTS_FILE = "hosts.json"
 private const val LAYOUT_FILE = "layout.json"
 private const val LAST_SESSIONS_FILE = "last_sessions.json"
+private const val RECENT_PROJECTS_FILE = "recent_projects.json"
 
 /** The structured log lives in this directory and file of the app's private files directory. */
 private const val LOG_DIRECTORY = "logs"
@@ -62,6 +64,7 @@ val appModule = module {
     single { HostsRepository(get(), get()) }
     single { LayoutStore(AtomicFile(File(get<Context>().filesDir, LAYOUT_FILE)), get(ioDispatcher)) }
     single { LayoutRepository(get(), get()) }
+    single { RecentProjectsStore(AtomicFile(File(get<Context>().filesDir, RECENT_PROJECTS_FILE)), get(ioDispatcher), get()) }
     single { SettingsStore(AtomicFile(File(get<Context>().filesDir, SETTINGS_FILE)), get(ioDispatcher)) }
     // One source for the tunables: consumers read the value in force whenever they use it.
     single { RuntimeConfig(get<Context>().resources, get()) }

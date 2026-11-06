@@ -20,6 +20,8 @@ data class DisplayLimits(
     val sectionTitleMaxChars: Int,
     val detailValueMaxChars: Int,
     val groupNameMaxBytes: Int,
+    /** How many recent projects the project picker lists per view. */
+    val recentProjectsSize: Int,
     /** How long a host without a connection keeps looking connected in the session list. */
     val unreachableGrace: Duration,
 )
@@ -109,6 +111,7 @@ class AppConfig private constructor(
                     value(Tunable.SECTION_TITLE_MAX_CHARS).toInt(),
                     value(Tunable.DETAIL_VALUE_MAX_CHARS).toInt(),
                     value(Tunable.GROUP_NAME_MAX_BYTES).toInt(),
+                    value(Tunable.RECENT_PROJECTS_SIZE).toInt(),
                     value(Tunable.UNREACHABLE_GRACE_MS).milliseconds,
                 ),
             )
