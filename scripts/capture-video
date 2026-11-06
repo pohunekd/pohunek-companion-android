@@ -392,6 +392,12 @@ device="$(config_value emulator_screen)"
 # Height of a clip frame once it is scaled to video_width.
 frame_height=$((${BASH_REMATCH[2]} * video_width / ${BASH_REMATCH[1]}))
 
+# One capture per worktree: the lock lives as long as this script's descriptor 9, so a second capture
+# fails at once instead of sharing the run's slot and emulator.
+command -v flock >/dev/null || die "flock is not installed"
+exec 9<"$root/scripts/capture-video"
+flock -n 9 || die "another capture-video is already running for this worktree"
+
 existing="$(podman ps -a --filter "label=ui-agent.worktree=$root" --format '{{.Names}}' | head -n 1)"
 [ -z "$existing" ] || die "this worktree already has a ui-agent run ($existing); stop it yourself with: scripts/ui-agent stop"
 
