@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "appTree": "0a64740f12247c41b61f8a7e70d7ef604bd3682a",
+  "appTree": "15876cdf47454cd577dd1c24da908a3aeea87a9b",
   "device": "720x1600x320",
   "poster": "poster.png",
   "width": 720,
   "height": 1600,
-  "durationMs": 24900,
+  "durationMs": 32733,
   "alt": "Screen recording of the Pohunek Companion app on demo data: it filters the session list, then opens a live terminal and scrolls through its history.",
   "description": [
     "The session list puts the sessions that need you first, with a chip for the host.",
@@ -20,22 +20,22 @@
       "file": "demo.webm",
       "type": "video/webm",
       "codecs": "vp9",
-      "bytes": 1833829,
-      "sha256": "e712f744b1745bb72cd0d6d5c5aa1b632be43fec54bfc420928b4b81f42865b8"
+      "bytes": 1838140,
+      "sha256": "3d294ebc016472fe4e99aee976346e18ce3fe668dc636559e4454e45ed6c86bd"
     },
     {
       "file": "demo.mp4",
       "type": "video/mp4",
       "codecs": "avc1.640028",
-      "bytes": 2689391,
-      "sha256": "8b69da6a17761251604874d7b3954ebc1570c344bc76f4872659c99757026b8d"
+      "bytes": 2699693,
+      "sha256": "1d09690625e9fef045a2addc332ec2848edebb69d6bfca143dd7970e6c74ced4"
     },
     {
       "file": "poster.png",
       "type": "image/png",
       "codecs": "png",
-      "bytes": 241387,
-      "sha256": "f0f81d7685d87caa555d54c7984be602e6051a66252580c91a1adf6ad48648fb"
+      "bytes": 241149,
+      "sha256": "0412c11dfd3c72c9a3c78b8cf2206f1989bc28814a701b311f1ba6a45ee6a2e6"
     }
   ]
 }
