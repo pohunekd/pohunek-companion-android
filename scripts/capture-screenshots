@@ -247,9 +247,9 @@ shot_project_picker() {
   sleep 1
 }
 
+# The sheet covers nearly the whole screen, so no scrim tap reaches it; choosing All projects closes it and is not a pick.
 after_project_picker() {
-  # Escape does not close a modal sheet; a tap on the scrim above it does.
-  "$agent" click ProjectSheet >/dev/null
+  "$agent" click ProjectSheet.all >/dev/null
   wait_no_tag ProjectSheet.recent
 }
 
