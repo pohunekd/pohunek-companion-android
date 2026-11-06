@@ -10,9 +10,9 @@
 # the isolated emulator and its synthetic daemon can appear in an image.
 # app/ must be committed, because the manifest's appTree names the built tree.
 #
-# Shots run in the order of shots.json; the terminal shot stays last because the
-# attached terminal has no back control a script can reach; row-actions leaves its
-# sheet open for session-details, which opens from it. shots.json lists id,
+# Shots run in the order of shots.json; terminal-keys restarts the app to leave the
+# attached terminal, which has no back control a script can reach; row-actions leaves
+# its sheet open for session-details, which opens from it. shots.json lists id,
 # caption and alt per shot; each id needs a function shot_<id with - as _> below
 # that leaves the screen as it should be captured. The image size is the
 # emulator_screen of config/dev.toml.
@@ -41,9 +41,13 @@ groups=(
   "Docs|docs-install-guide tray-badge-polish triage-open-issues"
   "Tooling|lsp-semantic-tokens multibuffer-scroll-fix rustfmt-edition-2024 review-pr-1655 scratch-shell"
 )
-# Project the filters shot narrows to, the session whose actions and details are
-# shown, and the project whose template the new-session shot picks.
+# Project the filters shot narrows to, the projects it picks first so the picker has a
+# recent list (the last pick is listed first), the query the search shot types, the
+# session whose actions and details are shown, and the project whose template the
+# new-session shot picks.
 filter_project="pohunek-companion"
+recent_projects=("neovim" "tokio")
+search_query="tokio"
 sheet_session="review-pr-1412"
 template_project="pohunek-companion"
 template_name="fix-issue"
@@ -142,6 +146,23 @@ shot_session_list() {
   wait_no_tag SessionList.loading
 }
 
+shot_search() {
+  "$agent" click SessionList.searchIcon >/dev/null
+  wait_tag SessionList.search
+  "$agent" type "$search_query" >/dev/null
+  # The Search action closes the keyboard and keeps the field and its query, so the image
+  # has no suggestion strip and the same layout on every run.
+  "$agent" key enter >/dev/null
+  wait_tag SessionList.searchClear
+  wait_text "$terminal_session"
+  sleep 1
+}
+
+after_search() {
+  "$agent" click SessionList.searchClear >/dev/null
+  wait_no_tag SessionList.searchClear
+}
+
 shot_terminal() {
   wait_tag SessionList.row
   local index swipes=0
@@ -155,6 +176,21 @@ shot_terminal() {
   "$agent" click SessionList.row "$index" >/dev/null
   wait_tag Terminal.view
   wait_screen_text "$terminal_ready_text"
+}
+
+# The terminal's input is a plain text field without suggestions, so the keyboard shows no
+# suggestion strip; the accessory bar sits above it.
+shot_terminal_keys() {
+  "$agent" click Terminal.view >/dev/null
+  sleep 3
+  wait_screen_text "$terminal_ready_text"
+}
+
+# The terminal has no back control a script can reach; relaunching the app returns to the list.
+after_terminal_keys() {
+  "$agent" restart >&2
+  wait_tag SessionList.overflow
+  wait_tag SessionList.needsYou
 }
 
 shot_by_state() {
@@ -172,10 +208,14 @@ after_by_state() {
 }
 
 shot_filters() {
-  "$agent" click SessionList.filter.project >/dev/null
-  wait_tag ProjectSheet.project
-  click_tagged ProjectSheet.project "$filter_project"
-  wait_no_tag ProjectSheet.project
+  local project
+  # Each pick is remembered as recent; the project of the shot is picked last.
+  for project in "${recent_projects[@]}" "$filter_project"; do
+    "$agent" click SessionList.filter.project >/dev/null
+    wait_tag ProjectSheet.project
+    click_tagged ProjectSheet.project "$project"
+    wait_no_tag ProjectSheet.project
+  done
   "$agent" click SessionList.filter.state >/dev/null
   wait_tag StateSheet.state.ended
   "$agent" click StateSheet.state.ended >/dev/null
@@ -197,6 +237,18 @@ after_filters() {
   "$agent" click ProjectSheet.all >/dev/null
   wait_no_tag ProjectSheet.all
   wait_no_tag SessionList.noMatch
+}
+
+shot_project_picker() {
+  "$agent" click SessionList.filter.project >/dev/null
+  wait_tag ProjectSheet.recent
+  sleep 1
+}
+
+after_project_picker() {
+  # Escape does not close a modal sheet; a tap on the scrim above it does.
+  "$agent" click ProjectSheet >/dev/null
+  wait_no_tag ProjectSheet.recent
 }
 
 shot_groups() {
