@@ -443,7 +443,14 @@ offset of every frame (`scripts/scroll-pacing`, needs python3 with numpy): the m
 step-to-step deviation and the largest deviation among the peak-speed steps, where a single dip
 shows. Outside the limits in the header of `scripts/capture-video` the clip is recorded again, and
 after `pacing_attempts` the command fails, so a juddering clip is never written. The numbers are
-printed; quote them when judging scroll smoothness. A scene is a `scene_*` function and a `clips`
+printed; quote them when judging scroll smoothness. The recorder stamps frames with jittering times
+(12 to 33 ms between frames the display shows 1/60 s apart, each frame's content advancing evenly), and
+a conversion that picks frames by those times turns one late stamp into a 0.5x then 1.5x step. Before the
+conversion, frames closer than `retime_gap_ms` are therefore placed on the `retime_hz` grid in recording
+order; larger gaps keep their time and a frame whose content jumped still jumps, so a real dropped frame
+stays visible to the gate. Touches (the emulator draws none) are composited by `scripts/touch-overlay`,
+which finds each tap's pressed state or result in the clip itself and fails when a gesture has no onset.
+`--keep-raw DIR` keeps the raw recordings and gesture logs for offline work. A scene is a `scene_*` function and a `clips`
 entry. Review the frames before committing the set: only showcase data may appear.
 
 ## CI

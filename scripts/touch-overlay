@@ -170,6 +170,7 @@ def main():
                        ("edge-opacity", float), ("release-scale", float), ("fade-in-ms", float), ("release-ms", float)):
         parser.add_argument("--" + name, type=kind, required=True)
     parser.add_argument("--work", required=True, help="directory for the ring images")
+    parser.add_argument("--retime-filter", required=True, help="ffmpeg setpts filter applied to RAW before it is made constant-rate")
     args = parser.parse_args()
 
     start, started, gestures = read_log(args.gestures)
@@ -187,7 +188,7 @@ def main():
     taps = [g for g in gestures if g["kind"] == "tap"]
     fade_in, release = args.fade_in_ms / 1000, args.release_ms / 1000
     quick = 0.05
-    graph = [f"[0:v]fps={args.fps}[b0]",
+    graph = [f"[0:v]{args.retime_filter},fps={args.fps}[b0]",
              f"[1:v]format=rgba,split={len(gestures)}" + "".join(f"[s{i}]" for i in range(len(gestures)))]
     if taps:
         graph.append(f"[2:v]format=rgba,split={len(taps)}" + "".join(f"[l{i}]" for i in range(len(taps))))

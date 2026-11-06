@@ -88,6 +88,13 @@ pacing_min_burst_frames=6
 pacing_peak_fraction=0.6
 # The first steps of a burst accelerate and are not judged.
 pacing_ramp_steps=2
+# The recorder stamps frames with jittering times (12 to 33 ms between frames the display shows 1/60 s
+# apart, while the content of each frame advances evenly), and the conversion to the video's rate picks
+# frames by those times, so one late stamp becomes a 0.5x then 1.5x step. Frames less than
+# retime_gap_ms apart are therefore placed on the display's retime_hz grid in recording order; larger gaps
+# (static pauses, stalls) keep their time, and a frame whose content jumped still jumps.
+retime_hz=60
+retime_gap_ms=40
 # Columns of the brightness profile a frame is reduced to, the rows compared and the largest offset
 # searched, and the offset in rows from which a frame counts as moving.
 pacing_profile_cols=90
@@ -387,18 +394,26 @@ pacing_verdict() { # RAW HEAD TAIL SEGMENT
     'BEGIN { exit !(p95 <= a && p99 <= b && med <= c && pk <= d) }'
 }
 
+# The setpts filter that places frames less than retime_gap_ms apart on the retime_hz grid, in order.
+retime_filter="$(awk -v hz="$retime_hz" -v gap="$retime_gap_ms" 'BEGIN {
+  printf "setpts='"'"'if(isnan(PREV_OUTPTS),PTS,if(lt(PTS-PREV_INPTS,%.6f/TB),PREV_OUTPTS+%.8f/TB,max(PTS,PREV_OUTPTS+%.8f/TB)))'"'"'", gap / 1000, 1 / hz, 1 / hz }')"
+
 # Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv.
 # Writes the cut, held and scaled segment of the clip SRC (on the raw time axis) to OUT.
-build_segment() { # SRC OUT KEEP HEAD_HOLD TAIL_HOLD
+# RETIME is 1 for a recording (frames carry the recorder's times) and 0 for a clip that is already
+# constant-rate.
+build_segment() { # SRC OUT KEEP HEAD_HOLD TAIL_HOLD RETIME
+  local retime=""
+  [ "$6" != 1 ] || retime="$retime_filter,"
   ffmpeg -hide_banner -loglevel error -nostdin -y -i "$1" \
-    -vf "fps=$fps,select='$3',setpts=N/($fps*TB),scale=$video_width:-2,tpad=start_mode=clone:start_duration=$4:stop_mode=clone:stop_duration=$5,format=yuv420p" \
+    -vf "${retime}fps=$fps,select='$3',setpts=N/($fps*TB),scale=$video_width:-2,tpad=start_mode=clone:start_duration=$4:stop_mode=clone:stop_duration=$5,format=yuv420p" \
     -an -c:v ffv1 "$2"
 }
 
 # Composites the clip's logged touches into RAW (scripts/touch-overlay) and writes the result to OUT.
 overlay_touches() { # RAW GESTURES OUT
   "$root/scripts/touch-overlay" "$1" "$2" "$3" --work "$work" --fps "$fps" \
-    --render-ms "$(config_value touch_render_ms)" --start-slack-ms "$(config_value touch_start_slack_ms)" \
+    --retime-filter "$retime_filter" --render-ms "$(config_value touch_render_ms)" --start-slack-ms "$(config_value touch_start_slack_ms)" \
     --onset-window-ms "$(config_value touch_onset_window_ms)" --scale "$(config_value touch_scale)" \
     --box-px "$(config_value touch_box_px)" --box-threshold "$(config_value touch_box_threshold)" \
     --rest-threshold "$(config_value touch_rest_threshold)" --change-threshold "$(config_value touch_change_threshold)" \
@@ -430,7 +445,7 @@ record_clip() { # N ENTRY
       [ "$word" = CUT ] && keep="$keep*not(between(t,$from,$to))"
     done < <(sed 1d <<<"$spans")
     echo "capture-video: $id keeps ${head}s..${tail}s of the raw clip, holds ${head_hold}s and ${tail_hold}s" >&2
-    build_segment "$raw" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold"
+    build_segment "$raw" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold" 1
     [ "$id" = "$fling_clip" ] || break
     pacing_verdict "$raw" "$head" "$tail" "$work/seg-$n.mkv" && break
     [ "$attempt" -lt "$pacing_attempts" ] || die "$id: frame pacing outside the limits in $pacing_attempts recordings; run again on a quieter host"
@@ -445,7 +460,7 @@ record_clip() { # N ENTRY
       cp "$raw" "$gestures_file" "$kept/"
       die "$id: the touches could not be placed in the recording; the clip and its gesture log are in $kept"
     fi
-    build_segment "$work/ov-$id.mkv" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold"
+    build_segment "$work/ov-$id.mkv" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold" 0
   fi
 }
 
