@@ -189,6 +189,10 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   // read only part of its first frame.
   private var pendingFlingVelocity = 0
   private var lastScrollStepNanos = 0L
+
+  // Drag distance (content direction) delivered since the previous scroll step. The lift frame
+  // adds only the release travel this drag does not already cover.
+  private var dragSinceStepPx = 0f
   private var scrollbarTotal = 0L
   private var scrollbarOffset = 0L
   private var scrollbarLen = 0L
@@ -262,6 +266,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
       ): Boolean {
         if (handle == 0L || scaleDetector.isInProgress) return false
         scrollAccumulator.add(distanceY)
+        dragSinceStepPx += distanceY
         wheelX = e2.x
         wheelY = e2.y
         scheduleScrollStep()
@@ -478,6 +483,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     if (handle == 0L) return
     if (pendingFlingVelocity != 0) startFling(frameTimeNanos)
     lastScrollStepNanos = frameTimeNanos
+    dragSinceStepPx = 0f
     val flinging = scroller.computeScrollOffset()
     if (flinging) {
       val y = scroller.currY
@@ -499,8 +505,9 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   }
 
   /**
-   * Starts the fling on this frame's clock. The frame the finger lifted in still moves at the
-   * release velocity, as the drag did, and the scroller's travel follows from the next frame on.
+   * Starts the fling on this frame's clock. The frame the finger lifted in moves by the release
+   * travel (velocity times the frame gap), or by the drag already delivered in it when that is
+   * larger; the scroller's travel follows from the next frame on.
    */
   private fun startFling(frameTimeNanos: Long) {
     val velocity = pendingFlingVelocity
@@ -509,7 +516,9 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     scroller.fling(0, 0, 0, velocity, 0, 0, Int.MIN_VALUE, Int.MAX_VALUE)
     val frameNanos = frameTimeNanos - lastScrollStepNanos
     if (lastScrollStepNanos != 0L && frameNanos > 0L) {
-      scrollAccumulator.add(velocity * frameNanos / NANOS_PER_SECOND)
+      val topUp = velocity * frameNanos / NANOS_PER_SECOND - dragSinceStepPx
+      // A drag that already moved at least the release travel needs no top-up, and never a reversal.
+      if (topUp * velocity > 0f) scrollAccumulator.add(topUp)
     }
   }
 
@@ -1293,6 +1302,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
         scroller.abortAnimation()
         pendingFlingVelocity = 0
         lastScrollStepNanos = 0L
+        dragSinceStepPx = 0f
         fingerDown = true
         // Reports the previous gesture left unsent are stale once a new one starts.
         if (handle != 0L && GhosttyVt.nativeWheelTarget(handle) != GhosttyVt.WHEEL_LOCAL) {
