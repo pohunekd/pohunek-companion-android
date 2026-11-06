@@ -182,6 +182,13 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   // ── Scrollback state ──
   private val scroller = OverScroller(context)
   private var flingLastY = 0
+
+  // Release velocity (px/s, content direction) of a fling that starts at the next scroll step, and
+  // the frame time of the previous step of the current touch (0 before its first step). The
+  // scroller's clock starts where fling() is called, so a fling started in the input phase would
+  // read only part of its first frame.
+  private var pendingFlingVelocity = 0
+  private var lastScrollStepNanos = 0L
   private var scrollbarTotal = 0L
   private var scrollbarOffset = 0L
   private var scrollbarLen = 0L
@@ -271,8 +278,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
         // Finger up (negative velocity) scrolls content down: invert.
         wheelX = e2.x
         wheelY = e2.y
-        flingLastY = 0
-        scroller.fling(0, 0, 0, -velocityY.toInt(), 0, 0, Int.MIN_VALUE, Int.MAX_VALUE)
+        pendingFlingVelocity = -velocityY.toInt()
         scheduleScrollStep()
         return true
       }
@@ -430,6 +436,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     removeCallbacks(blinkRunnable)
     removeCallbacks(syncTimeoutRunnable)
     scroller.abortAnimation()
+    pendingFlingVelocity = 0
     if (scrollFramePending) {
       Choreographer.getInstance().removeFrameCallback(scrollFrameCallback)
       scrollFramePending = false
@@ -469,6 +476,8 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
    */
   private fun scrollStep(frameTimeNanos: Long) {
     if (handle == 0L) return
+    if (pendingFlingVelocity != 0) startFling(frameTimeNanos)
+    lastScrollStepNanos = frameTimeNanos
     val flinging = scroller.computeScrollOffset()
     if (flinging) {
       val y = scroller.currY
@@ -486,6 +495,21 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     }
     if (fingerDown || flinging || (target != GhosttyVt.WHEEL_LOCAL && scrollAccumulator.hasReportRow(cellHeight))) {
       scheduleScrollStep()
+    }
+  }
+
+  /**
+   * Starts the fling on this frame's clock. The frame the finger lifted in still moves at the
+   * release velocity, as the drag did, and the scroller's travel follows from the next frame on.
+   */
+  private fun startFling(frameTimeNanos: Long) {
+    val velocity = pendingFlingVelocity
+    pendingFlingVelocity = 0
+    flingLastY = 0
+    scroller.fling(0, 0, 0, velocity, 0, 0, Int.MIN_VALUE, Int.MAX_VALUE)
+    val frameNanos = frameTimeNanos - lastScrollStepNanos
+    if (lastScrollStepNanos != 0L && frameNanos > 0L) {
+      scrollAccumulator.add(velocity * frameNanos / NANOS_PER_SECOND)
     }
   }
 
@@ -1267,6 +1291,8 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         scroller.abortAnimation()
+        pendingFlingVelocity = 0
+        lastScrollStepNanos = 0L
         fingerDown = true
         // Reports the previous gesture left unsent are stale once a new one starts.
         if (handle != 0L && GhosttyVt.nativeWheelTarget(handle) != GhosttyVt.WHEEL_LOCAL) {
@@ -1456,6 +1482,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     const val INITIAL_ROWS = 24
     const val MAX_SCROLLBACK = 10_000L
     const val BLINK_INTERVAL_MS = 600L
+    const val NANOS_PER_SECOND = 1_000_000_000f
     const val SYMBOLS_FONT_ASSET = "SymbolsNerdFontMono-Regular.ttf"
 
     // Nerd Font glyph ranges: BMP private-use area plus the supplementary
