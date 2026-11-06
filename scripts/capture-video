@@ -88,6 +88,12 @@ pacing_min_burst_frames=6
 pacing_peak_fraction=0.6
 # The first steps of a burst accelerate and are not judged.
 pacing_ramp_steps=2
+# A step shorter than this fraction of the mean of its two neighbours (a repeated frame, a stall), at most
+# pacing_collapse_steps in a row between neighbours that both move at least pacing_collapse_min_rows, stays
+# inside its burst and is judged as a dip instead of splitting the burst.
+pacing_collapse_fraction=0.5
+pacing_collapse_steps=2
+pacing_collapse_min_rows=16
 # The recorder stamps frames with jittering times (12 to 33 ms between frames the display shows 1/60 s
 # apart, while the content of each frame advances evenly), and the conversion to the video's rate picks
 # frames by those times, so one late stamp becomes a 0.5x then 1.5x step. Frames less than
@@ -375,7 +381,8 @@ scroll_roughness() { # FILE
   "$root/scripts/scroll-pacing" "$1" --width "$pacing_profile_cols" --height "$frame_height" \
     --compare-from "$pacing_compare_from" --compare-to "$pacing_compare_to" --max-shift "$pacing_max_shift" \
     --moving "$pacing_moving_rows" --min-burst "$pacing_min_burst_frames" --ramp-steps "$pacing_ramp_steps" \
-    --peak-fraction "$pacing_peak_fraction"
+    --peak-fraction "$pacing_peak_fraction" --collapse-fraction "$pacing_collapse_fraction" \
+    --collapse-steps "$pacing_collapse_steps" --collapse-min-rows "$pacing_collapse_min_rows"
 }
 
 # Prints the pacing numbers of the raw clip RAW (moving between HEAD and TAIL seconds) and of its converted

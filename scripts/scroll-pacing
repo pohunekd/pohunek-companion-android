@@ -16,6 +16,11 @@ consecutive frames that move in one direction, and prints one line
             --peak-fraction of the burst's fastest step), where a single dip
             shows most; --ramp-steps leading steps of a burst are not judged
 
+A step that collapses between two moving steps of one direction (it is shorter than --collapse-fraction of
+the mean of its neighbours, which both move at least --collapse-min-rows; at most --collapse-steps in a
+row, and a repeated frame or a small step the other way counts) is part of the burst, so a
+stalled frame is judged as a dip instead of ending the burst.
+
 Each burst's offsets go to stderr. Needs python3 with numpy and ffmpeg.
 """
 import argparse
@@ -46,10 +51,31 @@ def offset(prev, cur, top, bottom, max_shift):
     return best_shift
 
 
-def bursts_of(offsets, moving, min_burst):
+def collapsed_steps(offsets, args):
+    """Indexes of steps that stall between two moving steps of one direction (see the module doc)."""
+    marked = set()
+    for i, value in enumerate(offsets):
+        if i in marked:
+            continue
+        for length in range(1, args.collapse_steps + 1):
+            before, after = i - 1, i + length
+            if before < 0 or after >= len(offsets):
+                continue
+            first, last = offsets[before], offsets[after]
+            if min(abs(first), abs(last)) < args.collapse_min_rows or (first < 0) != (last < 0):
+                continue
+            run = offsets[i:after]
+            if all(abs(v) < args.collapse_fraction * (abs(first) + abs(last)) / 2 for v in run):
+                marked.update(range(i, after))
+                break
+    return marked
+
+
+def bursts_of(offsets, moving, min_burst, stalled):
     bursts, current = [], []
-    for value in offsets:
-        if abs(value) >= moving and (not current or (value < 0) == (current[0] < 0)):
+    for i, value in enumerate(offsets):
+        keeps = i in stalled and current
+        if keeps or (abs(value) >= moving and (not current or (value < 0) == (current[0] < 0))):
             current.append(value)
             continue
         if len(current) >= min_burst:
@@ -72,13 +98,16 @@ def main():
     parser.add_argument("--min-burst", type=int, required=True)
     parser.add_argument("--ramp-steps", type=int, required=True)
     parser.add_argument("--peak-fraction", type=float, required=True)
+    parser.add_argument("--collapse-fraction", type=float, required=True)
+    parser.add_argument("--collapse-steps", type=int, required=True)
+    parser.add_argument("--collapse-min-rows", type=int, required=True)
     args = parser.parse_args()
 
     frames = read_profiles(args.file, args.width, args.height)
     offsets = [offset(frames[i - 1], frames[i], args.compare_from, args.compare_to, args.max_shift)
                for i in range(1, len(frames))]
     deviations, peak_deviations = [], []
-    bursts = bursts_of(offsets, args.moving, args.min_burst)
+    bursts = bursts_of(offsets, args.moving, args.min_burst, collapsed_steps(offsets, args))
     for burst in bursts:
         steps = np.abs(np.array(burst, dtype=float))
         top = steps.max()
