@@ -61,7 +61,7 @@ loop_min_ssim=0.97
 
 # The scenes, in the order the video plays: clip id, hold before and after the clip (seconds), scene function.
 clips=(
-  "list|0.5|2.5|scene_list"
+  "list|0.5|2.0|scene_list"
   "bar|0|1.0|scene_bar"
   "project|0.5|2.0|scene_project"
   "state|0.5|1.5|scene_state"
@@ -80,7 +80,7 @@ list_clip="bar"
 # relative deviation of a step from the mean of its two neighbours, over bursts of at least
 # pacing_min_burst_frames frames that move in one direction. A clip outside any limit is recorded again, at
 # most pacing_attempts times, then the command fails: a juddering clip is never written to docs/media.
-pacing_attempts=8
+pacing_attempts=12
 pacing_max_p95_ms=20
 pacing_max_p99_ms=40
 pacing_max_roughness_median=0.06
