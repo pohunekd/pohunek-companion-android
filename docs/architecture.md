@@ -163,9 +163,15 @@ as the desktop companion: `v0.35.2` today.
   connections; attach settings apply to the next terminal opened. Overrides that
   stop validating, or an unreadable file, show the configuration error screen
   with an action that discards them.
-- **App data** (hosts, layout and settings) is JSON written with
+- **App data** (hosts, layout, settings and recent projects) is JSON written with
   kotlinx-serialization through `AtomicFile` in the app's files directory. An
   unreadable file is shown as an error and never overwritten.
+- **Recent projects** (`recent_projects.json`, `{"version":1,"views":{"<view id>":["<project label>", ...]}}`) are the phone's own
+  state, never shared with the desktop or sent anywhere, and not part of `layout.json`. Choosing a project in the picker moves its label
+  to the front of that view's list (clearing, All projects and No project change nothing); every list is cut to `recent_projects_size`
+  (default 3, 0 turns the section off) on each write. The picker lists the recent labels that some project row still has, above the
+  A to Z rows, while its query is empty. A file that cannot be read is logged once (`recent_projects.unreadable`, reason only), kept as it
+  is and never overwritten: the picker then has no recent section.
 - **Layout** (`layout.json`, schema version 2: the desktop's layout schema with its field names, plus `migrated_hosts`; a version-1 file loads as unmigrated and an older build shows a version-2 file as invalid and keeps it) holds the owner's groups, the
   placement of each session by `(route, session id)` and the collapsed state. Group membership is shared with the desktop
   companion through the session metadata key `companion.group`, whose value is the group's display name; group order, session

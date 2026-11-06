@@ -43,6 +43,7 @@ import dev.pohunek.companion.R
 import dev.pohunek.companion.core.domain.layout.ProjectPickerRow
 import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.projectPickerRows
+import dev.pohunek.companion.core.domain.layout.recentPickerRows
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
 /** The `Project ▾` chip, which opens the [ProjectSheet]; it is offered when the sessions have more than one choice. */
@@ -79,6 +80,13 @@ internal fun ProjectFilter(state: SessionListState, onEvent: (SessionListEvent) 
 private fun ProjectSheet(state: SessionListState, onPick: (ProjectSelection) -> Unit, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     val rows = remember(state.projectChips, state.projectPool, query) { projectPickerRows(state.projectChips, state.projectPool, query) }
+    val recent = remember(rows, state.recentProjects, state.recentSize, state.view, query) {
+        if (query.isEmpty()) {
+            recentPickerRows(rows, state.recentProjects.shown(state.view.id, state.recentSize, state.projectChips))
+        } else {
+            emptyList()
+        }
+    }
     val projects = state.projectChips.count { it.label != null }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -94,21 +102,36 @@ private fun ProjectSheet(state: SessionListState, onPick: (ProjectSelection) -> 
                 modifier = Modifier.fillMaxWidth().padding(horizontal = PohunekTheme.spacing.gutter).testTag("ProjectSheet.search"),
             )
             HorizontalDivider(Modifier.padding(top = PohunekTheme.spacing.sm))
+            val pick: (ProjectPickerRow) -> Unit = { row ->
+                onPick(row.selection)
+                onDismiss()
+            }
             LazyColumn {
-                items(rows, key = { it.selection.toString() }) { row ->
-                    ProjectRow(row) {
-                        onPick(row.selection)
-                        onDismiss()
-                    }
+                items(rows.take(1), key = { it.selection.toString() }) { ProjectRow(it, "ProjectSheet.all") { pick(it) } }
+                if (recent.isNotEmpty()) {
+                    item(key = "recent-header") { SectionLabel(stringResource(R.string.project_sheet_recent)) }
+                    items(recent, key = { "recent:" + it.selection }) { ProjectRow(it, "ProjectSheet.recent") { pick(it) } }
+                    item(key = "all-header") { SectionLabel(stringResource(R.string.project_sheet_all)) }
                 }
+                items(rows.drop(1), key = { it.selection.toString() }) { ProjectRow(it, null) { pick(it) } }
             }
         }
     }
 }
 
 @Composable
-private fun ProjectRow(row: ProjectPickerRow, onClick: () -> Unit) {
-    val tag = when (row.selection) {
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = PohunekTheme.spacing.gutter, vertical = PohunekTheme.spacing.sm),
+    )
+}
+
+@Composable
+private fun ProjectRow(row: ProjectPickerRow, tagOverride: String?, onClick: () -> Unit) {
+    val tag = tagOverride ?: when (row.selection) {
         ProjectSelection.All -> "ProjectSheet.all"
         ProjectSelection.NoProject -> "ProjectSheet.none"
         is ProjectSelection.Project -> "ProjectSheet.project"

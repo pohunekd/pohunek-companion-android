@@ -38,6 +38,8 @@
     <string name="project_filter_description">Filter by project</string>
     <string name="project_filter_selected_description">Filter by project, %1$s selected</string>
     <string name="project_sheet_search">Filter %1$d projects</string>
+    <string name="project_sheet_recent">Recent</string>
+    <string name="project_sheet_all">All projects</string>
     <string name="project_all">All projects</string>
     <string name="project_none">No project</string>
     <string name="project_needs_you">has a session that needs you</string>

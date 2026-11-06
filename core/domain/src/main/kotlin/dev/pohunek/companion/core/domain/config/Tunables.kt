@@ -42,6 +42,7 @@ enum class Tunable(val minimum: Long, val unit: TunableUnit, val maximum: Long =
     WHEEL_BACKLOG_ROWS(1, TunableUnit.Count),
     SYNC_OUTPUT_TIMEOUT_MS(1, TunableUnit.Milliseconds),
     GROUP_NAME_MAX_BYTES(1, TunableUnit.Bytes, MAX_GROUP_NAME_BYTES),
+    RECENT_PROJECTS_SIZE(0, TunableUnit.Count, MAX_RECENT_PROJECTS),
     LOG_MAX_BYTES(MIN_LOG_MAX_BYTES, TunableUnit.Bytes),
     ;
 
@@ -72,6 +73,9 @@ const val MAX_TUNABLE_VALUE: Long = Int.MAX_VALUE.toLong()
 private const val MAX_TERMINAL_SIDE = 65_535L
 
 private const val MIN_LOG_MAX_BYTES = 4096L
+
+/** The project picker lists at most this many recent projects. */
+private const val MAX_RECENT_PROJECTS = 10L
 
 /** The daemon refuses a metadata value over 4096 bytes. */
 private const val MAX_GROUP_NAME_BYTES = 4096L

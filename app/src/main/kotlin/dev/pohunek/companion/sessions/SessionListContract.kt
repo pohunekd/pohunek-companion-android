@@ -11,6 +11,7 @@ import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.domain.layout.Placement
 import dev.pohunek.companion.core.domain.layout.ProjectChip
 import dev.pohunek.companion.core.domain.layout.ProjectSelection
+import dev.pohunek.companion.core.domain.layout.RecentProjects
 import dev.pohunek.companion.core.domain.layout.RowFacts
 import dev.pohunek.companion.core.domain.layout.StateSelection
 import dev.pohunek.companion.core.domain.layout.WorkItem
@@ -137,6 +138,9 @@ data class SessionListState(
     val projectPool: List<FilterFacts> = emptyList(),
     /** The sessions that pass the state, project and search filters whatever their host: what the host sheet counts. */
     val hostPool: List<FilterFacts> = emptyList(),
+    /** The recent projects of every view and how many of them the picker lists. */
+    val recentProjects: RecentProjects = RecentProjects(),
+    val recentSize: Int = 0,
     /** Whether the shown view's states, project or host differ from its default. */
     val filtersChanged: Boolean = false,
     val states: StateSelection = StateSelection.DEFAULT,
