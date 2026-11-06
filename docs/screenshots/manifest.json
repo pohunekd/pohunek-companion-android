@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "appTree": "0a64740f12247c41b61f8a7e70d7ef604bd3682a",
+  "appTree": "4562173c8238ae6fe1c9d0aceadd48e014aa3e32",
   "device": "720x1600x320",
   "shots": [
     {
@@ -19,7 +19,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the bottom bar expanded into a full-width search field holding the query tokio, over the two sessions of two hosts that match it.",
       "width": 720,
       "height": 1600,
-      "sha256": "8039e724cc4a45a9e804cbd032b0610bd807369ef5c0d0ccae28dd972ff46d5a"
+      "sha256": "a2fd3d51b5d1781e01dcaef4b8c7a4b1d71b721c3ee2330d0b569b9da3c8c6a5"
     },
     {
       "id": "filters",
@@ -28,7 +28,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the bottom filter bar showing a search icon, a State chip with a count of four, a project chip and a Host chip, over the sessions of that one project including an ended one.",
       "width": 720,
       "height": 1600,
-      "sha256": "077edd67df99a637e3c072990c01c62d73891b2d5b402e97a3f7b1672802bd99"
+      "sha256": "294b9a2b947449de558676499a5204d45d9d7043b202b4e8f5769aa49aa82715"
     },
     {
       "id": "project-picker",
@@ -55,7 +55,7 @@
       "alt": "Pohunek Companion terminal in the dark theme with the on-screen keyboard up and, above it, a row of accessory keys: Esc, Tab, Ctrl, Alt and the arrow keys.",
       "width": 720,
       "height": 1600,
-      "sha256": "34c1c6be29b71e90dd1b0b62e5aa2387618c6fdb547b98e6d1b59541e638fde5"
+      "sha256": "8a40957301692edccab58367d59a6ab42938b79c4eac71898d7e9e7d24e41551"
     },
     {
       "id": "new-session",
@@ -91,7 +91,7 @@
       "alt": "Pohunek Companion Hosts screen in the dark theme: two hosts, each with its address and a Connected status, and an Add a host button.",
       "width": 720,
       "height": 1600,
-      "sha256": "e4b723a587d6e977de8a1ce98cd928db559030ab741ab494ff233494c9cabf05"
+      "sha256": "f015ca1983653d0ce3e255a423956999e5793678c7d29c6229a1c19a226e567f"
     },
     {
       "id": "row-actions",
@@ -109,7 +109,7 @@
       "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button.",
       "width": 720,
       "height": 1600,
-      "sha256": "d54ac0b22a4f2b4883562d00146b373834e1e15ecffaf4faf71496947b788913"
+      "sha256": "4a51ffa1746e739ef625478781ef62477e580a2bf05dcd492e48b7f857a8c447"
     }
   ]
 }
