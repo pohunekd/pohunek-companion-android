@@ -106,3 +106,12 @@ daemon_reply_wait_secs = 3
 record_bit_rate = 8000000
 record_time_limit_secs = 180
 record_stop_wait_secs = 10
+
+# scripts/ui-agent click --dwell: milliseconds the finger rests on the element before the tap lands
+# (below android_long_press_timeout_ms), so a recording shows the touch before its result.
+tap_dwell_ms = 350
+
+# scripts/capture-video: seconds between two scripted actions, so the result of a tap can be read, and the
+# longest static stretch inside a clip that is kept whole (at least video_pause_secs).
+video_pause_secs = 1.5
+video_static_cap_secs = 1.6

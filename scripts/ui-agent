@@ -13,7 +13,8 @@
 #   scripts/ui-agent screenshot OUT.png    save the screen as PNG
 #   scripts/ui-agent tree                  JSON list of tagged and labelled nodes with bounds
 #   scripts/ui-agent find TAG              the nodes whose testTag is TAG (JSON)
-#   scripts/ui-agent click TAG [N]         tap the centre of the Nth (0-based) match
+#   scripts/ui-agent click TAG [N] [--dwell]
+#                                          tap the centre of the Nth (0-based) match; --dwell holds the press for tap_dwell_ms first
 #   scripts/ui-agent type TEXT [--enter]   type text, optionally followed by Enter
 #   scripts/ui-agent key esc|ctrl-c|tab|up|down|left|right|enter|back
 #   scripts/ui-agent swipe TAG up|down|left|right [--fling]
@@ -345,7 +346,14 @@ case "${1:-}" in
   session-screen) guest session-screen "${2:?session id required}" "${3:-}" ;;
   tree) warn_unpublishable; guest tree ;;
   find) warn_unpublishable; guest find "${2:?element tag required}" ;;
-  click) guest click "${2:?element tag required}" "${3:-0}" ;;
+  click)
+    shift
+    tag="${1:?element tag required}"; shift
+    n=0; dwell=""
+    if [[ "${1:-}" =~ ^[0-9]+$ ]]; then n="$1"; shift; fi
+    if [ "${1:-}" = --dwell ]; then dwell=--dwell; shift; fi
+    [ $# -eq 0 ] || die "usage: click TAG [N] [--dwell]"
+    guest click "$tag" "$n" ${dwell:+"$dwell"} ;;
   type) guest type "${2:?text required}" "${3:-}" ;;
   key) guest key "${2:?key required}" ;;
   swipe) guest swipe "${2:?element tag required}" "${3:?direction required}" ${4:+"$4"} ;;

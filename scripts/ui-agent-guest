@@ -948,13 +948,22 @@ find_tag() { # TAG
   ui_nodes | jq --arg tag "$1" 'map(select(.id == $tag))'
 }
 
-click_tag() { # TAG [N]
-  local tag="$1" n="${2:-0}" node x y
+click_tag() { # TAG [N] [--dwell]
+  local tag="$1" n="${2:-0}" dwell="${3:-}" node x y dwell_ms long_press_ms
   [[ "$n" =~ ^[0-9]+$ ]] || die "N must be a non-negative integer"
   node="$(find_tag "$tag" | jq -c --argjson n "$n" '.[$n] // empty')"
   [ -n "$node" ] || die "no element matches '$tag' (index $n)"
   x="$(jq -r .center.x <<<"$node")"; y="$(jq -r .center.y <<<"$node")"
-  adbd shell input tap "$x" "$y"
+  if [ "$dwell" = --dwell ]; then
+    # A press that stays at the point for tap_dwell_ms and ends before the long-press timeout is still a tap.
+    dwell_ms="$(config_value tap_dwell_ms)"; positive_int tap_dwell_ms "$dwell_ms"
+    long_press_ms="$(config_value android_long_press_timeout_ms)"; positive_int android_long_press_timeout_ms "$long_press_ms"
+    [ "$dwell_ms" -lt "$long_press_ms" ] || die "$config: tap_dwell_ms ($dwell_ms) must be below android_long_press_timeout_ms ($long_press_ms)"
+    adbd shell input swipe "$x" "$y" "$x" "$y" "$dwell_ms"
+  else
+    [ -z "$dwell" ] || die "usage: click TAG [N] [--dwell]"
+    adbd shell input tap "$x" "$y"
+  fi
   echo "tapped $tag at $x,$y"
 }
 
@@ -1559,7 +1568,7 @@ case "$cmd" in
   screenshot) load_run; adbd exec-out screencap -p ;;
   tree) load_run; ui_nodes ;;
   find) load_run; find_tag "${1:?element tag required}" ;;
-  click) load_run; click_tag "${1:?element tag required}" "${2:-0}" ;;
+  click) load_run; click_tag "${1:?element tag required}" "${2:-0}" ${3:+"$3"} ;;
   type) load_run; type_text "${1:?text required}" "${2:-}" ;;
   key) load_run; send_key "${1:?key required}" ;;
   rotate) load_run; rotate ;;

@@ -27,8 +27,6 @@ manifest_schema=1
 
 # Seconds a wait for a screen element or terminal text may take.
 wait_secs=60
-# Seconds between two scripted actions, so each is visible before the next starts.
-pause_secs=1
 # The showcase session the terminal scene opens (it runs the scripted demo) and the last text the demo draws.
 terminal_session="bump-tokio-1.48"
 terminal_ready_text="showcase demo: standing by"
@@ -53,8 +51,6 @@ min_clip_secs=0.2
 # A frozen stretch must last this long (seconds) and differ by less than this noise ratio from its frame.
 freeze_secs=0.3
 freeze_noise=0.001
-# A static stretch inside a clip (a wait for the app between two actions) is shortened to this many seconds.
-static_cap_secs=0.7
 # Raw frame gaps above this many milliseconds are static pauses, not scrolling, and stay out of the interval statistics.
 motion_gap_ms=250
 # The last frame must match the first at least this well (SSIM 0..1), or the video does not loop cleanly.
@@ -124,6 +120,11 @@ config_value() {
   printf '%s' "$value"
 }
 
+# Seconds between two scripted actions (the result of a tap stays on screen this long) and the longest
+# static stretch inside a clip that is kept whole.
+pause_secs="$(config_value video_pause_secs)"
+static_cap_secs="$(config_value video_static_cap_secs)"
+
 # shellcheck source=scripts/showcase-prelude
 . "$root/scripts/showcase-prelude"
 
@@ -164,7 +165,12 @@ tag_index_of() { # TAG NAME
 click_tagged() { # TAG NAME
   local index
   index="$(tag_index_of "$1" "$2")" || die "no $1 for '$2'"
-  "$agent" click "$1" "$index" >/dev/null
+  "$agent" click "$1" "$index" --dwell >/dev/null
+}
+
+# Presses the element like a finger: the touch dot shows for tap_dwell_ms before the tap lands.
+tap() { # TAG [N]
+  "$agent" click "$1" "${2:-0}" --dwell >/dev/null
 }
 
 pause() { sleep "$pause_secs"; }
@@ -185,9 +191,9 @@ scene_bar() {
 }
 
 scene_project() {
-  "$agent" click SessionList.filter.project >/dev/null
+  tap SessionList.filter.project
   wait_tag ProjectSheet.search
-  "$agent" click ProjectSheet.search >/dev/null
+  tap ProjectSheet.search
   "$agent" type "$project_filter_text" >/dev/null
   pause
   click_tagged ProjectSheet.project "$project_name"
@@ -196,16 +202,16 @@ scene_project() {
 }
 
 scene_state() {
-  "$agent" click SessionList.filter.state >/dev/null
+  tap SessionList.filter.state
   wait_tag StateSheet.state.needs-you
   pause
-  "$agent" click StateSheet.state.needs-you >/dev/null
+  tap StateSheet.state.needs-you
   pause
   # Escape does not close a modal sheet; a tap on the scrim above it does.
-  "$agent" click StateSheet >/dev/null
+  tap StateSheet
   wait_no_tag StateSheet.state.needs-you
   pause
-  "$agent" click SessionList.clearFilters >/dev/null
+  tap SessionList.clearFilters
   wait_no_tag SessionList.clearFilters
   pause
 }
@@ -220,7 +226,7 @@ scene_terminal_open() {
   done
   index="$(tag_index_of SessionList.row "$terminal_session")"
   pause
-  "$agent" click SessionList.row "$index" >/dev/null
+  tap SessionList.row "$index"
   wait_tag Terminal.view
   wait_screen_text "$terminal_ready_text"
   pause
