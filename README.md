@@ -62,10 +62,6 @@ the app and [docs/architecture.md](docs/architecture.md) how it works.
       <img src="docs/screenshots/hosts.png" alt="Pohunek Companion Hosts screen in the dark theme: one host with its address and a Connected status, and an Add a host button." width="240" /><br />
       The hosts the app follows, each with its connection state.
     </td>
-    <td align="center" valign="top">
-      <img src="docs/screenshots/settings.png" alt="Pohunek Companion settings screen in the dark theme: a list of tunables, each with its default value." width="240" /><br />
-      Every tunable of the app in one list, with its default and a reset.
-    </td>
   </tr>
   <tr>
     <td align="center" valign="top">

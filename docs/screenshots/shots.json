@@ -58,10 +58,5 @@
     "id": "session-details",
     "caption": "The identity, agent and location of one session, each field with a Copy button.",
     "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button."
-  },
-  {
-    "id": "settings",
-    "caption": "Every tunable of the app in one list, with its default and a reset.",
-    "alt": "Pohunek Companion settings screen in the dark theme: a list of tunables, each with its default value."
   }
 ]

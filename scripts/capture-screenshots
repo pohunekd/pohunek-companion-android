@@ -354,18 +354,6 @@ after_hosts() {
   wait_tag SessionList.overflow
 }
 
-shot_settings() {
-  "$agent" click SessionList.overflow >/dev/null
-  wait_tag SessionList.settings
-  "$agent" click SessionList.settings >/dev/null
-  wait_tag Settings.list
-}
-
-after_settings() {
-  "$agent" click Settings.back >/dev/null
-  wait_tag SessionList.overflow
-}
-
 shot_function() { printf 'shot_%s' "${1//-/_}"; }
 
 # ---- Checks before anything starts -------------------------------------------

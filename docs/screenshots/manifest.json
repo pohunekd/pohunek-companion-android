@@ -110,15 +110,6 @@
       "width": 720,
       "height": 1600,
       "sha256": "d54ac0b22a4f2b4883562d00146b373834e1e15ecffaf4faf71496947b788913"
-    },
-    {
-      "id": "settings",
-      "file": "settings.png",
-      "caption": "Every tunable of the app in one list, with its default and a reset.",
-      "alt": "Pohunek Companion settings screen in the dark theme: a list of tunables, each with its default value.",
-      "width": 720,
-      "height": 1600,
-      "sha256": "eebb51a81d40eb958f38ff8b6d84ab48c51b76ef02b14c771145697c47265d02"
     }
   ]
 }
