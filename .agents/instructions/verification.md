@@ -78,6 +78,7 @@ scripts/ui-agent display WxH DPI|reset | font-scale F|reset | talkback on|off
 scripts/ui-agent rotate | net-drop | net-restore | stall SECONDS|on|off | host-stop | host-start
 scripts/ui-agent health | log [app|daemon|emulator]
 scripts/ui-agent screen | session-screen ID [--size]
+scripts/ui-agent record start | record stop OUT.mp4   # screenrecord, isolated emulator runs only
 scripts/ui-agent swipe TAG up|down|left|right | long-press TAG [N] | drag TAG [N] --to TAG [M] [--after]
 scripts/ui-agent background | foreground | clipboard | sockets
 scripts/ui-agent app-file cat|put|rm PATH
@@ -421,6 +422,38 @@ changes under `app/`, and fails naming the id when `shots.json` and the capture
 steps in the script disagree. A new shot is a `shots.json` entry plus a
 `shot_<id>` function. Open every PNG before committing the set: each must show
 the intended screen with showcase data only. Run it before tagging a release.
+
+### Demo video
+
+`scripts/capture-video` writes the public demo video to `docs/media/`: `demo.webm`
+(VP9), `demo.mp4` (H.264 High), `poster.png` and `manifest.json` (`schema` 1, the
+format pohunek.dev reads: `appTree`, `device`, `poster`, `width`, `height`,
+`durationMs`, `alt`, a `description` line per scene, and per file `file`, `type`,
+`codecs`, `bytes`, `sha256`). Like `capture-screenshots` it owns its
+`ui-agent start --showcase` run, sources `scripts/showcase-prelude`, takes only `--keep-raw DIR`
+and needs a clean `app/`. It records one clip per scene with `ui-agent record`, cuts
+each clip's static head and tail, adds fixed holds, joins the clips at a constant
+30 fps and 720 px, and fails when the first and last frame differ (the video
+loops). `scripts/check-media` holds the size and length budgets (WebM 2.5 MB, MP4
+3.5 MB, poster 250 KB, 35 s), checks files against the manifest and runs on the
+`capture-video` output before `docs/media` is replaced. Before it records it waits (at most `quiet_wait_secs`) for a quiet host: no other
+`ui-agent` slot and a low load average. The terminal fling clip is gated on frame
+pacing: the raw recording's frame intervals (p95/p99) and, on the converted 30 fps clip, the scroll
+offset of every frame (`scripts/scroll-pacing`, needs python3 with numpy): the median
+step-to-step deviation and the largest deviation among the peak-speed steps, where a single dip
+shows; a stalled or repeated frame between two moving steps stays inside its burst and counts as a dip.
+The list scroll clip is gated only on a stalled or repeated frame inside a scroll burst (an injected
+drag is uneven by itself, so no peak-step rule applies to it). Outside the limits in the pacing block of `scripts/capture-video` the clip is recorded again, and
+after `pacing_attempts` the command fails, so a juddering clip is never written. The numbers are
+printed; quote them when judging scroll smoothness. The recorder stamps frames with jittering times
+(12 to 33 ms between frames the display shows 1/60 s apart, each frame's content advancing evenly), and
+a conversion that picks frames by those times turns one late stamp into a 0.5x then 1.5x step. Before the
+conversion, frames closer than `retime_gap_ms` are therefore placed on the `retime_hz` grid in recording
+order; larger gaps keep their time and a frame whose content jumped still jumps, so a real dropped frame
+stays visible to the gate. Touches (the emulator draws none) are composited by `scripts/touch-overlay`,
+which finds each tap's pressed state or result in the clip itself and fails when a gesture has no onset.
+`--keep-raw DIR` keeps the raw recordings and gesture logs for offline work. A scene is a `scene_*` function and a `clips`
+entry. Review the frames before committing the set: only showcase data may appear.
 
 ## CI
 

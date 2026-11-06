@@ -948,14 +948,29 @@ find_tag() { # TAG
   ui_nodes | jq --arg tag "$1" 'map(select(.id == $tag))'
 }
 
-click_tag() { # TAG [N]
-  local tag="$1" n="${2:-0}" node x y
+click_tag() { # TAG [N] [--dwell]
+  local tag="$1" n="${2:-0}" dwell="${3:-}" node x y dwell_ms long_press_ms uptime=""
   [[ "$n" =~ ^[0-9]+$ ]] || die "N must be a non-negative integer"
   node="$(find_tag "$tag" | jq -c --argjson n "$n" '.[$n] // empty')"
   [ -n "$node" ] || die "no element matches '$tag' (index $n)"
   x="$(jq -r .center.x <<<"$node")"; y="$(jq -r .center.y <<<"$node")"
-  adbd shell input tap "$x" "$y"
-  echo "tapped $tag at $x,$y"
+  if [ "$dwell" = --dwell ]; then
+    # A press that stays at the point for tap_dwell_ms and ends before the long-press timeout is still a tap.
+    dwell_ms="$(config_value tap_dwell_ms)"; positive_int tap_dwell_ms "$dwell_ms"
+    long_press_ms="$(config_value android_long_press_timeout_ms)"; positive_int android_long_press_timeout_ms "$long_press_ms"
+    [ "$dwell_ms" -lt "$long_press_ms" ] || die "$config: tap_dwell_ms ($dwell_ms) must be below android_long_press_timeout_ms ($long_press_ms)"
+    uptime="$(adbd shell "input swipe $x $y $x $y $dwell_ms; cat /proc/uptime" | cut -d' ' -f1 | tr -d '\r')"
+  else
+    [ -z "$dwell" ] || die "usage: click TAG [N] [--dwell]"
+    adbd shell input tap "$x" "$y"
+  fi
+  # A dwell tap also reports the device clock when it ended, the time base of a screen recording.
+  echo "tapped $tag at $x,$y${uptime:+ uptime=$uptime}"
+}
+
+# Seconds since the device booted, the clock a screen recording's timestamps follow.
+device_uptime() {
+  adbd shell cat /proc/uptime | cut -d' ' -f1 | tr -d '\r'
 }
 
 type_text() { # TEXT [--enter]
@@ -978,7 +993,8 @@ send_key() { # esc|ctrl-c|tab|up|down|left|right|enter
     left) adbd shell input keyevent KEYCODE_DPAD_LEFT ;;
     right) adbd shell input keyevent KEYCODE_DPAD_RIGHT ;;
     enter) adbd shell input keyevent KEYCODE_ENTER ;;
-    *) die "unknown key '$1'; use esc, ctrl-c, tab, up, down, left, right or enter" ;;
+    back) adbd shell input keyevent KEYCODE_BACK ;;
+    *) die "unknown key '$1'; use esc, ctrl-c, tab, up, down, left, right, enter or back" ;;
   esac
 }
 
@@ -1022,6 +1038,44 @@ demo_mode() { # on|off
       echo "demo-mode off" ;;
     *) die "usage: demo-mode on|off" ;;
   esac
+}
+
+# Screen recording through the device's screenrecord (MP4, no audio). `start` runs it
+# detached in the device with the configured bit rate and time limit; `stop` sends it
+# SIGINT so the MP4 is finalized, waits for it to exit and streams the file to stdout.
+record_device_file=/sdcard/ui-agent-record.mp4
+record_max_time_limit_secs=180
+record_running() {
+  adbd shell pidof screenrecord 2>/dev/null | grep -q '[0-9]'
+}
+record_start() {
+  local bit_rate limit
+  bit_rate="$(config_value record_bit_rate)"; positive_int record_bit_rate "$bit_rate"
+  limit="$(config_value record_time_limit_secs)"; positive_int record_time_limit_secs "$limit"
+  [ "$limit" -le "$record_max_time_limit_secs" ] || die "$config: record_time_limit_secs must be at most $record_max_time_limit_secs, got '$limit'"
+  ! record_running || die "a recording is already running; stop it with: record stop OUT.mp4"
+  adbd shell rm -f "$record_device_file"
+  adbd shell "nohup screenrecord --bit-rate $bit_rate --time-limit $limit $record_device_file >/dev/null 2>&1 &"
+  local deadline=$((SECONDS + 10))
+  until record_running; do
+    [ "$SECONDS" -lt "$deadline" ] || die "screenrecord did not start"
+    sleep 0.2
+  done
+  echo "recording" >&2
+}
+record_stop() {
+  local wait deadline
+  wait="$(config_value record_stop_wait_secs)"; positive_int record_stop_wait_secs "$wait"
+  # A recording that ended at its time limit has already exited; its file is still pulled.
+  if record_running; then adbd shell pkill -2 screenrecord >/dev/null || true; fi
+  deadline=$((SECONDS + wait))
+  while record_running; do
+    [ "$SECONDS" -lt "$deadline" ] || die "screenrecord did not exit within ${wait}s"
+    sleep 0.2
+  done
+  adbd shell "[ -s $record_device_file ]" >/dev/null || die "no recording to stop; start one with: record start"
+  adbd exec-out cat "$record_device_file"
+  adbd shell rm -f "$record_device_file" >/dev/null
 }
 
 # Night mode of the emulator, which the app's DayNight theme follows.
@@ -1200,9 +1254,9 @@ node_bounds() { # TAG N
   jq -r '.bounds | "\(.left) \(.top) \(.right) \(.bottom)"' <<<"$node"
 }
 
-swipe_tag() { # TAG up|down|left|right
+swipe_tag() { # TAG up|down|left|right [--fling]
   local bounds swipe_ms left top right bottom w h cx cy x1 y1 x2 y2
-  [ "$#" -eq 2 ] || die "usage: swipe TAG up|down|left|right"
+  { [ "$#" -eq 2 ] || { [ "$#" -eq 3 ] && [ "$3" = --fling ]; }; } || die "usage: swipe TAG up|down|left|right [--fling]"
   require_isolated_run swipe
   bounds="$(node_bounds "$1" 0)" || exit 1
   read -r left top right bottom <<<"$bounds"
@@ -1216,9 +1270,15 @@ swipe_tag() { # TAG up|down|left|right
     right) x1=$((left + w / 4)); x2=$((left + w * 3 / 4)) ;;
     *) die "swipe direction must be up, down, left or right" ;;
   esac
-  swipe_ms="$(config_value gesture_swipe_ms)"; positive_int gesture_swipe_ms "$swipe_ms"
-  adbd shell input swipe "$x1" "$y1" "$x2" "$y2" "$swipe_ms"
-  echo "swiped $1 $2 from $x1,$y1 to $x2,$y2"
+  # --fling releases the finger at speed, so scrollable content keeps moving after the lift.
+  if [ "${3:-}" = --fling ]; then
+    swipe_ms="$(config_value gesture_fling_ms)"; positive_int gesture_fling_ms "$swipe_ms"
+  else
+    swipe_ms="$(config_value gesture_swipe_ms)"; positive_int gesture_swipe_ms "$swipe_ms"
+  fi
+  local uptime
+  uptime="$(adbd shell "input swipe $x1 $y1 $x2 $y2 $swipe_ms; cat /proc/uptime" | cut -d' ' -f1 | tr -d '\r')"
+  echo "swiped $1 $2 from $x1,$y1 to $x2,$y2 uptime=$uptime"
 }
 
 # Hold time of a long press in ms; it must exceed Android's long-press timeout or the press is a tap.
@@ -1512,14 +1572,22 @@ case "$cmd" in
   shutdown) shutdown ;;
   install) load_run; install_app ;;
   launch) load_run; launch_app ;;
+  device-uptime) load_run; require_isolated_run device-uptime; device_uptime ;;
   screenshot) load_run; adbd exec-out screencap -p ;;
   tree) load_run; ui_nodes ;;
   find) load_run; find_tag "${1:?element tag required}" ;;
-  click) load_run; click_tag "${1:?element tag required}" "${2:-0}" ;;
+  click) load_run; click_tag "${1:?element tag required}" "${2:-0}" ${3:+"$3"} ;;
   type) load_run; type_text "${1:?text required}" "${2:-}" ;;
   key) load_run; send_key "${1:?key required}" ;;
   rotate) load_run; rotate ;;
   demo-mode) load_run; require_isolated_run demo-mode; demo_mode "${1:-}" ;;
+  record)
+    load_run; require_isolated_run record
+    case "${1:-}" in
+      start) record_start ;;
+      stop) record_stop ;;
+      *) die "usage: record start|stop" ;;
+    esac ;;
   night) load_run; require_isolated_run night; night_mode "${1:-}" ;;
   display) load_run; require_isolated_run display; display_geometry "$@" ;;
   font-scale) load_run; require_isolated_run font-scale; font_scale "${1:-}" ;;

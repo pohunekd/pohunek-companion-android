@@ -83,6 +83,8 @@ log_lines = 400
 # scripts/ui-agent gestures (swipe, long-press, drag): positive integers.
 # Milliseconds a swipe takes.
 gesture_swipe_ms = 400
+# Milliseconds a swipe --fling takes: short enough that the release velocity starts a fling.
+gesture_fling_ms = 120
 # Milliseconds a long-press holds; must exceed android_long_press_timeout_ms.
 gesture_long_press_ms = 800
 # Intermediate move events of a drag between press and release, and the pause
@@ -97,3 +99,51 @@ background_settle_secs = 1
 
 # Seconds a one-shot daemon request (`pohunek notification create`) waits for its reply.
 daemon_reply_wait_secs = 3
+
+# scripts/ui-agent record: the screenrecord bit rate in bits per second and its
+# time limit in seconds (at most 180, the screenrecord maximum), and the seconds
+# `record stop` waits for screenrecord to finalize the file: positive integers.
+record_bit_rate = 8000000
+record_time_limit_secs = 180
+record_stop_wait_secs = 10
+
+# scripts/ui-agent click --dwell: milliseconds the finger rests on the element before the tap lands
+# (below android_long_press_timeout_ms), so a recording shows the touch before its result.
+tap_dwell_ms = 350
+
+# scripts/capture-video: seconds between two scripted actions, so the result of a tap can be read, and the
+# longest static stretch inside a clip that is kept whole (at least video_pause_secs).
+video_pause_secs = 1.5
+video_static_cap_secs = 1.6
+
+# scripts/capture-video touches (scripts/touch-overlay): the emulator draws no touch indicator, so the
+# scripted taps and swipes are composited into the recording. A white ring (opacity touch_opacity, a soft
+# dark edge of touch_edge_px at touch_edge_opacity) of touch_ring_px pixels and touch_ring_thickness_px
+# thickness shows at a tap's point during the dwell and expands to touch_release_scale times its size while
+# it fades over touch_release_ms; a swipe is a ring that follows its path. At 720 px width (360 dp) 88 px is
+# 44 dp.
+touch_ring_px = 88
+touch_ring_thickness_px = 7
+touch_edge_px = 5
+touch_opacity = 0.9
+touch_edge_opacity = 0.5
+touch_release_scale = 1.8
+touch_fade_in_ms = 80
+touch_release_ms = 320
+# Placement: each gesture is found in the clip itself (scripts/touch-overlay). The device uptime of the
+# gesture only gives a window of touch_onset_window_ms around where it should show; the recording's first
+# frame lies between the uptime read before `record start` and the one read after it plus
+# touch_start_slack_ms. The clip is analysed at 1/touch_scale of its size. A tap's pressed state is the frame
+# in which a touch_box_px box around the tap point changes by at least touch_box_threshold (mean gray
+# levels) while the rest of the screen changes by at most touch_rest_threshold; a tap without a pressed
+# state is placed from the first frame after its lift in which the screen changes by touch_change_threshold,
+# touch_render_ms after the finger lifted; a swipe starts at the first frame that changes by
+# touch_change_threshold. A gesture with no such frame in its window fails the capture.
+touch_render_ms = 60
+touch_start_slack_ms = 1500
+touch_onset_window_ms = 150
+touch_scale = 4
+touch_box_px = 160
+touch_box_threshold = 2.0
+touch_rest_threshold = 0.3
+touch_change_threshold = 0.5

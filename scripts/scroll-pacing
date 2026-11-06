@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Measures how evenly a recorded view scrolls.
+
+  scripts/scroll-pacing FILE [options]
+
+Reads the constant-rate clip FILE with ffmpeg, finds the vertical scroll offset
+between every two consecutive frames (the shift that best aligns their
+column-averaged brightness profiles), splits the offsets into bursts of
+consecutive frames that move in one direction, and prints one line
+"BURSTS MEDIAN PEAKMAX STALLS":
+
+  BURSTS    bursts of at least --min-burst frames
+  MEDIAN    median over all judged steps of the relative deviation of a step from
+            the mean of its two neighbours
+  PEAKMAX   the largest such deviation among the peak steps (at least
+            --peak-fraction of the burst's fastest step), where a single dip
+            shows most; --ramp-steps leading steps of a burst are not judged
+  STALLS    stalled steps (see below) inside the bursts
+
+A step that collapses between two moving steps of one direction (it is shorter than --collapse-fraction of
+the mean of its neighbours, which both move at least --collapse-min-rows; at most --collapse-steps in a
+row, and a repeated frame or a small step the other way counts) is part of the burst, so a
+stalled frame is judged as a dip instead of ending the burst.
+
+Each burst's offsets go to stderr. Needs python3 with numpy and ffmpeg.
+"""
+import argparse
+import subprocess
+import sys
+
+import numpy as np
+
+
+def read_profiles(path, width, height):
+    cmd = ["ffmpeg", "-v", "fatal", "-nostdin", "-i", path, "-vf",
+           f"scale={width}:{height}:flags=area,format=gray", "-fps_mode", "passthrough",
+           "-f", "rawvideo", "-"]
+    data = subprocess.run(cmd, capture_output=True, check=True).stdout
+    return np.frombuffer(data, np.uint8).reshape(-1, height, width).astype(np.float32)
+
+
+def offset(prev, cur, top, bottom, max_shift):
+    """Rows the content moved from PREV to CUR (positive: down), 0 for identical frames."""
+    window = prev[top:bottom]
+    if np.abs(window - cur[top:bottom]).mean() < 0.05:
+        return 0
+    best_shift, best_diff = 0, None
+    for shift in range(-max_shift, max_shift + 1):
+        diff = np.abs(window - cur[top + shift:bottom + shift]).mean()
+        if best_diff is None or diff < best_diff:
+            best_shift, best_diff = shift, diff
+    return best_shift
+
+
+def collapsed_steps(offsets, args):
+    """Indexes of steps that stall between two moving steps of one direction (see the module doc)."""
+    marked = set()
+    for i, value in enumerate(offsets):
+        if i in marked:
+            continue
+        for length in range(1, args.collapse_steps + 1):
+            before, after = i - 1, i + length
+            if before < 0 or after >= len(offsets):
+                continue
+            first, last = offsets[before], offsets[after]
+            if min(abs(first), abs(last)) < args.collapse_min_rows or (first < 0) != (last < 0):
+                continue
+            run = offsets[i:after]
+            if all(abs(v) < args.collapse_fraction * (abs(first) + abs(last)) / 2 for v in run):
+                marked.update(range(i, after))
+                break
+    return marked
+
+
+def bursts_of(offsets, moving, min_burst, stalled):
+    """Returns the bursts and the number of stalled steps inside them."""
+    bursts, current, stalls, count = [], [], 0, 0
+    for i, value in enumerate(offsets):
+        keeps = i in stalled and current
+        if keeps or (abs(value) >= moving and (not current or (value < 0) == (current[0] < 0))):
+            current.append(value)
+            count += 1 if keeps else 0
+            continue
+        if len(current) >= min_burst:
+            bursts.append(current)
+            stalls += count
+        current, count = ([value] if abs(value) >= moving else []), 0
+    if len(current) >= min_burst:
+        bursts.append(current)
+        stalls += count
+    return bursts, stalls
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("file")
+    parser.add_argument("--width", type=int, required=True, help="columns of the brightness profile")
+    parser.add_argument("--height", type=int, required=True, help="rows of the frames")
+    parser.add_argument("--compare-from", type=int, required=True)
+    parser.add_argument("--compare-to", type=int, required=True)
+    parser.add_argument("--max-shift", type=int, required=True)
+    parser.add_argument("--moving", type=int, required=True, help="rows of offset from which a frame moves")
+    parser.add_argument("--min-burst", type=int, required=True)
+    parser.add_argument("--ramp-steps", type=int, required=True)
+    parser.add_argument("--peak-fraction", type=float, required=True)
+    parser.add_argument("--collapse-fraction", type=float, required=True)
+    parser.add_argument("--collapse-steps", type=int, required=True)
+    parser.add_argument("--collapse-min-rows", type=int, required=True)
+    args = parser.parse_args()
+
+    frames = read_profiles(args.file, args.width, args.height)
+    offsets = [offset(frames[i - 1], frames[i], args.compare_from, args.compare_to, args.max_shift)
+               for i in range(1, len(frames))]
+    deviations, peak_deviations = [], []
+    bursts, stalls = bursts_of(offsets, args.moving, args.min_burst, collapsed_steps(offsets, args))
+    for burst in bursts:
+        steps = np.abs(np.array(burst, dtype=float))
+        top = steps.max()
+        print("burst:", " ".join(str(v) for v in burst), file=sys.stderr)
+        for i in range(max(args.ramp_steps, 1), len(steps) - 1):
+            neighbours = (steps[i - 1] + steps[i + 1]) / 2
+            deviation = abs(steps[i] - neighbours) / max(neighbours, 1)
+            deviations.append(deviation)
+            if steps[i] >= args.peak_fraction * top:
+                peak_deviations.append(deviation)
+    if not deviations:
+        print(f"{len(bursts)} - - {stalls}")
+        return
+    print(f"{len(bursts)} {np.median(deviations):.3f} {max(peak_deviations, default=0.0):.3f} {stalls}")
+
+
+if __name__ == "__main__":
+    main()

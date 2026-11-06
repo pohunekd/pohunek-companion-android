@@ -66,7 +66,10 @@ Run these yourself; no agent runs them or sees the values.
    with `appTree` in `docs/screenshots/manifest.json`. Equal: nothing to do. Different:
    run `scripts/capture-screenshots` (it needs a clean `app/`), review the images,
    and merge the result in a PR. `scripts/check-screenshots` validates the set
-   without an emulator; the `prepare` job runs it on the tag.
+   without an emulator; the `prepare` job runs it on the tag. The demo video in
+   `docs/media/` follows the same rule: when `appTree` in
+   `docs/media/manifest.json` differs, run `scripts/capture-video` and merge the result;
+   `scripts/check-media` validates it and the `prepare` job runs it on the tag.
 2. Prepare the release in a `Release X` pull request. On `main` with a green
    `ci`, fold the changelog fragments of the version into `CHANGELOG.md`:
 

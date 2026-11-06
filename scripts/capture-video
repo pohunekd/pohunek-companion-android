@@ -1,0 +1,614 @@
+#!/usr/bin/env bash
+# Records the public demo video into docs/media/ from a ui-agent isolated run with
+# the showcase data: demo.webm, demo.mp4, poster.png and manifest.json (schema 1),
+# the files pohunek.dev reads at a release tag.
+#
+#   scripts/capture-video [--keep-raw DIR]
+#
+# --keep-raw copies every clip's raw recording and gesture log into DIR (an existing directory), so the
+# touch placement can be reworked offline.
+#
+# The command owns its run: it fails when this worktree already has one and stops
+# its own on exit. It takes no device or daemon option, so nothing but the
+# isolated emulator and its synthetic daemon can appear in the video. app/ must be
+# committed, because the manifest's appTree names the recorded tree.
+#
+# Each clip below is recorded with `ui-agent record`, its static head and tail are
+# cut (ffmpeg freezedetect), fixed holds are added at both ends, and the clips are
+# joined in order into one constant-frame-rate video that ends on the frame it
+# starts with. The encodes must stay within the budgets of scripts/check-media,
+# which the command runs on its output before it replaces docs/media. The frame
+# intervals the emulator delivered during the terminal fling clip are printed
+# from the raw recording, before the constant-rate conversion hides them.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+config="$root/config/dev.toml"
+agent="$root/scripts/ui-agent"
+out_dir="$root/docs/media"
+manifest_schema=1
+
+# Seconds a wait for a screen element or terminal text may take.
+wait_secs=60
+# The showcase session the terminal scene opens (it runs the scripted demo) and the last text the demo draws.
+terminal_session="bump-tokio-1.48"
+terminal_ready_text="showcase demo: standing by"
+# Swipes the terminal scene may spend scrolling the list to its session, and the swipes back to the top.
+max_swipes=3
+# Text typed into the project picker's filter and the project it narrows to and picks.
+project_filter_text="compan"
+project_name="pohunek-companion"
+# Flings through the terminal's scrollback in each direction.
+terminal_flings=1
+
+# Output: constant frame rate, width, and the encoders' quality settings.
+fps=30
+video_width=720
+webm_crf=38
+# Slowest VP9 speed setting and a keyframe every 10 s (300 frames): both shrink the file, which has to stay in budget.
+webm_cpu_used=0
+webm_gop=300
+mp4_crf=26
+# Seconds of the first frame a static clip keeps before its holds are added.
+min_clip_secs=0.2
+# A frozen stretch must last this long (seconds) and differ by less than this noise ratio from its frame.
+freeze_secs=0.3
+freeze_noise=0.001
+# Raw frame gaps above this many milliseconds are static pauses, not scrolling, and stay out of the interval statistics.
+motion_gap_ms=250
+# The last frame must match the first at least this well (SSIM 0..1), or the video does not loop cleanly.
+loop_min_ssim=0.97
+
+# The scenes, in the order the video plays: clip id, hold before and after the clip (seconds), scene function.
+clips=(
+  "list|0.5|2.0|scene_list"
+  "bar|0|1.0|scene_bar"
+  "project|0.5|2.0|scene_project"
+  "state|0.5|1.5|scene_state"
+  "terminal-open|0.5|1.0|scene_terminal_open"
+  "terminal-fling|0|1.5|scene_terminal_fling"
+  "back|0|1.5|scene_back"
+)
+# Clip that scrolls by fling: its frame pacing is measured and gated, and its raw frame intervals are reported.
+fling_clip="terminal-fling"
+# The list scroll clip: an injected drag is uneven by itself, so only a stalled or repeated frame is judged.
+list_clip="bar"
+
+# Pacing gate for the fling clip: frame intervals between two moving frames of the raw recording, and the
+# scroll offset of each moving frame of the clip as converted to the video's constant rate (what a viewer
+# sees). Roughness is the
+# relative deviation of a step from the mean of its two neighbours, over bursts of at least
+# pacing_min_burst_frames frames that move in one direction. A clip outside any limit is recorded again, at
+# most pacing_attempts times, then the command fails: a juddering clip is never written to docs/media.
+pacing_attempts=12
+pacing_max_p95_ms=20
+pacing_max_p99_ms=40
+pacing_max_roughness_median=0.06
+pacing_max_peak_deviation=0.12
+pacing_min_burst_frames=6
+# Steps of at least this fraction of a burst's fastest step are its peak steps, where a single dip shows most.
+pacing_peak_fraction=0.6
+# The first steps of a burst accelerate and are not judged.
+pacing_ramp_steps=2
+# A step shorter than this fraction of the mean of its two neighbours (a repeated frame, a stall), at most
+# pacing_collapse_steps in a row between neighbours that both move at least pacing_collapse_min_rows, stays
+# inside its burst and is judged as a dip instead of splitting the burst.
+pacing_collapse_fraction=0.5
+pacing_collapse_steps=2
+pacing_collapse_min_rows=16
+# The recorder stamps frames with jittering times (12 to 33 ms between frames the display shows 1/60 s
+# apart, while the content of each frame advances evenly), and the conversion to the video's rate picks
+# frames by those times, so one late stamp becomes a 0.5x then 1.5x step. Frames less than
+# retime_gap_ms apart are therefore placed on the display's retime_hz grid in recording order; larger gaps
+# (static pauses, stalls) keep their time, and a frame whose content jumped still jumps.
+retime_hz=60
+retime_gap_ms=40
+# Columns of the brightness profile a frame is reduced to, the rows compared and the largest offset
+# searched, and the offset in rows from which a frame counts as moving.
+pacing_profile_cols=90
+pacing_compare_from=300
+pacing_compare_to=1300
+pacing_max_shift=290
+pacing_moving_rows=4
+
+# Recording waits for a quiet host: no other ui-agent slot running and a one-minute load average of at most
+# quiet_load_max, for at most quiet_wait_secs; then it goes on and the pacing gate decides.
+quiet_load_max=6
+quiet_wait_secs=600
+quiet_poll_secs=10
+
+# Text alternative of the video and one line per scene (the two terminal clips are one scene), which the site shows.
+alt="Screen recording of the Pohunek Companion app on demo data: it filters the session list, then opens a live terminal and scrolls through its history."
+descriptions=(
+  "The session list puts the sessions that need you first, with a chip for the host."
+  "Scrolling down hides the filter bar and scrolling up brings it back."
+  "The Project chip opens a picker; typing narrows it and a tap picks a project."
+  "The State chip limits the list to the sessions that need you, and Clear resets the filters."
+  "A tap opens the session as a live terminal, and a fling scrolls through its history and back."
+  "Back returns to the list."
+)
+
+die() { echo "capture-video: $*" >&2; exit 1; }
+
+config_value() {
+  local key="$1" value
+  value="$(sed -n -E "s/^${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*\$/\\1/p" "$config" | head -n 1)"
+  value="${value#\"}"; value="${value%\"}"
+  [ -n "$value" ] || die "$config: missing required key '$key'"
+  printf '%s' "$value"
+}
+
+# Seconds between two scripted actions (the result of a tap stays on screen this long) and the longest
+# static stretch inside a clip that is kept whole.
+pause_secs="$(config_value video_pause_secs)"
+static_cap_secs="$(config_value video_static_cap_secs)"
+tap_dwell_ms="$(config_value tap_dwell_ms)"
+swipe_ms="$(config_value gesture_swipe_ms)"
+fling_ms="$(config_value gesture_fling_ms)"
+
+# shellcheck source=scripts/showcase-prelude
+. "$root/scripts/showcase-prelude"
+
+for tool in jq git podman sha256sum ffmpeg ffprobe awk stat python3; do
+  command -v "$tool" >/dev/null || die "$tool is not installed"
+done
+python3 -c 'import numpy' 2>/dev/null || die "python3 needs numpy for scripts/scroll-pacing"
+encoders="$(ffmpeg -hide_banner -encoders 2>/dev/null)"
+for encoder in libvpx-vp9 libx264; do
+  grep -qF " $encoder " <<<"$encoders" || die "this ffmpeg has no $encoder encoder"
+done
+keep_raw=""
+case $# in
+  0) ;;
+  2) [ "$1" = --keep-raw ] || die "usage: scripts/capture-video [--keep-raw DIR]"
+     [ -d "$2" ] || die "--keep-raw: $2 is not a directory"
+     keep_raw="$(cd "$2" && pwd -P)" ;;
+  *) die "usage: scripts/capture-video [--keep-raw DIR]" ;;
+esac
+
+# ---- Scene steps -------------------------------------------------------------
+
+wait_screen_text() { # TEXT
+  local deadline=$((SECONDS + wait_secs))
+  until "$agent" screen 2>/dev/null | grep -qF -- "$1"; do
+    [ "$SECONDS" -lt "$deadline" ] || die "the terminal did not show '$1' within ${wait_secs}s"
+    sleep 1
+  done
+}
+
+# Index among the elements tagged TAG of the one that contains a text node equal to NAME (such an
+# element carries no text itself, its label is a child node inside its bounds); fails quietly when none does.
+tag_index_of() { # TAG NAME
+  local index
+  index="$("$agent" tree | jq -r --arg tag "$1" --arg name "$2" '
+    . as $nodes
+    | [$nodes[] | select(.id == $tag)] as $items
+    | $items | map(. as $item | any($nodes[]; .text == $name and .bounds.left >= $item.bounds.left and .bounds.right <= $item.bounds.right
+        and .bounds.top >= $item.bounds.top and .bounds.bottom <= $item.bounds.bottom))
+    | index(true) // empty')"
+  [ -n "$index" ] || return 1
+  printf '%s' "$index"
+}
+
+click_tagged() { # TAG NAME
+  local index
+  index="$(tag_index_of "$1" "$2")" || die "no $1 for '$2'"
+  tap "$1" "$index"
+}
+
+# Every touch of a scene goes through tap and swipe_view, which log it for scripts/touch-overlay:
+# one line per gesture with the device clock at which it ended (the clock a recording's timestamps follow;
+# the emulator can run slower than the host, so host times do not line up with the video).
+gestures_file=""
+start_gesture_log() { # CLIP UPTIME_BEFORE_RECORDING
+  gestures_file="$work/gestures-$1.log"
+  printf 'REC\t%s\t%s\n' "$2" "$("$agent" device-uptime)" >"$gestures_file"
+}
+
+# Presses the element like a finger: it rests on it for tap_dwell_ms before the tap lands.
+tap() { # TAG [N]
+  local out
+  out="$("$agent" click "$1" "${2:-0}" --dwell)"
+  [[ "$out" =~ at\ ([0-9]+),([0-9]+)\ uptime=([0-9.]+)$ ]] || die "cannot read the tap point and time from '$out'"
+  printf 'G\ttap\t%s\t%s\t%s\t%s\t%s\t%s\n' "${BASH_REMATCH[3]}" "$tap_dwell_ms" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" \
+    "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" >>"$gestures_file"
+}
+
+swipe_view() { # TAG up|down [--fling]
+  local out ms="$swipe_ms"
+  [ "${3:-}" != --fling ] || ms="$fling_ms"
+  out="$("$agent" swipe "$@")"
+  [[ "$out" =~ from\ ([0-9]+),([0-9]+)\ to\ ([0-9]+),([0-9]+)\ uptime=([0-9.]+)$ ]] || die "cannot read the swipe path and time from '$out'"
+  printf 'G\tswipe\t%s\t%s\t%s\t%s\t%s\t%s\n' "${BASH_REMATCH[5]}" "$ms" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" \
+    "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}" >>"$gestures_file"
+}
+
+pause() { sleep "$pause_secs"; }
+
+scene_list() {
+  wait_tag SessionList.needsYou
+  wait_no_tag SessionList.loading
+  wait_tag SessionList.filter.host
+  sleep "$pause_secs"
+}
+
+scene_bar() {
+  swipe_view SessionList.list up
+  pause
+  swipe_view SessionList.list down
+  wait_tag SessionList.filterBar
+  pause
+}
+
+scene_project() {
+  tap SessionList.filter.project
+  wait_tag ProjectSheet.search
+  tap ProjectSheet.search
+  "$agent" type "$project_filter_text" >/dev/null
+  pause
+  click_tagged ProjectSheet.project "$project_name"
+  wait_no_tag ProjectSheet.search
+  pause
+}
+
+scene_state() {
+  tap SessionList.filter.state
+  wait_tag StateSheet.state.needs-you
+  pause
+  tap StateSheet.state.needs-you
+  pause
+  # Escape does not close a modal sheet; a tap on the scrim above it does.
+  tap StateSheet
+  wait_no_tag StateSheet.state.needs-you
+  pause
+  tap SessionList.clearFilters
+  wait_no_tag SessionList.clearFilters
+  pause
+}
+
+scene_terminal_open() {
+  wait_tag SessionList.row
+  local index swipes=0
+  until tag_index_of SessionList.row "$terminal_session" >/dev/null; do
+    [ "$swipes" -lt "$max_swipes" ] || die "no SessionList.row for '$terminal_session' after $max_swipes swipes"
+    swipe_view SessionList.list up
+    swipes=$((swipes + 1))
+    sleep "$pause_secs"
+  done
+  index="$(tag_index_of SessionList.row "$terminal_session")"
+  pause
+  tap SessionList.row "$index"
+  wait_tag Terminal.view
+  wait_screen_text "$terminal_ready_text"
+  pause
+}
+
+scene_terminal_fling() {
+  local i
+  for ((i = 0; i < terminal_flings; i++)); do
+    swipe_view Terminal.view down --fling
+    sleep 1
+  done
+  for ((i = 0; i < terminal_flings; i++)); do
+    swipe_view Terminal.view up --fling
+    sleep 1
+  done
+  pause
+}
+
+scene_back() {
+  local i
+  "$agent" key back >/dev/null
+  wait_tag SessionList.row
+  pause
+  # The list kept the scroll position it had when the session was opened; swipe until its top shows.
+  for ((i = 0; i < max_swipes && $(tag_count SessionList.needsYou) == 0; i++)); do
+    swipe_view SessionList.list down
+    sleep "$pause_secs"
+  done
+  wait_tag SessionList.needsYou
+  pause
+}
+
+# ---- Clip processing ---------------------------------------------------------
+
+# Prints "HEAD TAIL" seconds of the raw clip FILE that remain after its static head and tail are
+# cut, then one "CUT FROM TO" line per static stretch inside it that is longer than static_cap_secs
+# (the part beyond the cap is dropped). A clip that never moves keeps its first min_clip_secs.
+motion_span() { # FILE
+  local total
+  total="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$1")"
+  ffmpeg -hide_banner -nostdin -i "$1" -map 0:v -an -vf "freezedetect=n=$freeze_noise:d=$freeze_secs" -f null - 2>&1 |
+    awk -v total="$total" -v minimum="$min_clip_secs" -v cap="$static_cap_secs" '
+      /freeze_start:/ { start = $NF + 0; open = 1 }
+      /freeze_end:/ {
+        end = $NF + 0; open = 0
+        if (start < 0.1) head = end
+        else if (end >= total - 0.1) tail = start
+        else if (end - start > cap) cuts = cuts sprintf("CUT %s %s\n", start + cap, end)
+      }
+      END {
+        if (open) tail = start
+        if (tail == "") tail = total
+        if (tail <= head + minimum) { printf "0 %s\n", minimum; exit }
+        printf "%s %s\n%s", head + 0, tail, cuts
+      }'
+}
+
+# Prints the frame interval statistics of the raw clip FILE between HEAD and TAIL seconds. Gaps over
+# motion_gap_ms are static pauses between gestures and are counted apart.
+frame_stats() { # FILE HEAD TAIL
+  ffprobe -v error -select_streams v -show_entries packet=pts_time -of csv=p=0 "$1" |
+    awk -v head="$2" -v tail="$3" -v gap="$motion_gap_ms" '
+      $1 >= head && $1 <= tail { if (n++) { d = ($1 - prev) * 1000; if (d > gap) pauses++; else print d } prev = $1 }
+      END { print "PAUSES " pauses + 0 }' |
+    sort -n |
+    awk '/^PAUSES/ { pauses = $2; next } { d[++m] = $1; sum += $1 }
+      END {
+        if (m < 1) { print "too few frames for interval statistics"; exit }
+        p95 = int(m * 0.95 + 0.5); p99 = int(m * 0.99 + 0.5)
+        for (i = 1; i <= m; i++) { if (d[i] > 34) over34++; if (d[i] > 50) over50++ }
+        printf "moving intervals=%d span_ms=%.0f fps=%.1f interval_ms mean=%.1f p50=%.1f p95=%.1f p99=%.1f max=%.1f over_34ms=%d over_50ms=%d; static pauses excluded=%d\n",
+          m, sum, 1000 * m / sum, sum / m, d[int((m + 1) / 2)], d[p95], d[p99], d[m], over34, over50, pauses
+      }'
+}
+
+# Prints the number of ui-agent slot containers other than this worktree's run.
+other_slots() {
+  local all ours
+  all="$(podman ps --format '{{.Names}}' | grep '^pohunek-ui-agent-slot-' | sort || true)"
+  ours="$(podman ps --filter "label=ui-agent.worktree=$root" --format '{{.Names}}' | sort)"
+  comm -23 <(printf '%s\n' "$all" | sed '/^$/d') <(printf '%s\n' "$ours" | sed '/^$/d') | wc -l
+}
+
+wait_quiet() {
+  local deadline=$((SECONDS + quiet_wait_secs)) load others
+  while :; do
+    load="$(cut -d' ' -f1 /proc/loadavg)"
+    others="$(other_slots)"
+    if [ "$others" -eq 0 ] && awk -v l="$load" -v max="$quiet_load_max" 'BEGIN { exit !(l <= max) }'; then
+      echo "capture-video: host is quiet (load $load, no other ui-agent slot)" >&2
+      return 0
+    fi
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "capture-video: host not quiet after ${quiet_wait_secs}s (load $load, $others other ui-agent slots); recording anyway, the pacing gate decides" >&2
+      return 0
+    fi
+    sleep "$quiet_poll_secs"
+  done
+}
+
+# Prints "BURSTS MEDIAN PEAKMAX STALLS" of the scroll offsets of the constant-rate clip FILE (see scripts/scroll-pacing).
+scroll_roughness() { # FILE
+  "$root/scripts/scroll-pacing" "$1" --width "$pacing_profile_cols" --height "$frame_height" \
+    --compare-from "$pacing_compare_from" --compare-to "$pacing_compare_to" --max-shift "$pacing_max_shift" \
+    --moving "$pacing_moving_rows" --min-burst "$pacing_min_burst_frames" --ramp-steps "$pacing_ramp_steps" \
+    --peak-fraction "$pacing_peak_fraction" --collapse-fraction "$pacing_collapse_fraction" \
+    --collapse-steps "$pacing_collapse_steps" --collapse-min-rows "$pacing_collapse_min_rows"
+}
+
+# Prints the pacing numbers of the raw clip RAW (moving between HEAD and TAIL seconds) and of its converted
+# SEGMENT, and succeeds when they are inside the limits of the pacing gate.
+pacing_verdict() { # RAW HEAD TAIL SEGMENT
+  local stats p95 p99 runs median peak
+  stats="$(frame_stats "$1" "$2" "$3")"
+  p95="$(sed -n -E 's/.* p95=([0-9.]+).*/\1/p' <<<"$stats")"
+  p99="$(sed -n -E 's/.* p99=([0-9.]+).*/\1/p' <<<"$stats")"
+  read -r runs median peak _ <<<"$(scroll_roughness "$4")"
+  echo "capture-video: pacing: $stats; scroll bursts=$runs roughness median=$median peak-step max=$peak" >&2
+  [ -n "$p95" ] && [ -n "$p99" ] || { echo "capture-video: no frame interval statistics" >&2; return 1; }
+  [ "$runs" -ge 1 ] && [ "$median" != "-" ] || { echo "capture-video: no scroll burst of ${pacing_min_burst_frames}+ frames in the clip" >&2; return 1; }
+  awk -v p95="$p95" -v p99="$p99" -v med="$median" -v pk="$peak" -v a="$pacing_max_p95_ms" -v b="$pacing_max_p99_ms" \
+    -v c="$pacing_max_roughness_median" -v d="$pacing_max_peak_deviation" \
+    'BEGIN { exit !(p95 <= a && p99 <= b && med <= c && pk <= d) }'
+}
+
+# The setpts filter that places frames less than retime_gap_ms apart on the retime_hz grid, in order.
+retime_filter="$(awk -v hz="$retime_hz" -v gap="$retime_gap_ms" 'BEGIN {
+  printf "setpts='"'"'if(isnan(PREV_OUTPTS),PTS,if(lt(PTS-PREV_INPTS,%.6f/TB),PREV_OUTPTS+%.8f/TB,max(PTS,PREV_OUTPTS+%.8f/TB)))'"'"'", gap / 1000, 1 / hz, 1 / hz }')"
+
+# Succeeds when the list scroll clip SEGMENT has scroll bursts and no stalled frame inside them.
+stall_verdict() { # SEGMENT
+  local runs median peak stalls
+  read -r runs median peak stalls <<<"$(scroll_roughness "$1")"
+  echo "capture-video: list scroll bursts=$runs stalled frames=$stalls" >&2
+  [ "$runs" -ge 1 ] && [ "$median" != "-" ] || { echo "capture-video: no scroll burst of ${pacing_min_burst_frames}+ frames in the clip" >&2; return 1; }
+  [ "$stalls" -eq 0 ]
+}
+
+# Writes the cut, held and scaled segment of the clip SRC (on the raw time axis) to OUT.
+# RETIME is 1 for a recording (frames carry the recorder's times) and 0 for a clip that is already
+# constant-rate.
+build_segment() { # SRC OUT KEEP HEAD_HOLD TAIL_HOLD RETIME
+  local retime=""
+  [ "$6" != 1 ] || retime="$retime_filter,"
+  ffmpeg -hide_banner -loglevel error -nostdin -y -i "$1" \
+    -vf "${retime}fps=$fps,select='$3',setpts=N/($fps*TB),scale=$video_width:-2,tpad=start_mode=clone:start_duration=$4:stop_mode=clone:stop_duration=$5,format=yuv420p" \
+    -an -c:v ffv1 "$2"
+}
+
+# Composites the clip's logged touches into RAW (scripts/touch-overlay) and writes the result to OUT.
+overlay_touches() { # RAW GESTURES OUT
+  "$root/scripts/touch-overlay" "$1" "$2" "$3" --work "$work" --fps "$fps" \
+    --retime-filter "$retime_filter" --render-ms "$(config_value touch_render_ms)" --start-slack-ms "$(config_value touch_start_slack_ms)" \
+    --onset-window-ms "$(config_value touch_onset_window_ms)" --scale "$(config_value touch_scale)" \
+    --box-px "$(config_value touch_box_px)" --box-threshold "$(config_value touch_box_threshold)" \
+    --rest-threshold "$(config_value touch_rest_threshold)" --change-threshold "$(config_value touch_change_threshold)" \
+    --ring-px "$(config_value touch_ring_px)" --ring-thickness-px "$(config_value touch_ring_thickness_px)" \
+    --edge-px "$(config_value touch_edge_px)" --opacity "$(config_value touch_opacity)" \
+    --edge-opacity "$(config_value touch_edge_opacity)" --release-scale "$(config_value touch_release_scale)" \
+    --fade-in-ms "$(config_value touch_fade_in_ms)" --release-ms "$(config_value touch_release_ms)"
+}
+
+# The select expression that keeps HEAD..TAIL seconds of a clip except the static stretches SPANS (the CUT lines
+# of motion_span) cut out.
+keep_expression() { # HEAD TAIL SPANS
+  local expression="between(t,$1,$2)" word from to
+  while read -r word from to; do
+    [ "$word" = CUT ] && expression="$expression*not(between(t,$from,$to))"
+  done < <(sed 1d <<<"$3")
+  printf '%s' "$expression"
+}
+
+# Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv. The pacing gate
+# measures the segment before the touches are composited into it.
+record_clip() { # N ENTRY
+  local n="$1" id head_hold tail_hold fn raw head tail keep spans uptime_before span ring_from ring_to kept
+  IFS='|' read -r id head_hold tail_hold fn <<<"$2"
+  echo "capture-video: $id" >&2
+  raw="$work/raw-$id.mp4"
+  local attempt=0
+  while :; do
+    attempt=$((attempt + 1))
+    uptime_before="$("$agent" device-uptime)"
+    "$agent" record start >&2
+    start_gesture_log "$id" "$uptime_before"
+    "$fn"
+    "$agent" record stop "$raw" >/dev/null
+    spans="$(motion_span "$raw")"
+    read -r head tail <<<"$(sed -n 1p <<<"$spans")"
+    keep="$(keep_expression "$head" "$tail" "$spans")"
+    echo "capture-video: $id keeps ${head}s..${tail}s of the raw clip, holds ${head_hold}s and ${tail_hold}s" >&2
+    build_segment "$raw" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold" 1
+    if [ "$id" = "$fling_clip" ]; then
+      pacing_verdict "$raw" "$head" "$tail" "$work/seg-$n.mkv" && break
+    elif [ "$id" = "$list_clip" ]; then
+      stall_verdict "$work/seg-$n.mkv" && break
+    else
+      break
+    fi
+    [ "$attempt" -lt "$pacing_attempts" ] || die "$id: frame pacing outside the limits in $pacing_attempts recordings; run again on a quieter host"
+    echo "capture-video: $id: pacing outside the limits (attempt $attempt of $pacing_attempts); recording it again" >&2
+    wait_quiet
+  done
+  if [ -n "$keep_raw" ]; then cp "$raw" "$keep_raw/raw-$id.mp4"; cp "$gestures_file" "$keep_raw/gestures-$id.log"; fi
+  if grep -q '^G' "$gestures_file"; then
+    if ! span="$(overlay_touches "$raw" "$gestures_file" "$work/ov-$id.mkv")"; then
+      # The work directory is removed on exit, so the recording and its gesture log are kept for inspection.
+      kept="$(mktemp -d)"
+      cp "$raw" "$gestures_file" "$kept/"
+      die "$id: the touches could not be placed in the recording; the clip and its gesture log are in $kept"
+    fi
+    # A ring must be on screen for its whole life: the cut keeps every frame from its fade-in to the end of its release.
+    read -r _ ring_from ring_to <<<"$span"
+    head="$(awk -v a="$head" -v b="$ring_from" 'BEGIN { print (b < a ? (b < 0 ? 0 : b) : a) }')"
+    tail="$(awk -v a="$tail" -v b="$ring_to" 'BEGIN { print (b > a ? b : a) }')"
+    keep="$(keep_expression "$head" "$tail" "$spans")"
+    build_segment "$work/ov-$id.mkv" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold" 0
+  fi
+}
+
+# ---- Checks before anything starts -------------------------------------------
+
+[ -z "$(git -C "$root" status --porcelain -- app)" ] ||
+  die "app/ has uncommitted or untracked changes; commit them first so appTree describes the recorded build"
+app_tree="$(git -C "$root" rev-parse HEAD:app/src/main)"
+[ "${#descriptions[@]}" -gt 0 ] || die "no scene descriptions"
+
+device="$(config_value emulator_screen)"
+[[ "$device" =~ ^([0-9]+)x([0-9]+)x[0-9]+$ ]] || die "$config: emulator_screen must be WIDTHxHEIGHTxDPI, got '$device'"
+# Height of a clip frame once it is scaled to video_width.
+frame_height=$((${BASH_REMATCH[2]} * video_width / ${BASH_REMATCH[1]}))
+
+# One capture per worktree: the lock lives as long as this script's descriptor 9, so a second capture
+# fails at once instead of sharing the run's slot and emulator.
+command -v flock >/dev/null || die "flock is not installed"
+exec 9<"$root/scripts/capture-video"
+flock -n 9 || die "another capture-video is already running for this worktree"
+
+existing="$(podman ps -a --filter "label=ui-agent.worktree=$root" --format '{{.Names}}' | head -n 1)"
+[ -z "$existing" ] || die "this worktree already has a ui-agent run ($existing); stop it yourself with: scripts/ui-agent stop"
+
+# ---- Capture -----------------------------------------------------------------
+
+work="$(mktemp -d)"
+started=0
+cleanup() {
+  local status=$?
+  rm -rf "$work"
+  if [ "$started" -eq 1 ] && ! "$agent" stop >&2; then
+    echo "capture-video: could not stop the run; stop it with scripts/ui-agent stop" >&2
+    status=1
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+
+wait_quiet
+# ui-agent start removes its own claim when it fails, so the run is ours to stop only once it succeeded.
+"$agent" start --showcase >&2
+started=1
+showcase_prelude
+
+n=0
+for entry in "${clips[@]}"; do
+  record_clip "$n" "$entry"
+  n=$((n + 1))
+done
+"$agent" stop >&2
+started=0
+
+# ---- Encode ------------------------------------------------------------------
+
+for ((i = 0; i < n; i++)); do printf "file 'seg-%d.mkv'\n" "$i"; done >"$work/segments.txt"
+ffmpeg -hide_banner -loglevel error -nostdin -y -f concat -safe 0 -i "$work/segments.txt" -an -c:v ffv1 "$work/joined.mkv"
+
+stage="$work/stage"
+mkdir "$stage"
+ffmpeg -hide_banner -loglevel error -nostdin -y -i "$work/joined.mkv" -an -r "$fps" \
+  -c:v libvpx-vp9 -crf "$webm_crf" -b:v 0 -row-mt 1 -cpu-used "$webm_cpu_used" -g "$webm_gop" -pix_fmt yuv420p "$stage/demo.webm"
+ffmpeg -hide_banner -loglevel error -nostdin -y -i "$work/joined.mkv" -an -r "$fps" \
+  -c:v libx264 -profile:v high -level 4.0 -pix_fmt yuv420p -crf "$mp4_crf" -movflags +faststart "$stage/demo.mp4"
+ffmpeg -hide_banner -loglevel error -nostdin -y -i "$work/joined.mkv" -frames:v 1 -compression_level 9 -pred mixed "$stage/poster.png"
+
+# The end of the joined video (its last 0.2 s are one held frame) must match its first frame, or the loop jumps.
+ffmpeg -hide_banner -loglevel error -nostdin -y -sseof -0.2 -i "$work/joined.mkv" -update 1 -frames:v 1 "$work/last.png"
+ssim="$(ffmpeg -hide_banner -nostdin -i "$stage/poster.png" -i "$work/last.png" -lavfi ssim -f null - 2>&1 | sed -n -E 's/.*All:([0-9.]+).*/\1/p' | tail -n 1)"
+[ -n "$ssim" ] || die "could not compare the first and last frame"
+if ! awk -v s="$ssim" -v min="$loop_min_ssim" 'BEGIN { exit !(s >= min) }'; then
+  # The work directory is removed on exit, so the two frames are kept for inspection.
+  kept="$(mktemp -d)"
+  cp "$stage/poster.png" "$kept/capture-video-first.png"; cp "$work/last.png" "$kept/capture-video-last.png"
+  die "the last frame differs from the first (SSIM $ssim, need $loop_min_ssim); the video would not loop cleanly; the frames are $kept/capture-video-first.png and $kept/capture-video-last.png"
+fi
+echo "capture-video: first and last frame SSIM $ssim" >&2
+
+# ---- Manifest ----------------------------------------------------------------
+
+probe() { # FILE ENTRY
+  ffprobe -v error -select_streams v:0 -show_entries "$2" -of csv=p=0 "$1"
+}
+for f in demo.webm demo.mp4; do
+  [ -z "$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$stage/$f")" ] || die "$f has an audio stream"
+  [ "$(probe "$stage/$f" stream=r_frame_rate)" = "$fps/1" ] || die "$f is not constant $fps fps"
+done
+width="$(probe "$stage/demo.mp4" stream=width)"
+height="$(probe "$stage/demo.mp4" stream=height)"
+duration_ms="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$stage/demo.mp4" | awk '{ printf "%d", $1 * 1000 + 0.5 }')"
+profile="$(probe "$stage/demo.mp4" stream=profile)"
+level="$(probe "$stage/demo.mp4" stream=level)"
+[ "$profile" = High ] || die "the MP4 profile is '$profile', expected High"
+mp4_codecs="$(printf 'avc1.6400%02x' "$level")"
+
+file_entry() { # FILE TYPE CODECS
+  jq -n --arg file "$1" --arg type "$2" --arg codecs "$3" --argjson bytes "$(stat -c %s "$stage/$1")" \
+    --arg sha "$(sha256sum "$stage/$1" | cut -d' ' -f1)" '{file: $file, type: $type, codecs: $codecs, bytes: $bytes, sha256: $sha}'
+}
+{
+  file_entry demo.webm video/webm vp9
+  file_entry demo.mp4 video/mp4 "$mp4_codecs"
+  file_entry poster.png image/png png
+} | jq -s --argjson schema "$manifest_schema" --arg tree "$app_tree" --arg device "$device" --arg alt "$alt" \
+  --argjson w "$width" --argjson h "$height" --argjson ms "$duration_ms" --argjson description "$(printf '%s\n' "${descriptions[@]}" | jq -R . | jq -s .)" '
+  {schema: $schema, appTree: $tree, device: $device, poster: "poster.png", width: $w, height: $h, durationMs: $ms,
+   alt: $alt, description: $description, files: .}' >"$stage/manifest.json"
+
+"$root/scripts/check-media" --dir "$stage" >&2 || die "the encodes are outside their budgets (see above); adjust the crf values or the holds"
+
+mkdir -p "$out_dir"
+mv "$stage"/* "$out_dir/"
+# Files that are not part of the new set are stale.
+find "$out_dir" -mindepth 1 -maxdepth 1 -type f | while IFS= read -r stale; do
+  jq -e --arg f "$(basename "$stale")" '$f == "manifest.json" or any(.files[]; .file == $f)' "$out_dir/manifest.json" >/dev/null || rm -f "$stale"
+done
+echo "capture-video: wrote demo.webm, demo.mp4, poster.png and manifest.json to docs/media (appTree $app_tree)"
