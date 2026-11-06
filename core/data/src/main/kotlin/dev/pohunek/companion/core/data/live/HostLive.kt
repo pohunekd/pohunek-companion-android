@@ -3,7 +3,6 @@
 // See THIRD_PARTY_NOTICES.md.
 package dev.pohunek.companion.core.data.live
 
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.data.log.logCode
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
@@ -87,7 +86,7 @@ class HostLive(
     private val log: AppLog,
     private val state: LiveState = LiveState(route, timeSource, config.idleThreshold),
 ) {
-    private val hostKey = hostKeyField(route)
+    private val hostKey = log.hostKeyField(route)
     private val refresh = Channel<Unit>(Channel.CONFLATED)
 
     private val network = Channel<Unit>(Channel.CONFLATED)

@@ -1,6 +1,5 @@
 package dev.pohunek.companion.core.data.commands
 
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.data.log.logCode
 import dev.pohunek.companion.core.domain.layout.GROUP_METADATA_KEY
 import dev.pohunek.companion.core.domain.log.AppLog
@@ -90,7 +89,7 @@ class SessionCommands(
     }
 
     private suspend fun <T> run(route: HostRoute, sessionId: String, method: String, command: suspend (PohunekConnection) -> T): Attempt<T> {
-        val fields = listOf(hostKeyField(route), LogField.sessionId(sessionId), LogField.method(method))
+        val fields = listOf(log.hostKeyField(route), LogField.sessionId(sessionId), LogField.method(method))
         return try {
             val value = PohunekConnection.open(route, client(), ioDispatcher).use { command(it) }
             log.info("session.command", fields)

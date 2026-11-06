@@ -1,7 +1,6 @@
 package dev.pohunek.companion.core.data.live
 
 import android.util.AtomicFile
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.warn
@@ -86,7 +85,7 @@ class LastSessionsStore(private val file: AtomicFile, private val ioDispatcher: 
     }
 
     private fun logWriteFailed(route: HostRoute?) {
-        log.warn("last_sessions.write_failed", listOfNotNull(route?.let(::hostKeyField), LogField.errorCode("io")))
+        log.warn("last_sessions.write_failed", listOfNotNull(route?.let(log::hostKeyField), LogField.errorCode("io")))
     }
 
     private companion object {

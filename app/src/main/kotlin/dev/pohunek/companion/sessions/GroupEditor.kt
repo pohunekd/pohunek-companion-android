@@ -5,7 +5,6 @@ import dev.pohunek.companion.core.data.layout.LayoutRepository
 import dev.pohunek.companion.core.data.layout.LayoutState
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.data.live.HostRegistry
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.layout.Edit
@@ -191,7 +190,7 @@ internal class GroupEditor(
                 LogField.number("unwritable", outcomes.count { it.third == WriteOutcome.Unwritable }.toLong()),
                 LogField.number("failed", failed.toLong()),
             )
-            val fields = listOf(hostKeyField(route)) + counts
+            val fields = listOf(log.hostKeyField(route)) + counts
             if (failed == 0) log.info("layout.migration_run", fields) else log.warn("layout.migration_run", fields)
         }
         failures.firstOrNull()?.let { (_, target, outcome) ->

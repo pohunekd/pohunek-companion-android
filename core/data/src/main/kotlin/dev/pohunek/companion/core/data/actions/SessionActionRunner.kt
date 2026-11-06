@@ -1,6 +1,5 @@
 package dev.pohunek.companion.core.data.actions
 
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.data.log.logCode
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
@@ -26,7 +25,7 @@ class SessionActionRunner(
     private val log: AppLog,
 ) {
     suspend fun run(route: HostRoute, sessionId: String, action: SessionAction): SessionActionOutcome {
-        val fields = listOf(hostKeyField(route), LogField.sessionId(sessionId), LogField.method(action.method))
+        val fields = listOf(log.hostKeyField(route), LogField.sessionId(sessionId), LogField.method(action.method))
         log.info("session.action", fields)
         return try {
             PohunekConnection.open(route, config(), ioDispatcher).use { connection ->

@@ -83,6 +83,8 @@ class HostLiveTest {
 
     private object NoLog : AppLog {
         override fun log(level: LogLevel, event: String, fields: List<LogField>) = Unit
+
+        override fun hostKeyField(route: HostRoute) = LogField.hostKey("test")
     }
 
     private fun session(

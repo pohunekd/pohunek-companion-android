@@ -1,7 +1,6 @@
 package dev.pohunek.companion.core.data.newsession
 
 import dev.pohunek.companion.core.data.commands.display
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.data.log.logCode
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
@@ -54,7 +53,7 @@ class NewSessions(
 ) {
     /** The projects as soon as `project.list` answers, then the projects with the agents, or the failure; the flow ends after either. */
     fun choices(route: HostRoute): Flow<ChoicesUpdate> = flow {
-        val fields = listOf(hostKeyField(route))
+        val fields = listOf(log.hostKeyField(route))
         try {
             PohunekConnection.open(route, client(), ioDispatcher).use { connection ->
                 val projects = projectChoices(connection.listProjects())
@@ -73,7 +72,7 @@ class NewSessions(
 
     /** The names of [project]'s static templates on [route], or why they could not be read. */
     suspend fun templates(route: HostRoute, project: String): TemplateStep<List<String>> {
-        val fields = listOf(hostKeyField(route), LogField.method("project.actions"))
+        val fields = listOf(log.hostKeyField(route), LogField.method("project.actions"))
         return try {
             val names = PohunekConnection.open(route, client(), ioDispatcher).use { templateNames(it.listProjectActions(project)) }
             log.info("new_session.templates_loaded", fields + LogField.number("templates", names.size.toLong()))
@@ -86,7 +85,7 @@ class NewSessions(
 
     /** The recipe of the template [name] of [project] on [route]; a prompt with variables is a [TemplateError.Variables]. */
     suspend fun recipe(route: HostRoute, project: String, name: String): TemplateStep<Recipe> {
-        val fields = listOf(hostKeyField(route), LogField.method("project.action"))
+        val fields = listOf(log.hostKeyField(route), LogField.method("project.action"))
         return try {
             val result = PohunekConnection.open(route, client(), ioDispatcher).use { it.projectAction(project, name) }
             recipeFromAction(name, result).also { step ->
@@ -103,7 +102,7 @@ class NewSessions(
      * connection opens; once the request left, no failure is retried, because a retry could create a second session.
      */
     suspend fun create(route: HostRoute, params: SessionNewParams): CreateOutcome {
-        val fields = listOf(hostKeyField(route), LogField.method("session.new"))
+        val fields = listOf(log.hostKeyField(route), LogField.method("session.new"))
         if (!fitsOneLine(params)) {
             log.warn("new_session.create_refused", fields + LogField.errorCode("request_too_large"))
             return CreateOutcome.NotSent(REQUEST_TOO_LARGE)

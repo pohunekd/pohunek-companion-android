@@ -93,8 +93,8 @@ builds that can be published.
 Log through `AppLog` (`:core:domain`, injected; `JsonLineLog` in `:core:data`
 writes `files/logs/app.log` and one rotated `app.log.1`, each at most
 `log_max_bytes`; debug builds mirror to logcat). An event is named
-`area.action` and carries `LogField`s only: host key (`hostKeyField`, a hash
-prefix, never the address), session id, method name, error code (`logCode()`,
+`area.action` and carries `LogField`s only: host key (`AppLog.hostKeyField`, a prefix of an HMAC keyed with
+a per-install salt in `noBackupFilesDir`, never the address), session id, method name, error code (`logCode()`,
 never an exception message) and numbers. Add a field kind to `LogField` rather
 than passing free text. Read the file of an isolated run with
 `scripts/ui-agent app-file cat logs/app.log`.

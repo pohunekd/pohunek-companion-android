@@ -1,0 +1,49 @@
+package dev.pohunek.companion.core.data.log
+
+import dev.pohunek.companion.core.domain.log.LogValue
+import dev.pohunek.companion.protocol.HostRoute
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.IOException
+import java.security.MessageDigest
+import java.security.SecureRandom
+
+class HostKeyerTest {
+    @get:Rule
+    val folder = TemporaryFolder()
+
+    private val route = HostRoute.parse("host.example:7777")
+
+    private fun HostKeyer.keyOf(route: HostRoute): String = (key(route).value as LogValue.Text).value
+
+    private fun salt(fill: Int) = ByteArray(HOST_KEY_SALT_BYTES) { fill.toByte() }
+
+    @Test
+    fun `a key depends on the salt and is not the unsalted hash of the route`() {
+        val plain = MessageDigest.getInstance("SHA-256").digest(route.toString().encodeToByteArray())
+            .take(4).joinToString("") { "%02x".format(it) }
+        val first = HostKeyer(salt(1)).keyOf(route)
+        assertEquals(first, HostKeyer(salt(1)).keyOf(route))
+        assertNotEquals(first, HostKeyer(salt(2)).keyOf(route))
+        assertNotEquals(plain, first)
+    }
+
+    @Test
+    fun `the salt is created once and read back`() {
+        val file = folder.newFolder("private").resolve("salt")
+        val created = HostKeyer.loadOrCreate(file, SecureRandom()).keyOf(route)
+        assertEquals(HOST_KEY_SALT_BYTES, file.length().toInt())
+        assertEquals(created, HostKeyer.loadOrCreate(file, SecureRandom()).keyOf(route))
+    }
+
+    @Test
+    fun `a salt file of the wrong size is an error, not a new salt`() {
+        val file = folder.newFile("salt").also { it.writeBytes(ByteArray(3)) }
+        assertThrows(IOException::class.java) { HostKeyer.loadOrCreate(file, SecureRandom()) }
+        assertEquals(3, file.length().toInt())
+    }
+}

@@ -1,6 +1,5 @@
 package dev.pohunek.companion.core.data.layout
 
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.layout.Edit
 import dev.pohunek.companion.core.domain.layout.GroupError
 import dev.pohunek.companion.core.domain.layout.GroupFact
@@ -112,7 +111,7 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
             unshared.update { it - result.pruned.toSet() }
             if (result.added.isNotEmpty() || result.pruned.isNotEmpty()) {
                 val counts = listOf(LogField.number("added", result.added.size.toLong()), LogField.number("pruned", result.pruned.size.toLong()))
-                log.info("layout.reconciled", listOf(hostKeyField(route)) + counts)
+                log.info("layout.reconciled", listOf(log.hostKeyField(route)) + counts)
             }
             result.layout
         }
@@ -133,7 +132,7 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
                     LogField.number("learned_added", result.learnedAdded.toLong()),
                     LogField.number("learned_dropped", result.learnedDropped.toLong()),
                 )
-                log.info("layout.groups_applied", listOfNotNull(route?.let(::hostKeyField)) + counts)
+                log.info("layout.groups_applied", listOfNotNull(route?.let(log::hostKeyField)) + counts)
             }
             result.layout
         }
@@ -146,7 +145,7 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
     /** Records [route] as migrated and saves it. */
     suspend fun markMigrated(route: HostRoute) {
         change { layout ->
-            layout.withMigrated(route.toString()).also { if (it != layout) log.info("layout.migrated", listOf(hostKeyField(route))) }
+            layout.withMigrated(route.toString()).also { if (it != layout) log.info("layout.migrated", listOf(log.hostKeyField(route))) }
         }
     }
 
