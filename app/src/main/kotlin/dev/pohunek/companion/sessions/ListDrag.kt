@@ -179,9 +179,12 @@ internal class ListDrag(private val listState: LazyListState) {
     }
 }
 
-/** Scrolls the list while the finger of a drag is within the edge zone, faster the nearer the edge. */
+/**
+ * Scrolls the list while the finger of a drag is within the edge zone, faster the nearer the edge. The bottom zone ends above the
+ * [bottomInset] pixels the bar covers, so that dragging onto the bar still scrolls.
+ */
 @Composable
-internal fun DragAutoScroll(drag: ListDrag, listState: LazyListState) {
+internal fun DragAutoScroll(drag: ListDrag, listState: LazyListState, bottomInset: () -> Float) {
     val density = LocalDensity.current
     LaunchedEffect(drag, listState) {
         val edge = with(density) { PohunekTheme.dragEdgeZone.toPx() }
@@ -193,7 +196,7 @@ internal fun DragAutoScroll(drag: ListDrag, listState: LazyListState) {
                 val now = withFrameNanos { it }
                 val seconds = (now - last) / NANOS_PER_SECOND
                 last = now
-                val height = listState.layoutInfo.viewportSize.height
+                val height = listState.layoutInfo.viewportSize.height - bottomInset()
                 val depth = when {
                     drag.pointerY < edge -> drag.pointerY / edge - 1f
                     drag.pointerY > height - edge -> 1f - (height - drag.pointerY) / edge
