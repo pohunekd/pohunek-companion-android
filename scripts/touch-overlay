@@ -188,6 +188,10 @@ def main():
     taps = [g for g in gestures if g["kind"] == "tap"]
     fade_in, release = args.fade_in_ms / 1000, args.release_ms / 1000
     quick = 0.05
+    # The span of the clip the rings need: from the first finger landing to the end of the last release.
+    span_start = min(item["down"] for item in solved) / 1000
+    span_end = max(item["up"] / 1000 + (quick + release if g["kind"] == "tap" else release)
+                   for item, g in zip(solved, gestures))
     graph = [f"[0:v]{args.retime_filter},fps={args.fps}[b0]",
              f"[1:v]format=rgba,split={len(gestures)}" + "".join(f"[s{i}]" for i in range(len(gestures)))]
     if taps:
@@ -217,6 +221,7 @@ def main():
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
         die("ffmpeg failed: " + result.stderr.strip()[-600:])
+    print(f"SPAN {span_start - fade_in:.3f} {span_end:.3f}")
 
 
 if __name__ == "__main__":

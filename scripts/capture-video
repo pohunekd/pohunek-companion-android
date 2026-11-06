@@ -425,8 +425,18 @@ overlay_touches() { # RAW GESTURES OUT
 
 # Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv. The pacing gate
 # measures the segment before the touches are composited into it.
+# The select expression that keeps HEAD..TAIL seconds of a clip except the static stretches SPANS (the CUT lines
+# of motion_span) cut out.
+keep_expression() { # HEAD TAIL SPANS
+  local expression="between(t,$1,$2)" word from to
+  while read -r word from to; do
+    [ "$word" = CUT ] && expression="$expression*not(between(t,$from,$to))"
+  done < <(sed 1d <<<"$3")
+  printf '%s' "$expression"
+}
+
 record_clip() { # N ENTRY
-  local n="$1" id head_hold tail_hold fn raw head tail keep word from to spans uptime_before
+  local n="$1" id head_hold tail_hold fn raw head tail keep spans uptime_before span ring_from ring_to kept
   IFS='|' read -r id head_hold tail_hold fn <<<"$2"
   echo "capture-video: $id" >&2
   raw="$work/raw-$id.mp4"
@@ -440,10 +450,7 @@ record_clip() { # N ENTRY
     "$agent" record stop "$raw" >/dev/null
     spans="$(motion_span "$raw")"
     read -r head tail <<<"$(sed -n 1p <<<"$spans")"
-    keep="between(t,$head,$tail)"
-    while read -r word from to; do
-      [ "$word" = CUT ] && keep="$keep*not(between(t,$from,$to))"
-    done < <(sed 1d <<<"$spans")
+    keep="$(keep_expression "$head" "$tail" "$spans")"
     echo "capture-video: $id keeps ${head}s..${tail}s of the raw clip, holds ${head_hold}s and ${tail_hold}s" >&2
     build_segment "$raw" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold" 1
     [ "$id" = "$fling_clip" ] || break
@@ -454,12 +461,17 @@ record_clip() { # N ENTRY
   done
   if [ -n "$keep_raw" ]; then cp "$raw" "$keep_raw/raw-$id.mp4"; cp "$gestures_file" "$keep_raw/gestures-$id.log"; fi
   if grep -q '^G' "$gestures_file"; then
-    if ! overlay_touches "$raw" "$gestures_file" "$work/ov-$id.mkv"; then
+    if ! span="$(overlay_touches "$raw" "$gestures_file" "$work/ov-$id.mkv")"; then
       # The work directory is removed on exit, so the recording and its gesture log are kept for inspection.
       kept="$(mktemp -d)"
       cp "$raw" "$gestures_file" "$kept/"
       die "$id: the touches could not be placed in the recording; the clip and its gesture log are in $kept"
     fi
+    # A ring must be on screen for its whole life: the cut keeps every frame from its fade-in to the end of its release.
+    read -r _ ring_from ring_to <<<"$span"
+    head="$(awk -v a="$head" -v b="$ring_from" 'BEGIN { print (b < a ? (b < 0 ? 0 : b) : a) }')"
+    tail="$(awk -v a="$tail" -v b="$ring_to" 'BEGIN { print (b > a ? b : a) }')"
+    keep="$(keep_expression "$head" "$tail" "$spans")"
     build_segment "$work/ov-$id.mkv" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold" 0
   fi
 }
