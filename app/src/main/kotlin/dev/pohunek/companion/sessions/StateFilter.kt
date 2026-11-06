@@ -1,7 +1,6 @@
 package dev.pohunek.companion.sessions
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,14 +39,13 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 /** The bar's filter chips and its Clear button; a Clear that has nothing to reset is absent. */
 @Composable
 internal fun FilterBarChips(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
-    // The chips scroll sideways only where they are wider than the bar, such as at the largest font scales.
+    // The project label, the only unbounded one, is cut to the width that the other controls leave, so Clear stays on screen.
     Row(
-        Modifier.horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.xs),
     ) {
         StateFilter(state, onEvent)
-        ProjectFilter(state, onEvent)
+        ProjectFilter(state, onEvent, Modifier.weight(1f, fill = false))
         HostFilter(state, onEvent)
         if (state.filtersChanged) {
             IconButton(onClick = { onEvent(SessionListEvent.ClearFilters) }, modifier = Modifier.testTag("SessionList.clearFilters")) {

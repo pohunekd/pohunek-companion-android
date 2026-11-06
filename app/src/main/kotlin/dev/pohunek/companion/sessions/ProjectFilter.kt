@@ -48,7 +48,7 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
 /** The `Project ▾` chip, which opens the [ProjectSheet]; it is offered when the sessions have more than one choice. */
 @Composable
-internal fun ProjectFilter(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
+internal fun ProjectFilter(state: SessionListState, onEvent: (SessionListEvent) -> Unit, modifier: Modifier = Modifier) {
     if (state.projectChips.size <= 1) return
     var open by remember { mutableStateOf(false) }
     val selected = state.projectChips.firstOrNull { it.selected }?.selection ?: ProjectSelection.All
@@ -67,7 +67,7 @@ internal fun ProjectFilter(state: SessionListState, onEvent: (SessionListEvent) 
         onClick = { open = true },
         label = value ?: stringResource(R.string.project_filter),
         labelMaxWidth = if (value == null) null else PohunekTheme.filterBarProjectMaxWidth,
-        modifier = Modifier.semantics { contentDescription = description }.testTag("SessionList.filter.project"),
+        modifier = modifier.semantics { contentDescription = description }.testTag("SessionList.filter.project"),
     )
     if (open) {
         ProjectSheet(state, onPick = { onEvent(SessionListEvent.TapProject(it)) }, onDismiss = { open = false })

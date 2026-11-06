@@ -27,7 +27,8 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
 /**
  * A filter chip of the bottom bar with a dropdown arrow, narrower than a Material filter chip so the bar fits search and three chips at
- * 411 dp. Only [labelMaxWidth] cuts the label, which the caller sets for user-supplied values.
+ * 411 dp. [labelMaxWidth] cuts the label at a fixed width for user-supplied values; the label also gives way when the chip's
+ * [modifier] constrains its width.
  */
 @Composable
 internal fun BarChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier, labelMaxWidth: Dp? = null) {
@@ -50,7 +51,7 @@ internal fun BarChip(selected: Boolean, onClick: () -> Unit, label: String, modi
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = if (labelMaxWidth == null) Modifier else Modifier.widthIn(max = labelMaxWidth),
+                modifier = Modifier.weight(1f, fill = false).then(if (labelMaxWidth == null) Modifier else Modifier.widthIn(max = labelMaxWidth)),
             )
             Icon(painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null, modifier = Modifier.size(PohunekTheme.filterBarChipIconSize))
         }
