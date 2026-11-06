@@ -416,7 +416,6 @@ stall_verdict() { # SEGMENT
   [ "$stalls" -eq 0 ]
 }
 
-# Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv.
 # Writes the cut, held and scaled segment of the clip SRC (on the raw time axis) to OUT.
 # RETIME is 1 for a recording (frames carry the recorder's times) and 0 for a clip that is already
 # constant-rate.
@@ -441,8 +440,6 @@ overlay_touches() { # RAW GESTURES OUT
     --fade-in-ms "$(config_value touch_fade_in_ms)" --release-ms "$(config_value touch_release_ms)"
 }
 
-# Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv. The pacing gate
-# measures the segment before the touches are composited into it.
 # The select expression that keeps HEAD..TAIL seconds of a clip except the static stretches SPANS (the CUT lines
 # of motion_span) cut out.
 keep_expression() { # HEAD TAIL SPANS
@@ -453,6 +450,8 @@ keep_expression() { # HEAD TAIL SPANS
   printf '%s' "$expression"
 }
 
+# Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv. The pacing gate
+# measures the segment before the touches are composited into it.
 record_clip() { # N ENTRY
   local n="$1" id head_hold tail_hold fn raw head tail keep spans uptime_before span ring_from ring_to kept
   IFS='|' read -r id head_hold tail_hold fn <<<"$2"

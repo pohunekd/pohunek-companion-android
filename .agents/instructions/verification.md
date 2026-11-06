@@ -430,7 +430,7 @@ the intended screen with showcase data only. Run it before tagging a release.
 format pohunek.dev reads: `appTree`, `device`, `poster`, `width`, `height`,
 `durationMs`, `alt`, a `description` line per scene, and per file `file`, `type`,
 `codecs`, `bytes`, `sha256`). Like `capture-screenshots` it owns its
-`ui-agent start --showcase` run, sources `scripts/showcase-prelude`, takes no option
+`ui-agent start --showcase` run, sources `scripts/showcase-prelude`, takes only `--keep-raw DIR`
 and needs a clean `app/`. It records one clip per scene with `ui-agent record`, cuts
 each clip's static head and tail, adds fixed holds, joins the clips at a constant
 30 fps and 720 px, and fails when the first and last frame differ (the video
@@ -443,7 +443,7 @@ offset of every frame (`scripts/scroll-pacing`, needs python3 with numpy): the m
 step-to-step deviation and the largest deviation among the peak-speed steps, where a single dip
 shows; a stalled or repeated frame between two moving steps stays inside its burst and counts as a dip.
 The list scroll clip is gated only on a stalled or repeated frame inside a scroll burst (an injected
-drag is uneven by itself, so no peak-step rule applies to it). Outside the limits in the header of `scripts/capture-video` the clip is recorded again, and
+drag is uneven by itself, so no peak-step rule applies to it). Outside the limits in the pacing block of `scripts/capture-video` the clip is recorded again, and
 after `pacing_attempts` the command fails, so a juddering clip is never written. The numbers are
 printed; quote them when judging scroll smoothness. The recorder stamps frames with jittering times
 (12 to 33 ms between frames the display shows 1/60 s apart, each frame's content advancing evenly), and
