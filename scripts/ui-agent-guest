@@ -323,13 +323,14 @@ generated_session() {
 # Showcase dataset (`start --showcase`): synthetic projects and sessions of two
 # synthetic agent profiles that run a harmless shell program. Each line is
 # `name|project|agent|state|meta` with state one of working, blocked, idle,
-# stopped (ended) or shell (a plain shell, no activity).
+# stopped (ended), shell (a plain shell, no activity) or demo (the scripted
+# showcase-demo program, which reports working).
 showcase_projects=(pohunek pohunek-companion ripgrep neovim tokio zed)
 showcase_template_project=pohunek-companion
 showcase_sessions=(
   "review-pr-1412|ripgrep|claude|blocked|work.link.provider=github work.link.kind=pr work.link.id=1412 work.link.url=https://github.com/BurntSushi/ripgrep/pull/1412 work.role=reviewer"
   "fix-flaky-pty-test|pohunek|codex|blocked|work.link.provider=github work.link.kind=issue work.link.id=388 work.link.url=https://github.com/zajca/pohunek/issues/388 work.role=implementer"
-  "bump-tokio-1.48|tokio|claude|working|work.link.provider=github work.link.kind=pr work.link.id=7210 work.link.url=https://github.com/tokio-rs/tokio/pull/7210 work.role=implementer"
+  "bump-tokio-1.48|tokio|claude|demo|work.link.provider=github work.link.kind=pr work.link.id=7210 work.link.url=https://github.com/tokio-rs/tokio/pull/7210 work.role=implementer"
   "docs-install-guide|pohunek-companion|claude|working|work.link.provider=github work.link.kind=issue work.link.id=200 work.link.url=https://github.com/pohunekd/pohunek-companion/issues/200 work.role=implementer"
   "lsp-semantic-tokens|neovim|codex|working|work.link.provider=github work.link.kind=pr work.link.id=31877 work.link.url=https://github.com/neovim/neovim/pull/31877 work.role=implementer"
   "review-pr-1655|zed|codex|idle|work.link.provider=github work.link.kind=pr work.link.id=1655 work.link.url=https://github.com/zed-industries/zed/pull/1655 work.role=reviewer"
@@ -422,17 +423,131 @@ write_showcase_agents() {
   chmod 700 "$iso/config/pohunek" "$agents" "$agents/manifests"
   cat >"$iso/bin/showcase-agent" <<'EOF'
 #!/bin/sh
-# The first input line names the screen to draw: working, blocked or idle.
+# The first input line names the screen to draw: working, blocked, idle or demo.
 stty -echo 2>/dev/null
 IFS= read -r screen
 case $screen in
     working) printf '* Working on the task... (42s \302\267 esc to interrupt)\n' ;;
+    demo) exec "$(dirname "$0")/showcase-demo" ;;
     blocked) printf 'Do you want to proceed?\n  1. Yes\n  2. No\nEnter to select \302\267 Esc to cancel\n' ;;
     *) printf '* Done for 3s\n\n\342\235\257 \n' ;;
 esac
 exec sleep 2147483
 EOF
   chmod 700 "$iso/bin/showcase-agent"
+  cat >"$iso/bin/showcase-demo" <<'EOF'
+#!/bin/sh
+# A scripted run for about 42 columns: fixed text and fixed delays only, so two
+# runs print the same bytes. Every visible line is at most 42 cells wide.
+esc=$(printf '\033')
+fg() { printf '%s[38;2;%s;%s;%sm' "$esc" "$1" "$2" "$3"; }
+bold="${esc}[1m"
+dim="${esc}[2m"
+reset="${esc}[0m"
+accent=$(fg 125 207 255)
+green=$(fg 126 211 110)
+red=$(fg 247 118 142)
+amber=$(fg 224 175 104)
+violet=$(fg 187 154 247)
+grey=$(fg 120 128 150)
+# The attached terminal only receives the visible screen when it connects, so a
+# resize (the app attaching) draws everything again, without delays, into the
+# fresh stream to give the app its scrollback.
+fast=
+pause() { [ -n "$fast" ] || sleep "$1"; }
+
+draw() {
+    printf '%s\342\225\255\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\225\256%s\n' "$violet" "$reset"
+    printf '%s\342\224\202%s %s\342\227\206 pohunek showcase%s  %sbump-tokio-1.48%s    %s\342\224\202%s\n' "$violet" "$reset" "$bold$accent" "$reset" "$amber" "$reset" "$violet" "$reset"
+    printf '%s\342\224\202%s %sRaise tokio to 1.48 in the workspace%s   %s\342\224\202%s\n' "$violet" "$reset" "$grey" "$reset" "$violet" "$reset"
+    printf '%s\342\225\260\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\224\200\342\225\257%s\n\n' "$violet" "$reset"
+    pause 0.3
+
+    # Checklist: all items start open and tick off in place.
+    printf '%sPlan%s\n' "$bold" "$reset"
+    items=$(printf '%s\n' 'Read the workspace manifest' 'Bump tokio and tokio-util' 'Fix the changed trait bounds' 'Run the build and the tests')
+    printf '%s\n' "$items" | while IFS= read -r item; do printf ' %s[ ]%s %s\n' "$grey" "$reset" "$item"; done
+    n=4
+    i=0
+    printf '%s\n' "$items" | while IFS= read -r item; do
+        pause 0.25
+        up=$((n - i))
+        printf '%s[%dA\r %s[\342\234\223]%s %s%s%s%s[%dB\r' "$esc" "$up" "$green" "$reset" "$dim" "$item" "$reset" "$esc" "$up"
+        i=$((i + 1))
+    done
+    printf '\n'
+    pause 0.3
+
+    # Unified diff.
+    printf '%sDiff%s %sCargo.toml%s\n' "$bold" "$reset" "$accent" "$reset"
+    printf '%s@@ -14,7 +14,7 @@ [workspace]%s\n' "$violet" "$reset"
+    printf ' members = ["core", "net", "cli"]\n'
+    printf ' \n'
+    printf '%s-tokio = "1.47"%s\n' "$red" "$reset"
+    printf '%s+tokio = "1.48"%s\n' "$green" "$reset"
+    printf '%s-tokio-util = "0.7.12"%s\n' "$red" "$reset"
+    printf '%s+tokio-util = "0.7.13"%s\n' "$green" "$reset"
+    printf ' serde = "1"\n\n'
+    pause 0.4
+
+    # Build log: long enough that most of it ends up in the scrollback.
+    printf '%sBuild%s\n' "$bold" "$reset"
+    crates='tokio tokio-util tokio-stream tokio-macros bytes mio socket2 parking_lot libc pin-project-lite futures-core futures-sink futures-util hashbrown indexmap serde serde_json itoa ryu tracing tracing-core once_cell smallvec memchr'
+    version=0
+    for stage in Downloading Unpacking Compiling Checking Optimizing Linking; do
+        case $stage in
+            Downloading) color=$accent ;;
+            Compiling) color=$green ;;
+            Checking | Unpacking) color=$amber ;;
+            *) color=$violet ;;
+        esac
+        for crate in $crates; do
+            version=$(((version * 7 + 3) % 40))
+            printf '%s%12s%s %s v1.%d.%d\n' "$color" "$stage" "$reset" "$crate" "$((version / 10))" "$((version % 10))"
+            pause 0.02
+        done
+    done
+    printf '%s    Finished%s dev profile in 38.2s\n\n' "$green" "$reset"
+    pause 0.4
+
+    # Test run with a progress bar that redraws in place.
+    printf '%sTests%s\n' "$bold" "$reset"
+    for step in 0 1 2 3 4 5 6 7 8 9 10; do
+        filled=$((step * 2))
+        bar_on=''
+        bar_off=''
+        k=0
+        while [ "$k" -lt 20 ]; do
+            if [ "$k" -lt "$filled" ]; then bar_on="$bar_on\342\226\210"; else bar_off="$bar_off\342\226\221"; fi
+            k=$((k + 1))
+        done
+        printf '\r %s%b%s%b%s %3d%%  %3d/216' "$green" "$bar_on" "$grey" "$bar_off" "$reset" "$((step * 10))" "$((step * 216 / 10))"
+        pause 0.12
+    done
+    printf '\n'
+    printf ' %s\342\234\223%s net::tcp_connect        %s0.41s%s\n' "$green" "$reset" "$grey" "$reset"
+    printf ' %s\342\234\223%s io::copy_bidirectional  %s0.12s%s\n' "$green" "$reset" "$grey" "$reset"
+    printf ' %s\342\234\223%s sync::semaphore_fairness %s1.07s%s\n' "$green" "$reset" "$grey" "$reset"
+    printf ' %s\342\234\223%s time::paused_clock       %s0.03s%s\n' "$green" "$reset" "$grey" "$reset"
+    printf '\n%s%s 216 passed %s %s0 failed %s %s2 skipped %s\n\n' "$bold" "$green" "$reset" "$grey" "$reset" "$amber" "$reset"
+    printf '%s\342\227\206 showcase demo: standing by%s\n' "$violet" "$reset"
+}
+
+redraw() {
+    fast=1
+    printf '%s[H%s[2J%s[3J' "$esc" "$esc" "$esc"
+    draw
+}
+
+draw
+trap redraw WINCH
+sleep 2147483 &
+idle=$!
+while kill -0 "$idle" 2>/dev/null; do
+    wait "$idle"
+done
+EOF
+  chmod 700 "$iso/bin/showcase-demo"
   cat >"$agents/manifests/showcase.toml" <<'EOF'
 [[rules]]
 id = "blocked"
@@ -448,6 +563,13 @@ state = "working"
 priority = 960
 region = "whole_recent"
 line_regex = ['^[*] .*\(.*esc to interrupt\)']
+
+[[rules]]
+id = "demo"
+state = "working"
+priority = 970
+region = "whole_recent"
+contains = ["showcase demo: standing by"]
 
 [[rules]]
 id = "idle"
@@ -505,7 +627,7 @@ create_showcase_session() { # `name|project|agent|state|meta`
   local name project agent state meta kv out
   IFS='|' read -r name project agent state meta <<<"$1"
   local -a args=(session new --agent "$agent" --name "$name" --project "$project" --json)
-  case $state in working | blocked | idle | stopped) args+=(--input "${state/stopped/idle}") ;; esac
+  case $state in working | blocked | idle | stopped | demo) args+=(--input "${state/stopped/idle}") ;; esac
   for kv in $meta; do args+=(--meta "$kv"); done
   out=$(iso_run "$cli" "${args[@]}") ||
     { echo "$name: $(jq -r '.err.msg // empty' <<<"$out")" >&2; return 1; }
@@ -520,8 +642,9 @@ finish_showcase() {
     ready=1
     for line in "${showcase_sessions[@]}"; do
       IFS='|' read -r name _ _ state _ <<<"$line"
-      case $state in working | blocked | idle | stopped) ;; *) continue ;; esac
+      case $state in working | blocked | idle | stopped | demo) ;; *) continue ;; esac
       want=${state/stopped/idle}
+      want=${want/demo/working}
       [ "$(jq -r --arg n "$name" '.ok[] | select(.name == $n) | .activity // "none"' <<<"$list")" = "$want" ] || ready=0
     done
     [ "$ready" -eq 1 ] && break
