@@ -53,7 +53,6 @@ class RecentProjectsStore(private val file: AtomicFile, private val ioDispatcher
 
     private suspend fun ensureLoaded() {
         if (loaded) return
-        loaded = true
         withContext(ioDispatcher) {
             // AtomicFile.readFully falls back to the backup left by an interrupted write.
             if (!file.baseFile.exists() && !File(file.baseFile.path + BACKUP_SUFFIX).exists()) return@withContext
@@ -76,6 +75,8 @@ class RecentProjectsStore(private val file: AtomicFile, private val ioDispatcher
                 current.value = decoded
             }
         }
+        // Set only after the read, so a cancelled first load is retried instead of leaving an empty state to be written over the file.
+        loaded = true
     }
 
     private suspend fun write(recent: RecentProjects) {
