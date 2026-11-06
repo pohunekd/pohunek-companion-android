@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# Checks the committed demo video set against docs/media/manifest.json (schema 1,
+# the format pohunek.dev reads): the manifest is valid, every listed file exists
+# with the listed size and sha256 and stays within its size budget, the length is
+# within budget, and no unlisted file sits beside them. Fails with a message naming
+# the problem. When the app sources of REF differ from the manifest's appTree,
+# prints a ::warning:: naming the changed paths; that never fails the check.
+#
+#   scripts/check-media [--dir DIR] [REF]
+#
+# Files are read from DIR (default docs/media); REF (default HEAD) only selects the
+# app/src/main tree compared with appTree. scripts/capture-video runs it on its
+# output before writing docs/media, and the release workflow runs it on the tag's
+# checkout.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+dir="$root/docs/media"
+manifest_schema=1
+
+# Size budgets in bytes per file type, and the longest video in milliseconds.
+budget_webm_bytes=2500000
+budget_mp4_bytes=3500000
+budget_png_bytes=250000
+budget_duration_ms=35000
+
+fail() { echo "::error::check-media: $*"; exit 1; }
+
+for tool in jq git sha256sum stat; do
+  command -v "$tool" >/dev/null || fail "$tool is not installed"
+done
+if [ "${1:-}" = --dir ]; then
+  [ $# -ge 2 ] || fail "--dir needs a directory"
+  dir="$2"; shift 2
+fi
+[ $# -le 1 ] || fail "takes at most a --dir option and one git ref"
+ref="${1:-HEAD}"
+manifest="$dir/manifest.json"
+
+[ -f "$manifest" ] || fail "$manifest is missing; run scripts/capture-video and merge the result before tagging"
+jq -e . "$manifest" >/dev/null 2>&1 || fail "$manifest is not valid JSON"
+
+jq -e --argjson schema "$manifest_schema" '
+  def ext: capture("\\.(?<e>[a-z0-9]+)$").e // "";
+  type == "object" and .schema == $schema
+  and (.appTree | type == "string" and test("^[0-9a-f]{40}$"))
+  and (.device | type == "string" and length > 0)
+  and (.width | type == "number" and . > 0 and . == floor)
+  and (.height | type == "number" and . > 0 and . == floor)
+  and (.durationMs | type == "number" and . > 0 and . == floor)
+  and (.alt | type == "string" and length > 0)
+  and (.description | type == "array" and length > 0 and all(.[]; type == "string" and length > 0))
+  and (.files | type == "array" and length > 0 and all(.[];
+    (.file | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*\\.(webm|mp4|png)$"))
+    and (.type == ({"webm": "video/webm", "mp4": "video/mp4", "png": "image/png"}[.file | ext]))
+    and (.codecs | type == "string" and length > 0)
+    and (.bytes | type == "number" and . > 0 and . == floor)
+    and (.sha256 | type == "string" and test("^[0-9a-f]{64}$"))))
+  and ((.files | map(.file) | length) == (.files | map(.file) | unique | length))
+  and (.poster as $p | any(.files[]; .file == $p and .type == "image/png"))
+  and any(.files[]; .type | startswith("video/"))' "$manifest" >/dev/null ||
+  fail "$manifest is not a valid schema $manifest_schema manifest"
+
+problems=0
+problem() { echo "::error::check-media: $*"; problems=1; }
+
+duration="$(jq -r .durationMs "$manifest")"
+[ "$duration" -le "$budget_duration_ms" ] || problem "the video is ${duration} ms long, the budget is ${budget_duration_ms} ms"
+
+while IFS=$'\t' read -r file type bytes digest; do
+  if [ ! -f "$dir/$file" ]; then
+    problem "$file is listed in the manifest but missing"
+    continue
+  fi
+  actual_bytes="$(stat -c %s "$dir/$file")"
+  actual="$(sha256sum "$dir/$file" | cut -d' ' -f1)"
+  [ "$actual_bytes" = "$bytes" ] || problem "$file is $actual_bytes bytes, the manifest lists $bytes"
+  [ "$actual" = "$digest" ] || problem "$file has sha256 $actual, the manifest lists $digest"
+  case "$type" in
+    video/webm) budget="$budget_webm_bytes" ;;
+    video/mp4) budget="$budget_mp4_bytes" ;;
+    image/png) budget="$budget_png_bytes" ;;
+  esac
+  [ "$actual_bytes" -le "$budget" ] || problem "$file is $actual_bytes bytes, the budget is $budget bytes"
+done < <(jq -r '.files[] | [.file, .type, .bytes, .sha256] | @tsv' "$manifest")
+
+while IFS= read -r found; do
+  base="$(basename "$found")"
+  [ "$base" != manifest.json ] || continue
+  jq -e --arg f "$base" 'any(.files[]; .file == $f)' "$manifest" >/dev/null || problem "$base is not listed in the manifest"
+done < <(find "$dir" -mindepth 1 -maxdepth 1 | sort)
+[ "$problems" -eq 0 ] || exit 1
+
+app_tree="$(jq -r .appTree "$manifest")"
+current_tree="$(git -C "$root" rev-parse --verify --quiet "$ref:app/src/main")" || fail "cannot resolve app/src/main at '$ref'"
+if [ "$current_tree" != "$app_tree" ]; then
+  # The newest commit whose app/src/main is the recorded tree is the baseline for the path list.
+  baseline=""
+  while IFS= read -r commit; do
+    if [ "$(git -C "$root" rev-parse "$commit:app/src/main")" = "$app_tree" ]; then baseline="$commit"; break; fi
+  done < <(git -C "$root" rev-list "$ref" -- app/src/main)
+  if [ -n "$baseline" ]; then
+    paths="$(git -C "$root" diff --name-only "$baseline" "$ref" -- app/src/main | paste -sd, - | sed 's/,/, /g')"
+  else
+    paths="not found in the history of $ref"
+  fi
+  echo "::warning::check-media: app/src/main at $ref ($current_tree) differs from the manifest's appTree ($app_tree); the video was recorded from other app sources. Changed paths: $paths"
+fi
+echo "check-media: $(jq '.files | length' "$manifest") files in $dir match the manifest"

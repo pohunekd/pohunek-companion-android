@@ -68,6 +68,7 @@ scripts/build-libghostty-vt                # libghostty-vt.a for arm64-v8a and x
 scripts/gates                              # Spotless, detekt, lint, unit tests, assembleDebug: the set CI runs
 scripts/ui-agent start                     # emulator + app + isolated daemon; then screenshot, tree, click, type, key, screen, stop (see verification.md)
 scripts/check-screenshots                  # docs/screenshots matches its manifest (the release workflow runs it)
+scripts/check-media                        # docs/media matches its manifest and size budgets (the release workflow runs it)
 scripts/changelog check                    # validates the changelog fragments in changelog.d/
 scripts/test-changelog                     # the changelog tooling against its contract fixtures
 ```

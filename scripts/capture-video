@@ -1,0 +1,392 @@
+#!/usr/bin/env bash
+# Records the public demo video into docs/media/ from a ui-agent isolated run with
+# the showcase data: demo.webm, demo.mp4, poster.png and manifest.json (schema 1),
+# the files pohunek.dev reads at a release tag.
+#
+#   scripts/capture-video
+#
+# The command owns its run: it fails when this worktree already has one and stops
+# its own on exit. It takes no device or daemon option, so nothing but the
+# isolated emulator and its synthetic daemon can appear in the video. app/ must be
+# committed, because the manifest's appTree names the recorded tree.
+#
+# Each clip below is recorded with `ui-agent record`, its static head and tail are
+# cut (ffmpeg freezedetect), fixed holds are added at both ends, and the clips are
+# joined in order into one constant-frame-rate video that ends on the frame it
+# starts with. The encodes must stay within the budgets of scripts/check-media,
+# which the command runs on its output before it replaces docs/media. The frame
+# intervals the emulator delivered during the terminal fling clip are printed
+# from the raw recording, before the constant-rate conversion hides them.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+config="$root/config/dev.toml"
+agent="$root/scripts/ui-agent"
+out_dir="$root/docs/media"
+manifest_schema=1
+
+# Seconds a wait for a screen element or terminal text may take.
+wait_secs=60
+# Seconds between two scripted actions, so each is visible before the next starts.
+pause_secs=1
+# The showcase session the terminal scene opens (it runs the scripted demo) and the last text the demo draws.
+terminal_session="bump-tokio-1.48"
+terminal_ready_text="showcase demo: standing by"
+# Swipes the terminal scene may spend scrolling the list to its session, and the swipes back to the top.
+max_swipes=3
+# Text typed into the project picker's filter and the project it narrows to and picks.
+project_filter_text="compan"
+project_name="pohunek-companion"
+# Flings through the terminal's scrollback in each direction.
+terminal_flings=2
+
+# Output: constant frame rate, width, and the encoders' quality settings.
+fps=30
+video_width=720
+webm_crf=38
+# Slowest VP9 speed setting and a keyframe every 10 s (300 frames): both shrink the file, which has to stay in budget.
+webm_cpu_used=0
+webm_gop=300
+mp4_crf=26
+# Seconds of the first frame a static clip keeps before its holds are added.
+min_clip_secs=0.2
+# A frozen stretch must last this long (seconds) and differ by less than this noise ratio from its frame.
+freeze_secs=0.3
+freeze_noise=0.001
+# A static stretch inside a clip (a wait for the app between two actions) is shortened to this many seconds.
+static_cap_secs=0.7
+# Raw frame gaps above this many milliseconds are static pauses, not scrolling, and stay out of the interval statistics.
+motion_gap_ms=250
+# The last frame must match the first at least this well (SSIM 0..1), or the video does not loop cleanly.
+loop_min_ssim=0.97
+
+# The scenes, in the order the video plays: clip id, hold before and after the clip (seconds), scene function.
+clips=(
+  "list|0.5|2.5|scene_list"
+  "bar|0|1.0|scene_bar"
+  "project|0.5|2.0|scene_project"
+  "state|0.5|1.5|scene_state"
+  "terminal-open|0.5|1.0|scene_terminal_open"
+  "terminal-fling|0|1.5|scene_terminal_fling"
+  "back|0|1.5|scene_back"
+)
+# Clip whose raw frame intervals are reported.
+fling_clip="terminal-fling"
+
+# Text alternative of the video and one line per scene, which the site shows.
+alt="Screen recording of the Pohunek Companion app on demo data: it filters the session list, then opens a live terminal and scrolls through its history."
+descriptions=(
+  "The session list puts the sessions that need you first, with a chip for the host."
+  "Scrolling down hides the filter bar and scrolling up brings it back."
+  "The Project chip opens a picker; typing narrows it and a tap picks a project."
+  "The State chip limits the list to the sessions that need you, and Clear resets the filters."
+  "A tap opens the session as a live terminal, and a fling scrolls through its history and back."
+  "Back returns to the list."
+)
+
+die() { echo "capture-video: $*" >&2; exit 1; }
+
+config_value() {
+  local key="$1" value
+  value="$(sed -n -E "s/^${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*\$/\\1/p" "$config" | head -n 1)"
+  value="${value#\"}"; value="${value%\"}"
+  [ -n "$value" ] || die "$config: missing required key '$key'"
+  printf '%s' "$value"
+}
+
+# shellcheck source=scripts/showcase-prelude
+. "$root/scripts/showcase-prelude"
+
+for tool in jq git podman sha256sum ffmpeg ffprobe awk stat; do
+  command -v "$tool" >/dev/null || die "$tool is not installed"
+done
+encoders="$(ffmpeg -hide_banner -encoders 2>/dev/null)"
+for encoder in libvpx-vp9 libx264; do
+  grep -qF " $encoder " <<<"$encoders" || die "this ffmpeg has no $encoder encoder"
+done
+[ $# -eq 0 ] || die "takes no arguments"
+
+# ---- Scene steps -------------------------------------------------------------
+
+wait_screen_text() { # TEXT
+  local deadline=$((SECONDS + wait_secs))
+  until "$agent" screen 2>/dev/null | grep -qF -- "$1"; do
+    [ "$SECONDS" -lt "$deadline" ] || die "the terminal did not show '$1' within ${wait_secs}s"
+    sleep 1
+  done
+}
+
+# Index among the elements tagged TAG of the one that contains a text node equal to NAME (such an
+# element carries no text itself, its label is a child node inside its bounds); fails quietly when none does.
+tag_index_of() { # TAG NAME
+  local index
+  index="$("$agent" tree | jq -r --arg tag "$1" --arg name "$2" '
+    . as $nodes
+    | [$nodes[] | select(.id == $tag)] as $items
+    | $items | map(. as $item | any($nodes[]; .text == $name and .bounds.left >= $item.bounds.left and .bounds.right <= $item.bounds.right
+        and .bounds.top >= $item.bounds.top and .bounds.bottom <= $item.bounds.bottom))
+    | index(true) // empty')"
+  [ -n "$index" ] || return 1
+  printf '%s' "$index"
+}
+
+click_tagged() { # TAG NAME
+  local index
+  index="$(tag_index_of "$1" "$2")" || die "no $1 for '$2'"
+  "$agent" click "$1" "$index" >/dev/null
+}
+
+pause() { sleep "$pause_secs"; }
+
+scene_list() {
+  wait_tag SessionList.needsYou
+  wait_no_tag SessionList.loading
+  wait_tag SessionList.filter.host
+  sleep "$pause_secs"
+}
+
+scene_bar() {
+  "$agent" swipe SessionList.list up >/dev/null
+  pause
+  "$agent" swipe SessionList.list down >/dev/null
+  wait_tag SessionList.filterBar
+  pause
+}
+
+scene_project() {
+  "$agent" click SessionList.filter.project >/dev/null
+  wait_tag ProjectSheet.search
+  "$agent" click ProjectSheet.search >/dev/null
+  "$agent" type "$project_filter_text" >/dev/null
+  pause
+  click_tagged ProjectSheet.project "$project_name"
+  wait_no_tag ProjectSheet.search
+  pause
+}
+
+scene_state() {
+  "$agent" click SessionList.filter.state >/dev/null
+  wait_tag StateSheet.state.needs-you
+  pause
+  "$agent" click StateSheet.state.needs-you >/dev/null
+  pause
+  # Escape does not close a modal sheet; a tap on the scrim above it does.
+  "$agent" click StateSheet >/dev/null
+  wait_no_tag StateSheet.state.needs-you
+  pause
+  "$agent" click SessionList.clearFilters >/dev/null
+  wait_no_tag SessionList.clearFilters
+  pause
+}
+
+scene_terminal_open() {
+  wait_tag SessionList.row
+  local index swipes=0
+  until tag_index_of SessionList.row "$terminal_session" >/dev/null; do
+    [ "$swipes" -lt "$max_swipes" ] || die "no SessionList.row for '$terminal_session' after $max_swipes swipes"
+    "$agent" swipe SessionList.list up >/dev/null
+    swipes=$((swipes + 1))
+  done
+  index="$(tag_index_of SessionList.row "$terminal_session")"
+  pause
+  "$agent" click SessionList.row "$index" >/dev/null
+  wait_tag Terminal.view
+  wait_screen_text "$terminal_ready_text"
+  pause
+}
+
+scene_terminal_fling() {
+  local i
+  for ((i = 0; i < terminal_flings; i++)); do
+    "$agent" swipe Terminal.view down --fling >/dev/null
+    sleep 1
+  done
+  for ((i = 0; i < terminal_flings; i++)); do
+    "$agent" swipe Terminal.view up --fling >/dev/null
+    sleep 1
+  done
+  pause
+}
+
+scene_back() {
+  local i
+  "$agent" key back >/dev/null
+  wait_tag SessionList.row
+  pause
+  # The list kept the scroll position it had when the session was opened; swipes at the top change nothing.
+  for ((i = 0; i < max_swipes; i++)); do
+    "$agent" swipe SessionList.list down >/dev/null
+  done
+  wait_tag SessionList.needsYou
+  pause
+}
+
+# ---- Clip processing ---------------------------------------------------------
+
+# Prints "HEAD TAIL" seconds of the raw clip FILE that remain after its static head and tail are
+# cut, then one "CUT FROM TO" line per static stretch inside it that is longer than static_cap_secs
+# (the part beyond the cap is dropped). A clip that never moves keeps its first min_clip_secs.
+motion_span() { # FILE
+  local total
+  total="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$1")"
+  ffmpeg -hide_banner -nostdin -i "$1" -map 0:v -an -vf "freezedetect=n=$freeze_noise:d=$freeze_secs" -f null - 2>&1 |
+    awk -v total="$total" -v minimum="$min_clip_secs" -v cap="$static_cap_secs" '
+      /freeze_start:/ { start = $NF + 0; open = 1 }
+      /freeze_end:/ {
+        end = $NF + 0; open = 0
+        if (start < 0.1) head = end
+        else if (end >= total - 0.1) tail = start
+        else if (end - start > cap) cuts = cuts sprintf("CUT %s %s\n", start + cap, end)
+      }
+      END {
+        if (open) tail = start
+        if (tail == "") tail = total
+        if (tail <= head + minimum) { printf "0 %s\n", minimum; exit }
+        printf "%s %s\n%s", head + 0, tail, cuts
+      }'
+}
+
+# Prints the frame interval statistics of the raw clip FILE between HEAD and TAIL seconds. Gaps over
+# motion_gap_ms are static pauses between gestures and are counted apart.
+frame_stats() { # FILE HEAD TAIL
+  ffprobe -v error -select_streams v -show_entries packet=pts_time -of csv=p=0 "$1" |
+    awk -v head="$2" -v tail="$3" -v gap="$motion_gap_ms" '
+      $1 >= head && $1 <= tail { if (n++) { d = ($1 - prev) * 1000; if (d > gap) pauses++; else print d } prev = $1 }
+      END { print "PAUSES " pauses + 0 }' |
+    sort -n |
+    awk '/^PAUSES/ { pauses = $2; next } { d[++m] = $1; sum += $1 }
+      END {
+        if (m < 1) { print "too few frames for interval statistics"; exit }
+        p95 = int(m * 0.95 + 0.5); p99 = int(m * 0.99 + 0.5)
+        for (i = 1; i <= m; i++) { if (d[i] > 34) over34++; if (d[i] > 50) over50++ }
+        printf "moving intervals=%d span_ms=%.0f fps=%.1f interval_ms mean=%.1f p50=%.1f p95=%.1f p99=%.1f max=%.1f over_34ms=%d over_50ms=%d; static pauses excluded=%d\n",
+          m, sum, 1000 * m / sum, sum / m, d[int((m + 1) / 2)], d[p95], d[p99], d[m], over34, over50, pauses
+      }'
+}
+
+# Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv.
+record_clip() { # N ENTRY
+  local n="$1" id head_hold tail_hold fn raw head tail keep word from to spans
+  IFS='|' read -r id head_hold tail_hold fn <<<"$2"
+  echo "capture-video: $id" >&2
+  raw="$work/raw-$id.mp4"
+  "$agent" record start >&2
+  "$fn"
+  "$agent" record stop "$raw" >/dev/null
+  spans="$(motion_span "$raw")"
+  read -r head tail <<<"$(sed -n 1p <<<"$spans")"
+  keep="between(t,$head,$tail)"
+  while read -r word from to; do
+    [ "$word" = CUT ] && keep="$keep*not(between(t,$from,$to))"
+  done < <(sed 1d <<<"$spans")
+  echo "capture-video: $id keeps ${head}s..${tail}s of the raw clip, holds ${head_hold}s and ${tail_hold}s" >&2
+  if [ "$id" = "$fling_clip" ]; then
+    echo "capture-video: raw frame intervals of $id: $(frame_stats "$raw" "$head" "$tail")" >&2
+  fi
+  ffmpeg -hide_banner -loglevel error -nostdin -y -i "$raw" \
+    -vf "fps=$fps,select='$keep',setpts=N/($fps*TB),scale=$video_width:-2,tpad=start_mode=clone:start_duration=$head_hold:stop_mode=clone:stop_duration=$tail_hold,format=yuv420p" \
+    -an -c:v ffv1 "$work/seg-$n.mkv"
+}
+
+# ---- Checks before anything starts -------------------------------------------
+
+[ -z "$(git -C "$root" status --porcelain -- app)" ] ||
+  die "app/ has uncommitted or untracked changes; commit them first so appTree describes the recorded build"
+app_tree="$(git -C "$root" rev-parse HEAD:app/src/main)"
+[ "${#descriptions[@]}" -gt 0 ] || die "no scene descriptions"
+
+device="$(config_value emulator_screen)"
+[[ "$device" =~ ^([0-9]+)x([0-9]+)x[0-9]+$ ]] || die "$config: emulator_screen must be WIDTHxHEIGHTxDPI, got '$device'"
+
+existing="$(podman ps -a --filter "label=ui-agent.worktree=$root" --format '{{.Names}}' | head -n 1)"
+[ -z "$existing" ] || die "this worktree already has a ui-agent run ($existing); stop it yourself with: scripts/ui-agent stop"
+
+# ---- Capture -----------------------------------------------------------------
+
+work="$(mktemp -d)"
+started=0
+cleanup() {
+  local status=$?
+  rm -rf "$work"
+  if [ "$started" -eq 1 ] && ! "$agent" stop >&2; then
+    echo "capture-video: could not stop the run; stop it with scripts/ui-agent stop" >&2
+    status=1
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+
+# ui-agent start removes its own claim when it fails, so the run is ours to stop only once it succeeded.
+"$agent" start --showcase >&2
+started=1
+showcase_prelude
+
+n=0
+for entry in "${clips[@]}"; do
+  record_clip "$n" "$entry"
+  n=$((n + 1))
+done
+"$agent" stop >&2
+started=0
+
+# ---- Encode ------------------------------------------------------------------
+
+for ((i = 0; i < n; i++)); do printf "file 'seg-%d.mkv'\n" "$i"; done >"$work/segments.txt"
+ffmpeg -hide_banner -loglevel error -nostdin -y -f concat -safe 0 -i "$work/segments.txt" -an -c:v ffv1 "$work/joined.mkv"
+
+stage="$work/stage"
+mkdir "$stage"
+ffmpeg -hide_banner -loglevel error -nostdin -y -i "$work/joined.mkv" -an -r "$fps" \
+  -c:v libvpx-vp9 -crf "$webm_crf" -b:v 0 -row-mt 1 -cpu-used "$webm_cpu_used" -g "$webm_gop" -pix_fmt yuv420p "$stage/demo.webm"
+ffmpeg -hide_banner -loglevel error -nostdin -y -i "$work/joined.mkv" -an -r "$fps" \
+  -c:v libx264 -profile:v high -level 4.0 -pix_fmt yuv420p -crf "$mp4_crf" -movflags +faststart "$stage/demo.mp4"
+ffmpeg -hide_banner -loglevel error -nostdin -y -i "$work/joined.mkv" -frames:v 1 -compression_level 9 -pred mixed "$stage/poster.png"
+
+# The last frame of the joined video must match its first, or the loop jumps.
+ffmpeg -hide_banner -loglevel error -nostdin -y -sseof -0.2 -i "$work/joined.mkv" -update 1 -frames:v 1 "$work/last.png"
+ssim="$(ffmpeg -hide_banner -nostdin -i "$stage/poster.png" -i "$work/last.png" -lavfi ssim -f null - 2>&1 | sed -n -E 's/.*All:([0-9.]+).*/\1/p' | tail -n 1)"
+[ -n "$ssim" ] || die "could not compare the first and last frame"
+if ! awk -v s="$ssim" -v min="$loop_min_ssim" 'BEGIN { exit !(s >= min) }'; then
+  # The work directory is removed on exit, so the two frames are kept for inspection.
+  kept="$(dirname "$work")"
+  cp "$stage/poster.png" "$kept/capture-video-first.png"; cp "$work/last.png" "$kept/capture-video-last.png"
+  die "the last frame differs from the first (SSIM $ssim, need $loop_min_ssim); the video would not loop cleanly; the frames are $kept/capture-video-first.png and $kept/capture-video-last.png"
+fi
+echo "capture-video: first and last frame SSIM $ssim" >&2
+
+# ---- Manifest ----------------------------------------------------------------
+
+probe() { # FILE ENTRY
+  ffprobe -v error -select_streams v:0 -show_entries "$2" -of csv=p=0 "$1"
+}
+for f in demo.webm demo.mp4; do
+  [ -z "$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$stage/$f")" ] || die "$f has an audio stream"
+  [ "$(probe "$stage/$f" stream=r_frame_rate)" = "$fps/1" ] || die "$f is not constant $fps fps"
+done
+width="$(probe "$stage/demo.mp4" stream=width)"
+height="$(probe "$stage/demo.mp4" stream=height)"
+duration_ms="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$stage/demo.mp4" | awk '{ printf "%d", $1 * 1000 + 0.5 }')"
+profile="$(probe "$stage/demo.mp4" stream=profile)"
+level="$(probe "$stage/demo.mp4" stream=level)"
+[ "$profile" = High ] || die "the MP4 profile is '$profile', expected High"
+mp4_codecs="$(printf 'avc1.6400%02x' "$level")"
+
+file_entry() { # FILE TYPE CODECS
+  jq -n --arg file "$1" --arg type "$2" --arg codecs "$3" --argjson bytes "$(stat -c %s "$stage/$1")" \
+    --arg sha "$(sha256sum "$stage/$1" | cut -d' ' -f1)" '{file: $file, type: $type, codecs: $codecs, bytes: $bytes, sha256: $sha}'
+}
+{
+  file_entry demo.webm video/webm vp9
+  file_entry demo.mp4 video/mp4 "$mp4_codecs"
+  file_entry poster.png image/png png
+} | jq -s --argjson schema "$manifest_schema" --arg tree "$app_tree" --arg device "$device" --arg alt "$alt" \
+  --argjson w "$width" --argjson h "$height" --argjson ms "$duration_ms" --argjson description "$(printf '%s\n' "${descriptions[@]}" | jq -R . | jq -s .)" '
+  {schema: $schema, appTree: $tree, device: $device, poster: "poster.png", width: $w, height: $h, durationMs: $ms,
+   alt: $alt, description: $description, files: .}' >"$stage/manifest.json"
+
+"$root/scripts/check-media" --dir "$stage" >&2 || die "the encodes are outside their budgets (see above); adjust the crf values or the holds"
+
+mkdir -p "$out_dir"
+find "$out_dir" -mindepth 1 -maxdepth 1 -type f -delete
+mv "$stage"/* "$out_dir/"
+echo "capture-video: wrote demo.webm, demo.mp4, poster.png and manifest.json to docs/media (appTree $app_tree)"

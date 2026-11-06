@@ -83,6 +83,8 @@ log_lines = 400
 # scripts/ui-agent gestures (swipe, long-press, drag): positive integers.
 # Milliseconds a swipe takes.
 gesture_swipe_ms = 400
+# Milliseconds a swipe --fling takes: short enough that the release velocity starts a fling.
+gesture_fling_ms = 120
 # Milliseconds a long-press holds; must exceed android_long_press_timeout_ms.
 gesture_long_press_ms = 800
 # Intermediate move events of a drag between press and release, and the pause
@@ -97,3 +99,10 @@ background_settle_secs = 1
 
 # Seconds a one-shot daemon request (`pohunek notification create`) waits for its reply.
 daemon_reply_wait_secs = 3
+
+# scripts/ui-agent record: the screenrecord bit rate in bits per second and its
+# time limit in seconds (at most 180, the screenrecord maximum), and the seconds
+# `record stop` waits for screenrecord to finalize the file: positive integers.
+record_bit_rate = 8000000
+record_time_limit_secs = 180
+record_stop_wait_secs = 10

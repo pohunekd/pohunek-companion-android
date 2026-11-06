@@ -72,6 +72,10 @@ jobs:
       - name: Check the screenshot set
         run: scripts/check-screenshots "$GITHUB_SHA"
 
+      # The site reads docs/media at the tag the same way.
+      - name: Check the demo video set
+        run: scripts/check-media "$GITHUB_SHA"
+
       # The version section must be folded into the tagged commit's CHANGELOG.md, and no fragment may
       # remain: a leftover fragment would be dropped from the release silently.
       - name: Build the release notes
