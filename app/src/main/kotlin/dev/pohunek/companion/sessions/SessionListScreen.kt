@@ -116,7 +116,7 @@ private fun SessionListContent(
     val listShown = state.hostsRead && state.hasHosts && state.storageError == null
     val bar = rememberFilterBarVisibility(listState, listOf(state.view, state.filtersChanged))
     // The floating button and the snackbar sit above the bar for as long as it covers the list.
-    val aboveBar = Modifier.offset { IntOffset(0, -bar.visibleOverlapPx.roundToInt()) }
+    val aboveBar = Modifier.offset { IntOffset(0, if (listShown) -bar.visibleOverlapPx.roundToInt() else 0) }
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbar, aboveBar) },

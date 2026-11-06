@@ -72,9 +72,13 @@ internal class FilterBarVisibility(private val scope: CoroutineScope) {
 
     fun show() = slideTo(0f)
 
-    fun settle() = slideTo(settledHidden(hiddenPx, barHeightPx))
+    /** Rests a bar left half way at the nearer end; a slide that is under way already heads for an end. */
+    fun settle() {
+        if (settling?.isActive != true) slideTo(if (pinned) 0f else settledHidden(hiddenPx, barHeightPx))
+    }
 
     private fun slideTo(target: Float) {
+        if (hiddenPx == target && settling?.isActive != true) return
         settling?.cancel()
         if (hiddenPx == target) return
         settling = scope.launch { animate(hiddenPx, target) { value, _ -> hiddenPx = value } }
