@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks the committed screenshot set against docs/screenshots/manifest.json
 # (schema 1): the manifest is valid, every listed file exists with the listed
-# sha256 and no unlisted image sits beside them. Fails with a message naming the
+# sha256, no unlisted image sits beside them, and its ids, captions and alt texts
+# equal the entries of docs/screenshots/shots.json. Fails with a message naming the
 # problem. When the app sources of REF differ from the manifest's appTree, prints
 # a ::warning:: naming the changed paths; that never fails the check.
 #
@@ -15,6 +16,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 dir="$root/docs/screenshots"
 manifest="$dir/manifest.json"
+shots_file="$dir/shots.json"
 manifest_schema=1
 ref="${1:-HEAD}"
 
@@ -44,7 +46,22 @@ jq -e --argjson schema "$manifest_schema" '
   and ((.shots | map(.file) | length) == (.shots | map(.file) | unique | length))' \
   "$manifest" >/dev/null || fail "docs/screenshots/manifest.json is not a valid schema $manifest_schema manifest"
 
+[ -f "$shots_file" ] || fail "docs/screenshots/shots.json is missing"
+jq -e 'type == "array"' "$shots_file" >/dev/null 2>&1 || fail "docs/screenshots/shots.json is not a JSON array"
+
 problems=0
+# The manifest is what pohunek.dev renders, shots.json is where the texts are edited.
+while IFS= read -r line; do
+  echo "::error::check-screenshots: $line"
+  problems=1
+done < <(jq -r --slurpfile m "$manifest" '
+  . as $s | $m[0].shots as $shots
+  | ($shots[] | select(.id as $i | any($s[]; .id == $i) | not) | "shot \(.id) is in the manifest but not in docs/screenshots/shots.json"),
+    ($s[] | select(.id as $i | any($shots[]; .id == $i) | not) | "shot \(.id) is in docs/screenshots/shots.json but not in the manifest; run scripts/capture-screenshots and merge the result"),
+    ($s[] as $x | ($shots[] | select(.id == $x.id)) as $y
+      | (if $x.caption != $y.caption then "shot \($x.id): the manifest caption differs from docs/screenshots/shots.json" else empty end),
+        (if $x.alt != $y.alt then "shot \($x.id): the manifest alt text differs from docs/screenshots/shots.json" else empty end))' "$shots_file")
+
 while IFS=$'\t' read -r file digest; do
   if [ ! -f "$dir/$file" ]; then
     echo "::error::check-screenshots: docs/screenshots/$file is listed in the manifest but missing"
