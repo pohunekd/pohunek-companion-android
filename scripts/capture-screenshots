@@ -10,9 +10,9 @@
 # the isolated emulator and its synthetic daemon can appear in an image.
 # app/ must be committed, because the manifest's appTree names the built tree.
 #
-# Shots run in the order of shots.json; terminal-keys restarts the app to leave the
-# attached terminal, which has no back control a script can reach; row-actions leaves
-# its sheet open for session-details, which opens from it. shots.json lists id,
+# Shots run in the order of shots.json; search and terminal-keys restart the app, because
+# the search field and the attached terminal have no control a script can reach to leave
+# them; row-actions leaves its sheet open for session-details, which opens from it. shots.json lists id,
 # caption and alt per shot; each id needs a function shot_<id with - as _> below
 # that leaves the screen as it should be captured. The image size is the
 # emulator_screen of config/dev.toml.
@@ -158,9 +158,11 @@ shot_search() {
   sleep 1
 }
 
+# The field keeps the whole bar while it has the focus and no script gesture takes it away; relaunching the app brings the chips back.
 after_search() {
-  "$agent" click SessionList.searchClear >/dev/null
-  wait_no_tag SessionList.searchClear
+  "$agent" restart >&2
+  wait_tag SessionList.filter.project
+  wait_tag SessionList.needsYou
 }
 
 shot_terminal() {
