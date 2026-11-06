@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -33,9 +34,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -43,6 +49,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.pohunek.companion.R
@@ -50,6 +57,7 @@ import dev.pohunek.companion.core.domain.hosts.HostStatusSummary
 import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.protocol.HostRoute
+import kotlin.math.roundToInt
 
 @Composable
 fun SessionListScreen(
@@ -106,36 +114,65 @@ private fun SessionListContent(
     modifier: Modifier = Modifier,
 ) {
     val listShown = state.hostsRead && state.hasHosts && state.storageError == null
+    val bar = rememberFilterBarVisibility(listState, listOf(state.view, state.filtersChanged))
+    // The floating button and the snackbar sit above the bar for as long as it covers the list.
+    val aboveBar = Modifier.offset { IntOffset(0, if (listShown) -bar.visibleOverlapPx.roundToInt() else 0) }
     Scaffold(
         modifier = modifier,
-        snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = { NewSessionButton(listShown, onNewSession, Modifier.traversalGroup(FAB_ORDER)) },
+        snackbarHost = { SnackbarHost(snackbar, aboveBar) },
+        floatingActionButton = { NewSessionButton(listShown, onNewSession, aboveBar.traversalGroup(FAB_ORDER)) },
         topBar = { SessionListTopBar(state, listShown, onEvent, onOpenHosts, onOpenSettings, Modifier.traversalGroup(TOP_BAR_ORDER)) },
-        bottomBar = { if (listShown) SessionFilterBar(state.query, onEvent, Modifier.traversalGroup(FILTER_BAR_ORDER)) { FilterBarChips(state, onEvent) } },
     ) { padding ->
+        val navInset = with(LocalDensity.current) { padding.calculateBottomPadding().toPx() }
+        SideEffect { bar.navInsetPx = navInset }
         val body = Modifier.padding(padding).fillMaxSize().traversalGroup(LIST_ORDER)
-        when {
-            !state.hostsRead -> Centered(body) { CircularProgressIndicator() }
-            state.storageError != null -> Centered(body) {
-                Message(stringResource(R.string.host_storage_unreadable, state.storageError), "HostStorage.error", error = true)
+        Box(Modifier.fillMaxSize()) {
+            SessionListBody(state, onEvent, onOpenHosts, listState, bar, body)
+            if (listShown) {
+                SessionFilterBar(
+                    state.query,
+                    onEvent,
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { bar.barHeightPx = it.height.toFloat() }
+                        .graphicsLayer { translationY = bar.hiddenPx }
+                        .traversalGroup(FILTER_BAR_ORDER),
+                ) { FilterBarChips(state, onEvent) }
             }
-            !state.hasHosts -> Centered(body) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.md)) {
-                    Message(stringResource(R.string.session_list_no_hosts), "SessionList.noHosts")
-                    Button(onClick = onOpenHosts, modifier = Modifier.testTag("SessionList.addHost")) {
-                        Text(stringResource(R.string.session_list_add_host))
-                    }
+        }
+    }
+}
+
+@Composable
+private fun SessionListBody(
+    state: SessionListState,
+    onEvent: (SessionListEvent) -> Unit,
+    onOpenHosts: () -> Unit,
+    listState: LazyListState,
+    bar: FilterBarVisibility,
+    body: Modifier,
+) {
+    when {
+        !state.hostsRead -> Centered(body) { CircularProgressIndicator() }
+        state.storageError != null -> Centered(body) {
+            Message(stringResource(R.string.host_storage_unreadable, state.storageError), "HostStorage.error", error = true)
+        }
+        !state.hasHosts -> Centered(body) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.md)) {
+                Message(stringResource(R.string.session_list_no_hosts), "SessionList.noHosts")
+                Button(onClick = onOpenHosts, modifier = Modifier.testTag("SessionList.addHost")) {
+                    Text(stringResource(R.string.session_list_add_host))
                 }
             }
-            else -> Column(body) {
-                state.layoutIssue?.let { LayoutIssueBanner(it) }
-                state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
-                state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
-                state.groupNote?.let { GroupNoteBanner(it) { onEvent(SessionListEvent.DismissGroupNote) } }
-                HostStatusLines(state.statuses, onOpenHosts)
-                SessionRows(state, onEvent, listState, Modifier.weight(1f).fillMaxWidth())
-                RowWindows(state, onEvent)
-            }
+        }
+        else -> Column(body) {
+            state.layoutIssue?.let { LayoutIssueBanner(it) }
+            state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
+            state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
+            state.groupNote?.let { GroupNoteBanner(it) { onEvent(SessionListEvent.DismissGroupNote) } }
+            HostStatusLines(state.statuses, onOpenHosts)
+            SessionRows(state, onEvent, listState, bar, Modifier.weight(1f).fillMaxWidth())
+            RowWindows(state, onEvent)
         }
     }
 }
@@ -154,7 +191,7 @@ private fun RowWindows(state: SessionListState, onEvent: (SessionListEvent) -> U
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> Unit, listState: LazyListState, modifier: Modifier) {
+private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> Unit, listState: LazyListState, bar: FilterBarVisibility, modifier: Modifier) {
     val drag = remember(listState) { ListDrag(listState) }
     val editable = state.view.isEditable
     val items = remember(state.shownGroups, editable) { if (editable) dragItems(state.shownGroups) else emptyMap() }
@@ -166,13 +203,14 @@ private fun SessionRows(state: SessionListState, onEvent: (SessionListEvent) -> 
     }
     LaunchedEffect(items) { drag.dropIfGone() }
     RevealNeedsYou(listState, state.shownNeedsYou.isNotEmpty())
-    DragAutoScroll(drag, listState)
-    PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier) {
+    DragAutoScroll(drag, listState) { bar.visibleOverlapPx }
+    val barScroll = bar.followScrollOf(listState, drag)
+    PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onEvent(SessionListEvent.Refresh) }, modifier = modifier.then(barScroll)) {
         val rows = state.rows
         LazyColumn(
             with(drag) { Modifier.fillMaxSize().testTag("SessionList.list").reorderGesture() },
             listState,
-            contentPadding = PaddingValues(bottom = PohunekTheme.fabClearance),
+            contentPadding = PaddingValues(bottom = bar.listBottomPadding()),
         ) {
             when {
                 rows == null && !state.statuses.isEmpty -> item { Spacer(Modifier.fillParentMaxSize()) }
@@ -236,37 +274,6 @@ private fun SectionHeader(text: String, tag: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth().padding(horizontal = PohunekTheme.spacing.gutter, vertical = PohunekTheme.spacing.sm).testTag(tag),
     )
-}
-
-/** One tappable line for all reconnecting hosts, and a line of its own for each refusal. */
-@Composable
-private fun HostStatusLines(summary: HostStatusSummary, onOpenHosts: () -> Unit) {
-    summary.refused.forEach { outage ->
-        Text(
-            text = stringResource(R.string.host_status_refused, outage.hostLabel, outage.code.orEmpty(), outage.reason),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.fillMaxWidth().padding(PohunekTheme.spacing.gutter).testTag("SessionList.statusRefused"),
-        )
-    }
-    val first = summary.firstReconnecting ?: return
-    val count = summary.reconnecting.size
-    val text = if (count == 1) {
-        stringResource(R.string.host_status_reconnecting, first.hostLabel, first.attempt, first.reason)
-    } else {
-        stringResource(R.string.host_status_reconnecting_many, count, summary.followed, first.hostLabel, first.attempt, first.reason)
-    }
-    val label = stringResource(R.string.host_status_reconnecting_open_hosts, count, summary.followed)
-    Box(
-        modifier = Modifier.fillMaxWidth().heightIn(min = PohunekTheme.minTouchTarget)
-            .clickable(role = Role.Button, onClick = onOpenHosts)
-            .semantics { contentDescription = label }
-            .padding(horizontal = PohunekTheme.spacing.gutter)
-            .testTag("SessionList.status"),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
 }
 
 @Composable
