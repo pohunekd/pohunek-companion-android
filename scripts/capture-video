@@ -38,7 +38,7 @@ max_swipes=3
 project_filter_text="compan"
 project_name="pohunek-companion"
 # Flings through the terminal's scrollback in each direction.
-terminal_flings=2
+terminal_flings=1
 
 # Output: constant frame rate, width, and the encoders' quality settings.
 fps=30
@@ -84,19 +84,18 @@ pacing_max_p95_ms=20
 pacing_max_p99_ms=40
 pacing_max_roughness_median=0.06
 pacing_max_peak_deviation=0.12
-pacing_min_burst_frames=15
+pacing_min_burst_frames=6
 # Steps of at least this fraction of a burst's fastest step are its peak steps, where a single dip shows most.
 pacing_peak_fraction=0.6
 # The first steps of a burst accelerate and are not judged.
-pacing_ramp_steps=3
-# Frame height of the scroll offset measurement (one column-averaged brightness profile per frame), the
-# rows compared and the largest offset searched, in profile rows.
-pacing_profile_rows=800
-pacing_compare_from=150
-pacing_compare_to=650
-pacing_max_shift=150
-# A frame counts as moving from this many profile rows of offset.
-pacing_moving_rows=2
+pacing_ramp_steps=2
+# Columns of the brightness profile a frame is reduced to, the rows compared and the largest offset
+# searched, and the offset in rows from which a frame counts as moving.
+pacing_profile_cols=90
+pacing_compare_from=300
+pacing_compare_to=1300
+pacing_max_shift=290
+pacing_moving_rows=4
 
 # Recording waits for a quiet host: no other ui-agent slot running and a one-minute load average of at most
 # quiet_load_max, for at most quiet_wait_secs; then it goes on and the pacing gate decides.
@@ -128,9 +127,10 @@ config_value() {
 # shellcheck source=scripts/showcase-prelude
 . "$root/scripts/showcase-prelude"
 
-for tool in jq git podman sha256sum ffmpeg ffprobe awk stat; do
+for tool in jq git podman sha256sum ffmpeg ffprobe awk stat python3; do
   command -v "$tool" >/dev/null || die "$tool is not installed"
 done
+python3 -c 'import numpy' 2>/dev/null || die "python3 needs numpy for scripts/scroll-pacing"
 encoders="$(ffmpeg -hide_banner -encoders 2>/dev/null)"
 for encoder in libvpx-vp9 libx264; do
   grep -qF " $encoder " <<<"$encoders" || die "this ffmpeg has no $encoder encoder"
@@ -320,52 +320,12 @@ wait_quiet() {
   done
 }
 
-# Prints "RUNS MEDIAN PEAKMAX" of the scroll roughness of the constant-rate clip FILE (see pacing_max_roughness_*).
+# Prints "BURSTS MEDIAN PEAKMAX" of the scroll offsets of the constant-rate clip FILE (see scripts/scroll-pacing).
 scroll_roughness() { # FILE
-  ffmpeg -v fatal -nostdin -i "$1" -vf "scale=1:$pacing_profile_rows:flags=area,format=gray,setpts=N/30/TB" \
-    -fps_mode passthrough -f rawvideo - |
-    od -An -v -tu1 -w"$pacing_profile_rows" |
-    awk -v from="$pacing_compare_from" -v to="$pacing_compare_to" -v maxshift="$pacing_max_shift" \
-      -v moving="$pacing_moving_rows" -v minburst="$pacing_min_burst_frames" -v peakfraction="$pacing_peak_fraction" -v rampsteps="$pacing_ramp_steps" '
-      function shift_of(p, c,    s, i, d, best, bestd) {
-        bestd = -1
-        for (s = -maxshift; s <= maxshift; s++) {
-          d = 0
-          for (i = from; i <= to; i++) { e = p[i] - c[i + s]; d += e < 0 ? -e : e }
-          if (bestd < 0 || d < bestd) { bestd = d; best = s }
-        }
-        return best
-      }
-      function flush(   i, nb, a, b, c, top, dev) {
-        if (n >= minburst) {
-          runs++
-          top = 0
-          for (i = 1; i <= n; i++) { a = run[i] < 0 ? -run[i] : run[i]; if (a > top) top = a }
-          for (i = 1 + rampsteps; i < n; i++) {
-            a = run[i - 1] < 0 ? -run[i - 1] : run[i - 1]
-            b = run[i] < 0 ? -run[i] : run[i]
-            c = run[i + 1] < 0 ? -run[i + 1] : run[i + 1]
-            nb = (a + c) / 2
-            dev = (b - nb < 0 ? nb - b : b - nb) / (nb < 1 ? 1 : nb)
-            printf "DEV %.4f\n", dev
-            if (b >= peakfraction * top) printf "PEAK %.4f\n", dev
-          }
-        }
-        n = 0
-      }
-      NR > 1 {
-        s = shift_of(prev, cur)
-      }
-      { for (i = 1; i <= NF; i++) { prev[i] = cur[i]; cur[i] = $i } }
-      NR == 1 { for (i = 1; i <= NF; i++) prev[i] = $i }
-      NR > 1 {
-        if ((s < 0 ? -s : s) >= moving && (n == 0 || (s < 0) == (run[1] < 0))) run[++n] = s
-        else { flush(); if ((s < 0 ? -s : s) >= moving) run[++n] = s }
-      }
-      END { flush(); print "RUNS " runs + 0 }' |
-    sort -k1,1 -k2,2n |
-    awk '/^DEV/ { d[++m] = $2; next } /^PEAK/ { peak = $2; next } /^RUNS/ { runs = $2 }
-      END { if (m < 1) { print runs + 0, "-", "-"; exit } printf "%d %.3f %.3f\n", runs, d[int((m + 1) / 2)], peak + 0 }'
+  "$root/scripts/scroll-pacing" "$1" --width "$pacing_profile_cols" --height "$frame_height" \
+    --compare-from "$pacing_compare_from" --compare-to "$pacing_compare_to" --max-shift "$pacing_max_shift" \
+    --moving "$pacing_moving_rows" --min-burst "$pacing_min_burst_frames" --ramp-steps "$pacing_ramp_steps" \
+    --peak-fraction "$pacing_peak_fraction"
 }
 
 # Prints the pacing numbers of the raw clip RAW (moving between HEAD and TAIL seconds) and of its converted
@@ -423,6 +383,8 @@ app_tree="$(git -C "$root" rev-parse HEAD:app/src/main)"
 
 device="$(config_value emulator_screen)"
 [[ "$device" =~ ^([0-9]+)x([0-9]+)x[0-9]+$ ]] || die "$config: emulator_screen must be WIDTHxHEIGHTxDPI, got '$device'"
+# Height of a clip frame once it is scaled to video_width.
+frame_height=$((${BASH_REMATCH[2]} * video_width / ${BASH_REMATCH[1]}))
 
 existing="$(podman ps -a --filter "label=ui-agent.worktree=$root" --format '{{.Names}}' | head -n 1)"
 [ -z "$existing" ] || die "this worktree already has a ui-agent run ($existing); stop it yourself with: scripts/ui-agent stop"

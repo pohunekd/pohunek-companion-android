@@ -438,11 +438,12 @@ loops). `scripts/check-media` holds the size and length budgets (WebM 2.5 MB, MP
 3.5 MB, poster 250 KB, 35 s), checks files against the manifest and runs on the
 `capture-video` output before `docs/media` is replaced. Before it records it waits (at most `quiet_wait_secs`) for a quiet host: no other
 `ui-agent` slot and a low load average. The terminal fling clip is gated on frame
-pacing, measured on the raw recording (frame interval p95/p99) and the converted clip (roughness of
-the scroll offsets: relative deviation of a step from its neighbours). Outside the
-limits in the script header it is recorded again, and after `pacing_attempts` the
-command fails, so a juddering clip is never written. The numbers are printed;
-quote them when judging scroll smoothness. A scene is a `scene_*` function and a `clips`
+pacing: the raw recording's frame intervals (p95/p99) and, on the converted 30 fps clip, the scroll
+offset of every frame (`scripts/scroll-pacing`, needs python3 with numpy): the median
+step-to-step deviation and the largest deviation among the peak-speed steps, where a single dip
+shows. Outside the limits in the header of `scripts/capture-video` the clip is recorded again, and
+after `pacing_attempts` the command fails, so a juddering clip is never written. The numbers are
+printed; quote them when judging scroll smoothness. A scene is a `scene_*` function and a `clips`
 entry. Review the frames before committing the set: only showcase data may appear.
 
 ## CI
