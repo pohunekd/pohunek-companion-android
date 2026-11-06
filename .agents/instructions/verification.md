@@ -74,6 +74,7 @@ scripts/ui-agent install | restart | stop | status
 scripts/ui-agent screenshot OUT.png | tree | find TAG | click TAG [N]
 scripts/ui-agent type TEXT [--enter] | key esc|ctrl-c|tab|up|down|left|right|enter
 scripts/ui-agent demo-mode on|off | night on|off (emulator status bar fixed; dark theme)
+scripts/ui-agent display WxH DPI|reset | font-scale F|reset | talkback on|off
 scripts/ui-agent rotate | net-drop | net-restore | stall SECONDS|on|off | host-stop | host-start
 scripts/ui-agent health | log [app|daemon|emulator]
 scripts/ui-agent screen | session-screen ID [--size]
@@ -82,6 +83,16 @@ scripts/ui-agent background | foreground | clipboard | sockets
 scripts/ui-agent app-file cat|put|rm PATH
 scripts/ui-agent pohunek ARGS...
 ```
+
+- **Geometry, font scale, TalkBack.** `ui-agent display 1080x2400 420` sets the
+  guest display size and density (`wm size`/`wm density`; `tree` bounds follow,
+  a 1080 px wide root at 1080x2400) and `display reset` restores the AVD's own
+  values. `ui-agent font-scale 1.3` sets the system font scale (0.5 to 3.0) and
+  `font-scale reset` restores 1.0; the running app gets the configuration
+  change, `restart` applies it at the latest. `ui-agent talkback on|off` sets
+  `enabled_accessibility_services` to TalkBack and clears it; `on` fails naming
+  the package when the emulator image has none. All three change the emulator
+  of an isolated run only, and are undone by `stop`.
 
 - **Slots.** A run is one `scripts/dev` container named
   `pohunek-ui-agent-slot-N` (N below `slots` in `config/dev.toml`, default 2),

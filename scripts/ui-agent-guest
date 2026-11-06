@@ -840,6 +840,69 @@ night_mode() { # on|off
   echo "night $1"
 }
 
+# Guest display size and density, so a phone geometry can be checked in the
+# emulator's larger screen; `reset` restores the AVD's own values.
+display_geometry() { # WxH DPI | reset
+  case "${1:-}" in
+    reset)
+      [ "$#" -eq 1 ] || die "usage: display WxH DPI|reset"
+      adbd shell wm size reset >/dev/null
+      adbd shell wm density reset >/dev/null ;;
+    *)
+      [ "$#" -eq 2 ] || die "usage: display WxH DPI|reset"
+      [[ "$1" =~ ^[1-9][0-9]*x[1-9][0-9]*$ ]] || die "display size must be WIDTHxHEIGHT in pixels, got '$1'"
+      [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "display density must be a positive integer in dpi, got '$2'"
+      adbd shell wm size "$1" >/dev/null
+      adbd shell wm density "$2" >/dev/null
+      local size density
+      size="$(adbd shell wm size | tr -d '\r' | sed -n 's/^.*size: //p' | tail -n 1)"
+      density="$(adbd shell wm density | tr -d '\r' | sed -n 's/^.*density: //p' | tail -n 1)"
+      [ "$size" = "$1" ] && [ "$density" = "$2" ] ||
+        die "the emulator did not take the display geometry (size '$size', density '$density')" ;;
+  esac
+  echo "display $(adbd shell wm size | tr -d '\r' | tr '\n' ' ')$(adbd shell wm density | tr -d '\r' | tr '\n' ' ')"
+}
+
+# System font scale; a running app gets the configuration change, a restart
+# applies it at the latest.
+font_scale() { # F | reset
+  local want="${1:-}" got
+  case "$want" in
+    reset) adbd shell settings put system font_scale 1.0 >/dev/null; want=1.0 ;;
+    '') die "usage: font-scale F|reset" ;;
+    *)
+      [[ "$want" =~ ^[0-9]+(\.[0-9]+)?$ ]] || die "font scale must be a number such as 1.3, got '$want'"
+      awk -v f="$want" 'BEGIN { exit !(f >= 0.5 && f <= 3.0) }' || die "font scale must be between 0.5 and 3.0, got '$want'"
+      adbd shell settings put system font_scale "$want" >/dev/null ;;
+  esac
+  got="$(adbd shell settings get system font_scale | tr -d '\r')"
+  awk -v a="$got" -v b="$want" 'BEGIN { exit !(a == b) }' || die "the emulator did not take font scale $want (reads '$got')"
+  echo "font-scale $got"
+}
+
+# TalkBack as the enabled accessibility service. The emulator image must carry
+# the package (Google APIs images do); nothing is installed from elsewhere.
+talkback_package=com.google.android.marvin.talkback
+talkback_service="$talkback_package/com.google.android.marvin.talkback.TalkBackService"
+talkback() { # on|off
+  local services got
+  case "${1:-}" in
+    on)
+      adbd shell pm list packages "$talkback_package" | grep -qx "package:$talkback_package" ||
+        die "TalkBack ($talkback_package) is not installed in this emulator image; use a Google APIs system image, which carries it"
+      adbd shell settings put secure enabled_accessibility_services "$talkback_service" >/dev/null
+      adbd shell settings put secure accessibility_enabled 1 >/dev/null ;;
+    off)
+      adbd shell settings delete secure enabled_accessibility_services >/dev/null
+      adbd shell settings put secure accessibility_enabled 0 >/dev/null ;;
+    *) die "usage: talkback on|off" ;;
+  esac
+  got="$(adbd shell settings get secure enabled_accessibility_services | tr -d '\r')"
+  services="$([ "$1" = on ] && echo "$talkback_service" || echo null)"
+  [ "$got" = "$services" ] || die "enabled_accessibility_services reads '$got', expected '$services'"
+  echo "talkback $1"
+}
+
 # Trailing whitespace of every line and trailing empty lines removed, so the two screen dumps compare with diff.
 trim_screen() {
   sed -e 's/[[:space:]]*$//' | awk '{ lines[NR] = $0 } END { last = NR; while (last > 0 && lines[last] == "") last--; for (i = 1; i <= last; i++) print lines[i] }'
@@ -1242,6 +1305,9 @@ case "$cmd" in
   rotate) load_run; rotate ;;
   demo-mode) load_run; require_isolated_run demo-mode; demo_mode "${1:-}" ;;
   night) load_run; require_isolated_run night; night_mode "${1:-}" ;;
+  display) load_run; require_isolated_run display; display_geometry "$@" ;;
+  font-scale) load_run; require_isolated_run font-scale; font_scale "${1:-}" ;;
+  talkback) load_run; require_isolated_run talkback; talkback "${1:-}" ;;
   net-drop) load_run; require_isolated net-drop; stop_bridge; echo "bridge down" ;;
   net-restore) load_run; require_isolated net-restore; stop_bridge; start_bridge; echo "bridge up" ;;
   stall) load_run; require_isolated_run stall; stall "${1:-}" ;;

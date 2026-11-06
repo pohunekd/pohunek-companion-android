@@ -23,6 +23,9 @@
 #                                          long-press the source, move to the target (its centre, or three quarters down with --after), release
 #   scripts/ui-agent demo-mode on|off      fix the status bar (SystemUI demo mode: clock 10:00, full battery and wifi, no notifications); isolated emulator runs only
 #   scripts/ui-agent night on|off          force the emulator's dark or light theme (isolated emulator runs only)
+#   scripts/ui-agent display WxH DPI|reset set or restore the guest display size and density (isolated emulator runs only)
+#   scripts/ui-agent font-scale F|reset    set or restore the system font scale, for example 1.3 (isolated emulator runs only)
+#   scripts/ui-agent talkback on|off       enable or disable TalkBack as the accessibility service; fails if the image has no TalkBack package
 #   scripts/ui-agent background | foreground
 #                                          send the app to the background (home) and bring its task back without a restart
 #   scripts/ui-agent clipboard             print the device clipboard text
@@ -362,6 +365,8 @@ case "${1:-}" in
   pohunek) shift; guest pohunek "$@" ;;
   rotate) guest rotate ;;
   demo-mode | night) guest "$1" "${2:-}" ;;
+  display) shift; guest display "$@" ;;
+  font-scale | talkback) guest "$1" "${2:-}" ;;
   stall) guest stall "${2:?on, off or a number of seconds required}" ;;
   net-drop | net-restore | host-stop | host-start | health) guest "$1" ;;
   log) warn_unpublishable; guest log "${2:-app}" ;;
