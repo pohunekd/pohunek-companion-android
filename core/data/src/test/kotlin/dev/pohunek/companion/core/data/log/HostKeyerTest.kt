@@ -39,6 +39,26 @@ class HostKeyerTest {
     }
 
     @Test
+    fun `creating a salt runs the hook first and loading one does not`() {
+        val file = folder.newFolder("hook").resolve("salt")
+        var calls = 0
+        HostKeyer.loadOrCreate(file, SecureRandom()) { calls++ }
+        HostKeyer.loadOrCreate(file, SecureRandom()) { calls++ }
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun `clearing the log removes both files`() {
+        val directory = folder.newFolder("logs")
+        val log = RotatingLogFile(directory, "app.log", 10L)
+        log.append("aaaaaa\n".encodeToByteArray())
+        log.append("bbbbbb\n".encodeToByteArray())
+        assertEquals(2, directory.list()?.size)
+        log.clear()
+        assertEquals(0, directory.list()?.size)
+    }
+
+    @Test
     fun `a salt file of the wrong size is replaced by a full salt`() {
         val file = folder.newFile("salt").also { it.writeBytes(ByteArray(3)) }
         val replaced = HostKeyer.loadOrCreate(file, SecureRandom()).keyOf(route)

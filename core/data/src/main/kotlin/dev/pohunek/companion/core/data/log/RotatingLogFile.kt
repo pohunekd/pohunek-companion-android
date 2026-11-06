@@ -29,6 +29,12 @@ class RotatingLogFile(private val directory: File, private val name: String, pri
         listOf(previous, active).filter { it.exists() }.sumOf { source -> source.inputStream().use { it.copyTo(out) } }
     }
 
+    /** Deletes both files; a missing file is fine. */
+    @Throws(IOException::class)
+    fun clear() {
+        for (file in listOf(previous, active)) if (file.exists() && !file.delete()) throw IOException("cannot remove ${file.name}")
+    }
+
     private fun rotate() {
         if (previous.exists() && !previous.delete()) throw IOException("cannot remove the previous log file")
         if (active.exists() && !active.renameTo(previous)) throw IOException("cannot rotate the log file")

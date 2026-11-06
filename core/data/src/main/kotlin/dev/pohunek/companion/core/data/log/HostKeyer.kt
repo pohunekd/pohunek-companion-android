@@ -34,14 +34,16 @@ class HostKeyer(salt: ByteArray) {
     companion object {
         /**
          * The salt stored in [file], created from [random] when the file is missing or has the wrong size (a torn write leaves no usable
-         * salt). The file must sit in app-private storage that is not exported or backed up.
+         * salt). The file must sit in app-private storage that is not exported or backed up. [beforeCreate] runs before a new salt is
+         * written, so lines keyed under another salt can be dropped first: a crash in between leaves no salt and the next start repeats it.
          */
         @Throws(IOException::class)
-        fun loadOrCreate(file: File, random: SecureRandom): HostKeyer {
+        fun loadOrCreate(file: File, random: SecureRandom, beforeCreate: () -> Unit = {}): HostKeyer {
             if (file.exists()) {
                 val salt = file.readBytes()
                 if (salt.size == HOST_KEY_SALT_BYTES) return HostKeyer(salt)
             }
+            beforeCreate()
             val salt = ByteArray(HOST_KEY_SALT_BYTES).also(random::nextBytes)
             file.parentFile?.mkdirs()
             val temp = File(file.path + ".tmp")

@@ -79,14 +79,16 @@ val appModule = module {
         val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         val onWriteFailure: (IOException) -> Unit = { failure -> Log.w(LOGCAT_TAG, "cannot write the log: ${failure.message}") }
         // The salt lives outside the exported log directory and outside Auto Backup. Without it the keys stay valid for this process only.
+        val logFile = RotatingLogFile(File(context.filesDir, LOG_DIRECTORY), LOG_FILE) { runtime.logMaxBytes() }
+        // Lines written under another salt (or the unsalted keys of older versions) are removed when a salt is created.
         val hostKeyer = try {
-            HostKeyer.loadOrCreate(File(context.noBackupFilesDir, HOST_KEY_SALT_FILE), SecureRandom())
+            HostKeyer.loadOrCreate(File(context.noBackupFilesDir, HOST_KEY_SALT_FILE), SecureRandom(), logFile::clear)
         } catch (failure: IOException) {
             Log.w(LOGCAT_TAG, "host key salt unavailable, host keys are valid for this process only: ${failure.message}")
             HostKeyer(ByteArray(HOST_KEY_SALT_BYTES).also(SecureRandom()::nextBytes))
         }
         JsonLineLog(
-            RotatingLogFile(File(context.filesDir, LOG_DIRECTORY), LOG_FILE) { runtime.logMaxBytes() },
+            logFile,
             get(),
             hostKeyer,
             if (debuggable) LogMirror { level, _, line -> Log.println(level.priority(), LOGCAT_TAG, line) } else null,
