@@ -48,6 +48,9 @@ groups=(
 filter_project="pohunek-companion"
 recent_projects=("neovim" "tokio")
 search_query="tokio"
+# The group the session-list shot collapses and a session of the second host it shows.
+inbox_group="Inbox"
+second_host_session="nightly-bench-sweep"
 sheet_session="review-pr-1412"
 template_project="pohunek-companion"
 template_name="fix-issue"
@@ -141,9 +144,19 @@ session_id() { # NAME
   printf '%s' "$id"
 }
 
+# The Inbox group is collapsed so that the Dependencies group, which holds the second host's sessions, is on the first screen.
 shot_session_list() {
   wait_tag SessionList.needsYou
   wait_no_tag SessionList.loading
+  wait_tagged SessionList.groupHeader "$inbox_group"
+  click_tagged SessionList.groupHeader "$inbox_group"
+  wait_text "$second_host_session"
+  sleep 1
+}
+
+after_session_list() {
+  click_tagged SessionList.groupHeader "$inbox_group"
+  wait_text "$terminal_session"
 }
 
 shot_search() {

@@ -2,7 +2,7 @@
   {
     "id": "session-list",
     "caption": "Every session on every host, with the ones that need you at the top.",
-    "alt": "Pohunek Companion session list in the dark theme with the My groups view selected: a Needs you section with two blocked agent sessions, then sessions of two hosts, each row with its host label. The bottom bar has a search icon and the State, Project and Host filter chips."
+    "alt": "Pohunek Companion session list in the dark theme with the My groups view selected: a Needs you section with two blocked agent sessions, the Inbox group collapsed to its header, and the Dependencies group listing sessions of a second host. The bottom bar has a search icon and the State, Project and Host filter chips."
   },
   {
     "id": "search",
@@ -12,7 +12,7 @@
   {
     "id": "filters",
     "caption": "Narrow the list from the bottom bar by state, project or host; here one project is shown with its ended sessions.",
-    "alt": "Pohunek Companion session list in the dark theme with the bottom filter bar showing a search icon, a State chip with a count of four, a project chip, a Host chip and a Clear button, over the sessions of that one project including an ended one."
+    "alt": "Pohunek Companion session list in the dark theme with the bottom filter bar showing a search icon, a State chip with a count of four, a project chip and a Host chip, over the sessions of that one project including an ended one."
   },
   {
     "id": "project-picker",
@@ -22,12 +22,12 @@
   {
     "id": "terminal",
     "caption": "A full-screen terminal attached to a running session; this one runs a scripted demo of an agent at work.",
-    "alt": "Pohunek Companion full-screen terminal in the dark theme showing the output of a scripted demo program: a coloured task header, a checklist, a diff and a test run."
+    "alt": "Pohunek Companion full-screen terminal in the dark theme showing the output of a scripted demo program: a build log, a test run with a progress bar and a pass summary, and a prompt line."
   },
   {
     "id": "terminal-keys",
     "caption": "Tap the terminal for the keyboard; an accessory bar above it holds the keys a phone keyboard lacks.",
-    "alt": "Pohunek Companion terminal in the dark theme with the on-screen keyboard up and, above it, a row of accessory keys: Tab, Ctrl, Alt and the arrow keys."
+    "alt": "Pohunek Companion terminal in the dark theme with the on-screen keyboard up and, above it, a row of accessory keys: Esc, Tab, Ctrl, Alt and the arrow keys."
   },
   {
     "id": "new-session",

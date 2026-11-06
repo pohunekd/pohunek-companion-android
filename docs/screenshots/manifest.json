@@ -1,16 +1,70 @@
 {
   "schema": 1,
-  "appTree": "fee079bdd964010fa85e9300bb1ba087f26f6e9e",
+  "appTree": "0a64740f12247c41b61f8a7e70d7ef604bd3682a",
   "device": "720x1600x320",
   "shots": [
     {
       "id": "session-list",
       "file": "session-list.png",
       "caption": "Every session on every host, with the ones that need you at the top.",
-      "alt": "Pohunek Companion session list in the dark theme with the My groups view selected from the title dropdown: a Needs you section with two blocked agent sessions above an Inbox group of working and idle sessions, and a bottom bar with Search, State and Project filters.",
+      "alt": "Pohunek Companion session list in the dark theme with the My groups view selected: a Needs you section with two blocked agent sessions, then sessions of two hosts, each row with its host label. The bottom bar has a search icon and the State, Project and Host filter chips.",
       "width": 720,
       "height": 1600,
-      "sha256": "1634e3c8c196521a37fc698ccc6a802aa90db617a33698f72dc3bc98cff7814f"
+      "sha256": "5f725ebd5d0b623f26b93f446311b69595014b4a1f12a7696bd20bb712ef3bb0"
+    },
+    {
+      "id": "search",
+      "file": "search.png",
+      "caption": "Tap the search icon and the field takes the whole bar; the list narrows to the sessions that match, on every host.",
+      "alt": "Pohunek Companion session list in the dark theme with the bottom bar expanded into a full-width search field holding the query tokio, over the two sessions of two hosts that match it.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "8039e724cc4a45a9e804cbd032b0610bd807369ef5c0d0ccae28dd972ff46d5a"
+    },
+    {
+      "id": "filters",
+      "file": "filters.png",
+      "caption": "Narrow the list from the bottom bar by state, project or host; here one project is shown with its ended sessions.",
+      "alt": "Pohunek Companion session list in the dark theme with the bottom filter bar showing a search icon, a State chip with a count of four, a project chip, a Host chip and a Clear button, over the sessions of that one project including an ended one.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "077edd67df99a637e3c072990c01c62d73891b2d5b402e97a3f7b1672802bd99"
+    },
+    {
+      "id": "project-picker",
+      "file": "project-picker.png",
+      "caption": "The project picker is searchable and lists the projects you picked last first.",
+      "alt": "Pohunek Companion project picker sheet in the dark theme: a search field, a Recent section with the three projects picked last, then the full list of projects.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "bcd388630c8ee19b45d97daf972ccdd2db97184368aa7b3bc043fe6afbb324f6"
+    },
+    {
+      "id": "terminal",
+      "file": "terminal.png",
+      "caption": "A full-screen terminal attached to a running session; this one runs a scripted demo of an agent at work.",
+      "alt": "Pohunek Companion full-screen terminal in the dark theme showing the output of a scripted demo program: a coloured task header, a checklist, a diff and a test run.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "ce38b35eee5be8b438a71742b53aa990a017bbeeecca51d474a8b961443d01c6"
+    },
+    {
+      "id": "terminal-keys",
+      "file": "terminal-keys.png",
+      "caption": "Tap the terminal for the keyboard; an accessory bar above it holds the keys a phone keyboard lacks.",
+      "alt": "Pohunek Companion terminal in the dark theme with the on-screen keyboard up and, above it, a row of accessory keys: Tab, Ctrl, Alt and the arrow keys.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "34c1c6be29b71e90dd1b0b62e5aa2387618c6fdb547b98e6d1b59541e638fde5"
+    },
+    {
+      "id": "new-session",
+      "file": "new-session.png",
+      "caption": "Start a session on a host from a project template, with its agent and prompt filled in.",
+      "alt": "Pohunek Companion New session form in the dark theme with a project template selected, its agent chosen and its prompt filled in.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "80e0e9955ad443efceb874f79453f29b044377669604ebd3328f72f14770d7f2"
     },
     {
       "id": "by-state",
@@ -19,16 +73,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the By state view selected: sessions in Needs you, Working and Idle sections.",
       "width": 720,
       "height": 1600,
-      "sha256": "c0b2bc6bab050063c013b152ee3814c9de34a033dcad7114f27e1adf837d9a23"
-    },
-    {
-      "id": "filters",
-      "file": "filters.png",
-      "caption": "Narrow the list from the bottom bar by state, project or host; here one project is shown with its ended sessions.",
-      "alt": "Pohunek Companion session list in the dark theme with the bottom filter bar showing a State chip with a count of four, a project chip and a Clear button, over the sessions of that one project including an ended one.",
-      "width": 720,
-      "height": 1600,
-      "sha256": "55efb5c2bbb23c328964fac218074588d43b49c23b486b7029584656d3e3d2f7"
+      "sha256": "0e6c64ad2c7d93de93e8764898686358db02d8d1fb13679b6715f7b95080ed9f"
     },
     {
       "id": "groups",
@@ -37,7 +82,16 @@
       "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then the Dependencies group open with its session and the Docs and Tooling groups collapsed to a header with a count.",
       "width": 720,
       "height": 1600,
-      "sha256": "6c90a5fffbae59b490b4b3977b0090a86758f5748293cfd1c7bcde76bba2d04f"
+      "sha256": "d048329feec42ced61ac44e18dccd858b6ef8da214e8d57f7596d1edbdea43b3"
+    },
+    {
+      "id": "hosts",
+      "file": "hosts.png",
+      "caption": "The hosts the app follows, each with its connection state.",
+      "alt": "Pohunek Companion Hosts screen in the dark theme: one host with its address and a Connected status, and an Add a host button.",
+      "width": 720,
+      "height": 1600,
+      "sha256": "e4b723a587d6e977de8a1ce98cd928db559030ab741ab494ff233494c9cabf05"
     },
     {
       "id": "row-actions",
@@ -55,25 +109,7 @@
       "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button.",
       "width": 720,
       "height": 1600,
-      "sha256": "f103618dd7fc9c827bcbb238b7a26f2586152e8392319a7e4d068fc27ea6b954"
-    },
-    {
-      "id": "new-session",
-      "file": "new-session.png",
-      "caption": "Start a session on a host from a project template, with its agent and prompt filled in.",
-      "alt": "Pohunek Companion New session form in the dark theme with a project template selected, its agent chosen and its prompt filled in.",
-      "width": 720,
-      "height": 1600,
-      "sha256": "80e0e9955ad443efceb874f79453f29b044377669604ebd3328f72f14770d7f2"
-    },
-    {
-      "id": "hosts",
-      "file": "hosts.png",
-      "caption": "The hosts the app follows, each with its connection state.",
-      "alt": "Pohunek Companion Hosts screen in the dark theme: one host with its address and a Connected status, and an Add a host button.",
-      "width": 720,
-      "height": 1600,
-      "sha256": "02987f9197ecf6f6ea9f09c703528026ac30e016d427a16773c973ae0934541f"
+      "sha256": "53c07031f642e468505fed1a7378e2417e01565676f412c36a5051c633038f94"
     },
     {
       "id": "settings",
@@ -82,16 +118,7 @@
       "alt": "Pohunek Companion settings screen in the dark theme: a list of tunables, each with its default value.",
       "width": 720,
       "height": 1600,
-      "sha256": "792029e571df006d55c7f622320ecf8a7e09195858b1fd041c07eaecdc8ec0f8"
-    },
-    {
-      "id": "terminal",
-      "file": "terminal.png",
-      "caption": "A full-screen terminal attached to a running session.",
-      "alt": "Pohunek Companion full-screen terminal attached to a session of a working agent, in the dark theme.",
-      "width": 720,
-      "height": 1600,
-      "sha256": "cc9b36ba10a8f0965224070bfa56c0982dcfb697c0e58546b4fa2937bb6f6080"
+      "sha256": "eebb51a81d40eb958f38ff8b6d84ab48c51b76ef02b14c771145697c47265d02"
     }
   ]
 }
