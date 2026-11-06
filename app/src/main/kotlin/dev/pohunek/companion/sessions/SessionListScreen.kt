@@ -137,7 +137,6 @@ private fun SessionListContent(
                         .onSizeChanged { bar.barHeightPx = it.height.toFloat() }
                         .graphicsLayer { translationY = bar.hiddenPx }
                         .traversalGroup(FILTER_BAR_ORDER),
-                    onSearchFocusChange = { bar.searchFocused = it },
                 ) { FilterBarChips(state, onEvent) }
             }
         }

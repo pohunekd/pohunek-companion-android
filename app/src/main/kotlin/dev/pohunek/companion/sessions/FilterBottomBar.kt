@@ -20,7 +20,6 @@ import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,17 +47,10 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
  * [PohunekTheme.filterBarSearchMinWidth], and takes the whole bar while it has the focus.
  */
 @Composable
-internal fun SessionFilterBar(
-    query: String,
-    onEvent: (SessionListEvent) -> Unit,
-    modifier: Modifier = Modifier,
-    onSearchFocusChange: (Boolean) -> Unit = {},
-    trailing: @Composable () -> Unit = {},
-) {
+internal fun SessionFilterBar(query: String, onEvent: (SessionListEvent) -> Unit, modifier: Modifier = Modifier, trailing: @Composable () -> Unit = {}) {
     var expanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    DisposableEffect(Unit) { onDispose { onSearchFocusChange(false) } }
     BackHandler(enabled = expanded) {
         focusManager.clearFocus()
         keyboard?.hide()
@@ -75,12 +67,7 @@ internal fun SessionFilterBar(
                 FilterBarRow(
                     expanded = expanded,
                     minFieldWidth = PohunekTheme.filterBarSearchMinWidth,
-                    field = {
-                        SearchInput(query, onEvent, onFocusChange = {
-                            expanded = it
-                            onSearchFocusChange(it)
-                        }, requestFocus = expanded)
-                    },
+                    field = { SearchInput(query, onEvent, onFocusChange = { expanded = it }, requestFocus = expanded) },
                     icon = {
                         IconButton(onClick = { expanded = true }, modifier = Modifier.testTag("SessionList.searchIcon")) {
                             Icon(painterResource(R.drawable.ic_search), contentDescription = stringResource(R.string.session_list_search_action))

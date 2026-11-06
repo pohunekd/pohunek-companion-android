@@ -35,8 +35,8 @@ import kotlinx.coroutines.launch
 
 /**
  * How far the bottom filter bar is slid down off the screen. The bar overlays the list and moves by translation only, so the list keeps
- * its size; [overlapPx] is the part of the list the shown bar covers. The bar stays shown while the search is focused, the keyboard is
- * open or touch exploration is on, and it is frozen where it is during a drag of a row.
+ * its size; [overlapPx] is the part of the list the shown bar covers. The bar stays shown while the keyboard is open
+ * (the search field is being typed in) or touch exploration is on, and it is frozen where it is during a drag of a row.
  */
 @Stable
 internal class FilterBarVisibility(private val scope: CoroutineScope) {
@@ -45,11 +45,10 @@ internal class FilterBarVisibility(private val scope: CoroutineScope) {
     var barHeightPx by mutableFloatStateOf(0f)
     var navInsetPx by mutableFloatStateOf(0f)
     var dragging by mutableStateOf(false)
-    var searchFocused by mutableStateOf(false)
     var keyboardOpen by mutableStateOf(false)
     var touchExploration by mutableStateOf(false)
 
-    val pinned: Boolean get() = searchFocused || keyboardOpen || touchExploration
+    val pinned: Boolean get() = keyboardOpen || touchExploration
 
     private val mayHide: Boolean get() = !pinned && !dragging
 
