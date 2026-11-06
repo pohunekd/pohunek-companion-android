@@ -384,6 +384,11 @@ while read -r fn; do
   printf '%s\n' "${ids[@]}" | grep -qxF -- "$id" || die "capture step $fn has no entry '$id' in shots.json"
 done < <(declare -F | awk '{print $3}' | grep '^shot_' | grep -v '^shot_function$')
 
+while read -r fn; do
+  id="${fn#after_}"; id="${id//_/-}"
+  printf '%s\n' "${ids[@]}" | grep -qxF -- "$id" || die "hook $fn has no entry '$id' in shots.json"
+done < <(declare -F | awk '{print $3}' | grep '^after_')
+
 [ -z "$(git -C "$root" status --porcelain -- app)" ] ||
   die "app/ has uncommitted or untracked changes; commit them first so appTree describes the captured build"
 app_tree="$(git -C "$root" rev-parse HEAD:app/src/main)"

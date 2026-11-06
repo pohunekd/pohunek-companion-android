@@ -42,12 +42,12 @@
   {
     "id": "groups",
     "caption": "Your own groups, shared with the desktop app, hold the sessions you sort into them.",
-    "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then the Dependencies group open with its session and the Docs and Tooling groups collapsed to a header with a count."
+    "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then the Dependencies group open with its sessions and a count, below the two blocked ones."
   },
   {
     "id": "hosts",
     "caption": "The hosts the app follows, each with its connection state.",
-    "alt": "Pohunek Companion Hosts screen in the dark theme: one host with its address and a Connected status, and an Add a host button."
+    "alt": "Pohunek Companion Hosts screen in the dark theme: two hosts, each with its address and a Connected status, and an Add a host button."
   },
   {
     "id": "row-actions",
