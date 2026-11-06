@@ -3,6 +3,23 @@
 User-facing changes of Pohunek Companion Android, newest version first. Each
 section is folded from the fragments in `changelog.d/` when its release is prepared.
 
+## 0.1.0-pre.8 - 2026-11-06
+
+### Added
+
+- The project picker lists the projects you chose last first, per view, so the projects you switch between are two taps away. The number is the new recent_projects_size setting. ([#203](https://github.com/pohunekd/pohunek-companion-android/issues/203))
+
+### Changed
+
+- The session list top bar shows the Pohunek logo, and Refresh, Hosts and Settings are in the More options menu instead of four text buttons. ([#198](https://github.com/pohunekd/pohunek-companion-android/issues/198))
+- The view switch (My groups, By state, By project, By Work item) is a menu on the title of the session list, which frees the row of view chips for sessions. ([#199](https://github.com/pohunekd/pohunek-companion-android/issues/199))
+- Search lives in a bar at the bottom of the session list, next to the keyboard and within thumb reach, instead of the top bar. ([#200](https://github.com/pohunekd/pohunek-companion-android/issues/200))
+- The state filter is a State chip in the bottom bar that opens a sheet with the number of sessions per state, and a Clear button resets the view's filters in one tap. ([#201](https://github.com/pohunekd/pohunek-companion-android/issues/201))
+- The project filter is a Project chip in the bottom bar that opens a searchable list of projects with their session counts, so a project among many is reached in a few taps. ([#202](https://github.com/pohunekd/pohunek-companion-android/issues/202))
+- The host filter is a Host chip in the bottom bar that opens a sheet with the connection and session count of each host, so no filter row scrolls sideways any more. ([#204](https://github.com/pohunekd/pohunek-companion-android/issues/204))
+- Hosts that are reconnecting share one status line above the session list, and tapping it opens the Hosts screen; a refused connection keeps its own line. ([#205](https://github.com/pohunekd/pohunek-companion-android/issues/205))
+- The bottom filter bar slides away while the session list is scrolled down and comes back on any scroll up, so the list has the full height for reading. It stays while the keyboard is open or TalkBack is on. ([#206](https://github.com/pohunekd/pohunek-companion-android/issues/206))
+
 ## 0.1.0-pre.7 - 2026-10-31
 
 ### Changed
