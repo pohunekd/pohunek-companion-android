@@ -270,4 +270,24 @@ class SessionFilterTest {
         assertEquals(listOf(null, "beta", null), pickerRows(ProjectSelection.All, "bt").map { it.label })
         assertEquals(listOf(null, "alpha", null), pickerRows(ProjectSelection.Project("alpha"), "zzz").map { it.label })
     }
+
+    @Test
+    fun `host rows count the sessions of each host after the other filters and keep a gone host`() {
+        val all = listOf(
+            row("1", "a", OwnerState.Working, project = "p", host = "h1"),
+            row("2", "b", OwnerState.Working, project = "p", host = "h2"),
+            row("3", "c", OwnerState.Working, project = "q", host = "h2"),
+            row("4", "d", OwnerState.Ended, project = "p", host = "h2"),
+        ).map { facts.getValue(it) }
+        val options = hostOptions(
+            listOf(HostEntry("h1", "one", HostReach.Connected), HostEntry("h2", "two", HostReach.Unreachable)),
+            selected = "h3",
+        )
+        val narrowed = filter(project = ProjectSelection.Project("p"), host = "h3").narrowedIgnoringHost(all)
+        val rows = hostPickerRows(options, narrowed)
+        assertEquals(listOf(null, "h1", "h2", "h3"), rows.map { it.key })
+        assertEquals(listOf(2, 1, 1, 0), rows.map { it.count })
+        assertEquals(HostReach.Unreachable, rows.last().reach)
+        assertTrue(rows.last().selected)
+    }
 }

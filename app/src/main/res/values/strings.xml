@@ -22,7 +22,7 @@
     <string name="session_list_no_match">No sessions match</string>
     <string name="session_list_search_action">Search sessions</string>
     <string name="session_list_more">More options</string>
-    <string name="search_placeholder">Search sessions</string>
+    <string name="search_placeholder">Search</string>
     <string name="search_clear">Clear search</string>
     <string name="state_filter">State</string>
     <string name="state_filter_count">State·%1$d</string>
@@ -41,9 +41,13 @@
     <string name="project_all">All projects</string>
     <string name="project_none">No project</string>
     <string name="project_needs_you">has a session that needs you</string>
-    <string name="host_chip_all">All hosts</string>
-    <string name="host_chip_connected">%1$s (connected)</string>
-    <string name="host_chip_unreachable">%1$s (unreachable)</string>
+    <string name="host_filter">Host</string>
+    <string name="host_filter_description">Filter by host</string>
+    <string name="host_filter_selected_description">Filter by host, %1$s selected</string>
+    <string name="host_filter_selected_unreachable_description">Filter by host, %1$s selected, unreachable</string>
+    <string name="host_all">All hosts</string>
+    <string name="host_reach_connected">connected</string>
+    <string name="host_reach_unreachable">unreachable</string>
     <string name="view_my_groups">My groups</string>
     <string name="view_by_state">By state</string>
     <string name="view_by_project">By project</string>

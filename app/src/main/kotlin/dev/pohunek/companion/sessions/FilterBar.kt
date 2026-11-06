@@ -46,42 +46,6 @@ import dev.pohunek.companion.core.domain.layout.filterKey
 import dev.pohunek.companion.core.domain.sessions.OwnerState
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
-/** The chip row that narrows the list to one host: All hosts, then each host with its connection. */
-@Composable
-internal fun HostChips(options: List<HostOption>, onEvent: (SessionListEvent) -> Unit) {
-    ChipRow {
-        for (option in options) {
-            val text = when (option.reach) {
-                null -> stringResource(R.string.host_chip_all)
-                HostReach.Connected -> stringResource(R.string.host_chip_connected, option.label.orEmpty())
-                HostReach.Unreachable -> stringResource(R.string.host_chip_unreachable, option.label.orEmpty())
-            }
-            FilterChip(
-                selected = option.selected,
-                onClick = { onEvent(SessionListEvent.TapHost(option.key)) },
-                label = { ChipText(text) },
-                modifier = Modifier.testTag(if (option.key == null) "SessionList.hostFilterAll" else "SessionList.hostFilter"),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ChipRow(content: @Composable RowScope.() -> Unit) {
-    val spacing = PohunekTheme.spacing
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = spacing.gutter),
-        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        content = content,
-    )
-}
-
-/** A chip label cut to one line: project labels and host names are untrusted and of any length. */
-@Composable
-private fun ChipText(text: String) {
-    Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = PohunekTheme.filterChipMaxWidth))
-}
-
 /** The logo and the view menu; the overflow menu carries Refresh, Hosts and Settings. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
