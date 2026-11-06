@@ -1,0 +1,86 @@
+# Sourced by scripts/capture-screenshots (and the video capture): brings a fresh
+# `scripts/ui-agent start --showcase` run to the state every capture starts from.
+#
+#   showcase_prelude
+#
+# The caller defines `agent` (the path of scripts/ui-agent), `die`, and
+# `wait_secs` (seconds a wait for a screen element may take) before sourcing.
+# The prelude adds both synthetic hosts of the run, makes the idle sessions show
+# as Idle, switches to the dark theme and fixes the status bar.
+
+# Labels of the two hosts the prelude adds, in the order the app lists them.
+showcase_host_label="Showcase"
+showcase_host2_label="Second host"
+
+# Seconds a session must be idle before the app shows it as Idle.
+showcase_idle_threshold_secs=5
+
+# Polls until the app shows an element with TAG.
+tag_count() { # TAG
+  local nodes
+  nodes="$("$agent" find "$1")" || die "scripts/ui-agent find $1 failed"
+  jq length <<<"$nodes"
+}
+
+wait_tag() { # TAG
+  local deadline=$((SECONDS + wait_secs))
+  until [ "$(tag_count "$1")" -gt 0 ]; do
+    [ "$SECONDS" -lt "$deadline" ] || die "'$1' did not appear within ${wait_secs}s"
+    sleep 1
+  done
+}
+
+wait_no_tag() { # TAG
+  local deadline=$((SECONDS + wait_secs))
+  while [ "$(tag_count "$1")" -gt 0 ]; do
+    [ "$SECONDS" -lt "$deadline" ] || die "'$1' did not disappear within ${wait_secs}s"
+    sleep 1
+  done
+}
+
+# Port of the bridge on the status line that starts with PREFIX.
+showcase_bridge_port() { # PREFIX
+  local port
+  port="$("$agent" status | sed -n -E "s/^$1 .*bridge=127\\.0\\.0\\.1:([0-9]+).*/\\1/p")"
+  [[ "$port" =~ ^[0-9]+$ ]] || die "could not read the '$1' bridge port from scripts/ui-agent status"
+  printf '%s' "$port"
+}
+
+# Fills the host form with ROUTE and LABEL and saves it.
+showcase_save_host() { # ROUTE LABEL
+  wait_tag HostForm.route
+  "$agent" click HostForm.route >/dev/null
+  "$agent" type "$1" >/dev/null
+  "$agent" click HostForm.label >/dev/null
+  "$agent" type "$2" >/dev/null
+  "$agent" click HostForm.save >/dev/null
+}
+
+showcase_prelude() {
+  local port port2
+  port="$(showcase_bridge_port daemon=isolated)"
+  port2="$(showcase_bridge_port host2)"
+
+  # A fresh install opens the host form; the first saved host returns to the list.
+  showcase_save_host "127.0.0.1:$port" "$showcase_host_label"
+  wait_tag SessionList.overflow
+  "$agent" click SessionList.overflow >/dev/null
+  wait_tag SessionList.hosts
+  "$agent" click SessionList.hosts >/dev/null
+  wait_tag Hosts.add
+  "$agent" click Hosts.add >/dev/null
+  showcase_save_host "127.0.0.1:$port2" "$showcase_host2_label"
+  wait_tag Hosts.back
+  "$agent" click Hosts.back >/dev/null
+  wait_tag SessionList.overflow
+
+  # The showcase's idle sessions show as Idle once they have been idle for the app's
+  # idle_threshold_secs, which is minutes by default; the override makes them Idle now.
+  printf '{"version":1,"overrides":{"idle_threshold_secs":%s}}' "$showcase_idle_threshold_secs" | "$agent" app-file put settings.json >/dev/null
+  "$agent" restart >&2
+  wait_tag SessionList.overflow
+
+  "$agent" night on >&2
+  "$agent" demo-mode on >&2
+  wait_tag SessionList.overflow
+}

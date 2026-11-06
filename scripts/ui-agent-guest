@@ -15,6 +15,9 @@ config="$root/config/dev.toml"
 run_dir=/tmp/ui-agent
 run_env="$run_dir/run.env"
 iso="$run_dir/iso"
+# The showcase's second synthetic host: a second isolated daemon with its own XDG tree and bridge.
+iso_host2="$run_dir/iso-host2"
+bridge2_pid_file="$run_dir/bridge2.pid"
 up_status="$run_dir/up.status"
 bridge_pid_file="$run_dir/bridge.pid"
 stall_file="$run_dir/stall.since"
@@ -43,7 +46,7 @@ positive_int() {
 # ---- Run record --------------------------------------------------------------
 
 # The run record written by `init`: SLOT, DEVICE (emulator|phone), SERIAL,
-# CONSOLE_PORT, BRIDGE_PORT, DAEMON (isolated|owner).
+# CONSOLE_PORT, BRIDGE_PORT, HOST2_PORT (the second showcase host's bridge), DAEMON (isolated|owner).
 load_run() {
   [ -r "$run_env" ] || die "no run record; scripts/ui-agent start creates it"
   # shellcheck disable=SC1090
@@ -53,10 +56,11 @@ load_run() {
 
 init() {
   [ "$#" -ge 3 ] || die "usage: init SLOT emulator|phone isolated|owner [PHONE_ADB]"
-  local slot="$1" device="$2" daemon="$3" phone_adb="${4:-}" serial console_port bridge_port
+  local slot="$1" device="$2" daemon="$3" phone_adb="${4:-}" serial console_port bridge_port host2_port
   [[ "$slot" =~ ^[0-9]+$ ]] || die "invalid slot '$slot'"
   console_port=$(( $(config_value emulator_console_port_base) + 2 * slot ))
   bridge_port=$(( $(config_value bridge_port_base) + slot ))
+  host2_port=$(( $(config_value showcase_second_host_bridge_port_base) + slot ))
   case "$device" in
     emulator) serial="emulator-$console_port" ;;
     phone)
@@ -68,7 +72,7 @@ init() {
   mkdir -p "$run_dir"
   {
     echo "SLOT=$slot"; echo "DEVICE=$device"; echo "SERIAL=$serial"
-    echo "CONSOLE_PORT=$console_port"; echo "BRIDGE_PORT=$bridge_port"; echo "DAEMON=$daemon"
+    echo "CONSOLE_PORT=$console_port"; echo "BRIDGE_PORT=$bridge_port"; echo "HOST2_PORT=$host2_port"; echo "DAEMON=$daemon"
   } >"$run_env"
 }
 
@@ -321,10 +325,11 @@ generated_session() {
 }
 
 # Showcase dataset (`start --showcase`): synthetic projects and sessions of two
-# synthetic agent profiles that run a harmless shell program. Each line is
-# `name|project|agent|state|meta` with state one of working, blocked, idle,
-# stopped (ended), shell (a plain shell, no activity) or demo (the scripted
-# showcase-demo program, which reports working).
+# synthetic agent profiles that run a harmless shell program, on two synthetic
+# hosts (two isolated daemons). Each line is `name|project|agent|state|meta`
+# with state one of working, blocked, idle, stopped (ended), shell (a plain
+# shell, no activity) or demo (the scripted showcase-demo program, which
+# reports working).
 showcase_projects=(pohunek pohunek-companion ripgrep neovim tokio zed)
 showcase_template_project=pohunek-companion
 showcase_sessions=(
@@ -342,6 +347,28 @@ showcase_sessions=(
   "ci-cache-warmup|tokio|codex|stopped|"
   "scratch-shell|pohunek-companion|shell|shell|"
 )
+
+# The second host has no blocked session, so the Needs you order comes from the first host alone. Its sessions
+# are all in the first owner group of scripts/capture-screenshots: a group that holds them sorts first, so the
+# top group stays the one the capture opens, and they do not crowd the ungrouped inbox.
+showcase_sessions_host2=(
+  "migrate-config-schema|pohunek|claude|working|work.link.provider=github work.link.kind=issue work.link.id=401 work.link.url=https://github.com/zajca/pohunek/issues/401 work.role=implementer companion.group=Dependencies"
+  "nightly-bench-sweep|tokio|codex|working|companion.group=Dependencies"
+  "audit-unsafe-blocks|ripgrep|claude|idle|companion.group=Dependencies"
+  "profile-startup-time|neovim|codex|idle|work.link.provider=github work.link.kind=pr work.link.id=31902 work.link.url=https://github.com/neovim/neovim/pull/31902 work.role=reviewer companion.group=Dependencies"
+  "retire-old-fixtures|zed|claude|stopped|companion.group=Dependencies"
+)
+
+# The host the daemon functions act on: its XDG tree, daemon log and showcase sessions.
+host_sessions=("${showcase_sessions[@]}")
+select_host() { # 1|2
+  case "$1" in
+    1) iso="$run_dir/iso"; host_sessions=("${showcase_sessions[@]}") ;;
+    2) iso="$iso_host2"; host_sessions=("${showcase_sessions_host2[@]}") ;;
+    *) die "invalid host '$1'" ;;
+  esac
+  daemon_log="$iso/daemon.log"
+}
 
 # The isolated XDG environment, one `KEY=value` per line.
 isolated_env() {
@@ -427,10 +454,10 @@ write_showcase_agents() {
 stty -echo 2>/dev/null
 IFS= read -r screen
 case $screen in
-    working) printf '* Working on the task... (42s \302\267 esc to interrupt)\n' ;;
+    working) printf '~ Showcase task running (42s elapsed)\n' ;;
     demo) exec "$(dirname "$0")/showcase-demo" ;;
-    blocked) printf 'Do you want to proceed?\n  1. Yes\n  2. No\nEnter to select \302\267 Esc to cancel\n' ;;
-    *) printf '* Done for 3s\n\n\342\235\257 \n' ;;
+    blocked) printf 'Approval needed: apply the showcase patch?\n  1. Approve\n  2. Decline\nAnswer with 1 or 2\n' ;;
+    *) printf '~ Showcase task finished (3s)\n\n> \n' ;;
 esac
 exec sleep 2147483
 EOF
@@ -555,14 +582,14 @@ state = "blocked"
 priority = 980
 region = "whole_recent"
 visible_blocker = true
-contains = ["esc to cancel"]
+contains = ["Answer with 1 or 2"]
 
 [[rules]]
 id = "working"
 state = "working"
 priority = 960
 region = "whole_recent"
-line_regex = ['^[*] .*\(.*esc to interrupt\)']
+line_regex = ['^~ Showcase task running']
 
 [[rules]]
 id = "demo"
@@ -576,7 +603,7 @@ id = "idle"
 state = "idle"
 priority = 950
 region = "whole_recent"
-line_regex = ['^\s*\x{276F}']
+line_regex = ['^>\s*$']
 EOF
   for agent in claude codex; do
     cat >"$agents/$agent.toml" <<EOF
@@ -633,6 +660,26 @@ create_showcase_session() { # `name|project|agent|state|meta`
     { echo "$name: $(jq -r '.err.msg // empty' <<<"$out")" >&2; return 1; }
 }
 
+# Creates the blocked showcase sessions one after the other, each only once the
+# daemon reports it blocked, with a gap before the next. The Needs you list orders
+# by the time a session started waiting, so a fixed sequence with a gap fixes
+# the order that the parallel creation would leave to chance.
+create_blocked_in_order() {
+  local line name state id i gap
+  gap="$(config_value showcase_blocked_gap_secs)"; positive_int showcase_blocked_gap_secs "$gap"
+  for line in "${host_sessions[@]}"; do
+    IFS='|' read -r name _ _ state _ <<<"$line"
+    [ "$state" = blocked ] || continue
+    create_showcase_session "$line"
+    for i in $(seq 1 100); do
+      [ "$(iso_run "$cli" session list --json | jq -r --arg n "$name" '.ok[] | select(.name == $n) | .activity // "none"')" = blocked ] && break
+      sleep 0.3
+    done
+    [ "$i" -lt 100 ] || die "showcase session $name did not become blocked"
+    sleep "$gap"
+  done
+}
+
 # Waits until every showcase session reports its expected activity, then stops
 # the ended ones.
 finish_showcase() {
@@ -640,7 +687,7 @@ finish_showcase() {
   for i in $(seq 1 100); do
     list=$(iso_run "$cli" session list --json) || die "cannot list the showcase sessions"
     ready=1
-    for line in "${showcase_sessions[@]}"; do
+    for line in "${host_sessions[@]}"; do
       IFS='|' read -r name _ _ state _ <<<"$line"
       case $state in working | blocked | idle | stopped | demo) ;; *) continue ;; esac
       want=${state/stopped/idle}
@@ -653,7 +700,7 @@ finish_showcase() {
   [ "$ready" -eq 1 ] || die "the showcase sessions did not reach their activities"
   [ -z "$(jq -r '.ok[] | select(.agent_base != "shell") | .id' <<<"$list")" ] ||
     die "a showcase session runs a real agent runtime; refusing to continue"
-  for line in "${showcase_sessions[@]}"; do
+  for line in "${host_sessions[@]}"; do
     IFS='|' read -r name _ _ state _ <<<"$line"
     [ "$state" = stopped ] || continue
     iso_run "$cli" session stop "$(jq -r --arg n "$name" '.ok[] | select(.name == $n) | .id' <<<"$list")" >/dev/null ||
@@ -680,7 +727,10 @@ start_daemon() { # EXTRA_SESSIONS SHOWCASE(0|1)
       die "cannot register project $project: $(cat "$iso/project-add.log")"
   done
   if [ "$showcase" -eq 1 ]; then
-    lines=("${showcase_sessions[@]}")
+    lines=()
+    for line in "${host_sessions[@]}"; do
+      [ "$(cut -d'|' -f4 <<<"$line")" = blocked ] || lines+=("$line")
+    done
     create=create_showcase_session
     write_showcase_agents
     write_showcase_fixtures
@@ -700,7 +750,10 @@ start_daemon() { # EXTRA_SESSIONS SHOWCASE(0|1)
     running=$((running - 1))
   done
   [ "$failed" -eq 0 ] || die "cannot create a synthetic session: $(head -c 400 "$iso/session-new.log")"
-  if [ "$showcase" -eq 1 ]; then finish_showcase; fi
+  if [ "$showcase" -eq 1 ]; then
+    create_blocked_in_order
+    finish_showcase
+  fi
 }
 
 # ---- Bridge ------------------------------------------------------------------
@@ -710,19 +763,35 @@ start_daemon() { # EXTRA_SESSIONS SHOWCASE(0|1)
 # to the socket. The daemon itself never listens on TCP in the isolated run.
 start_bridge() {
   rm -f "$stall_file"
+  start_bridge_to "$BRIDGE_PORT" "$iso/run/pohunek/daemon.sock" "$bridge_pid_file" "$run_dir/bridge.log"
+}
+
+start_bridge_to() { # PORT SOCKET PID_FILE LOG
   (
     cd "$run_dir"
-    setsid socat "TCP-LISTEN:$BRIDGE_PORT,bind=127.0.0.1,reuseaddr,fork" "UNIX-CONNECT:$iso/run/pohunek/daemon.sock" \
-      >"$run_dir/bridge.log" 2>&1 </dev/null &
-    echo $! >"$bridge_pid_file"
+    setsid socat "TCP-LISTEN:$1,bind=127.0.0.1,reuseaddr,fork" "UNIX-CONNECT:$2" >"$4" 2>&1 </dev/null &
+    echo $! >"$3"
   )
   local i
   for i in $(seq 1 50); do
-    socat -u /dev/null "TCP:127.0.0.1:$BRIDGE_PORT" 2>/dev/null && break
-    [ "$i" -lt 50 ] || { cat "$run_dir/bridge.log" >&2; die "the bridge does not listen on 127.0.0.1:$BRIDGE_PORT"; }
+    socat -u /dev/null "TCP:127.0.0.1:$1" 2>/dev/null && break
+    [ "$i" -lt 50 ] || { cat "$4" >&2; die "the bridge does not listen on 127.0.0.1:$1"; }
     sleep 0.1
   done
-  adbd reverse "tcp:$BRIDGE_PORT" "tcp:$BRIDGE_PORT" >/dev/null
+  adbd reverse "tcp:$1" "tcp:$1" >/dev/null
+}
+
+# The second showcase host's bridge: its own port, never another slot's.
+start_host2_bridge() {
+  start_bridge_to "$HOST2_PORT" "$iso_host2/run/pohunek/daemon.sock" "$bridge2_pid_file" "$run_dir/bridge2.log"
+}
+
+stop_host2_bridge() {
+  adbd reverse --remove "tcp:$HOST2_PORT" >/dev/null 2>&1 || true
+  if [ -f "$bridge2_pid_file" ]; then
+    kill -TERM -- "-$(cat "$bridge2_pid_file")" 2>/dev/null || true
+    rm -f "$bridge2_pid_file"
+  fi
 }
 
 stop_bridge() {
@@ -1087,6 +1156,13 @@ status() {
   if [ "$DAEMON" = isolated ]; then
     if [ -f "$stall_file" ]; then echo "stall=on since=$(cut -d" " -f1 "$stall_file")"; else echo "stall=off"; fi
   fi
+  if [ "$DAEMON" = isolated ] && [ -d "$iso_host2" ]; then
+    local host2_daemon=down host2_bridge=down
+    if select_host 2 && iso_run "$cli" health >/dev/null 2>&1; then host2_daemon=up; fi
+    select_host 1
+    if [ -f "$bridge2_pid_file" ] && kill -0 "$(cat "$bridge2_pid_file")" 2>/dev/null; then host2_bridge="127.0.0.1:$HOST2_PORT"; fi
+    echo "host2 daemon=isolated state=$host2_daemon bridge=$host2_bridge"
+  fi
 }
 
 log_of() { # app|daemon|emulator
@@ -1384,6 +1460,12 @@ up() { # EXTRA_SESSIONS SHOWCASE
   if [ "$DAEMON" = isolated ]; then
     start_daemon "$extra" "$showcase"
     start_bridge
+    if [ "$showcase" -eq 1 ]; then
+      select_host 2
+      start_daemon 0 1
+      start_host2_bridge
+      select_host 1
+    fi
   fi
 }
 
@@ -1394,12 +1476,18 @@ shutdown() {
   load_run
   if [ "$DAEMON" = isolated ]; then
     stop_bridge
-    if [ -S "$iso/run/pohunek/daemon.sock" ]; then
-      mapfile -t envs < <(isolated_env)
-      iso_run "$cli" session list --json 2>/dev/null | jq -r '.. | objects | select(has("id")) | .id' 2>/dev/null |
-        xargs -r -P "$(config_value session_parallelism)" -I{} env "${envs[@]}" "$cli" session rm {} >/dev/null 2>&1 || true
-    fi
-    halt_daemon || true
+    stop_host2_bridge
+    local host
+    for host in 1 2; do
+      select_host "$host"
+      if [ -S "$iso/run/pohunek/daemon.sock" ]; then
+        mapfile -t envs < <(isolated_env)
+        iso_run "$cli" session list --json 2>/dev/null | jq -r '.. | objects | select(has("id")) | .id' 2>/dev/null |
+          xargs -r -P "$(config_value session_parallelism)" -I{} env "${envs[@]}" "$cli" session rm {} >/dev/null 2>&1 || true
+      fi
+      halt_daemon || true
+    done
+    select_host 1
   fi
   if [ "$DEVICE" = emulator ]; then
     adbd emu kill >/dev/null 2>&1 || true

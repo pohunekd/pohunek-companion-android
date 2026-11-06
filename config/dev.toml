@@ -31,6 +31,15 @@ emulator_memory_mb = 2048
 emulator_console_port_base = 5554
 bridge_port_base = 28722
 
+# The second synthetic host of `ui-agent start --showcase`: its bridge listens on
+# showcase_second_host_bridge_port_base + n for slot n, in the slot and in the
+# device. The range must not overlap bridge_port_base + 0..slots-1.
+showcase_second_host_bridge_port_base = 28822
+
+# Seconds between two blocked showcase sessions starting to wait, so the Needs
+# you order is the same on every run: a positive integer.
+showcase_blocked_gap_secs = 2
+
 # Seconds to wait for an emulator boot to complete: a positive integer.
 boot_timeout_secs = 300
 

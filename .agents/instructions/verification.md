@@ -115,7 +115,12 @@ scripts/ui-agent pohunek ARGS...
   starts the daemon and sessions while `assembleDebug` runs, installs the APK,
   and launches `launch_activity` (`MainActivity`, the session list). `--sessions N` adds N generated sessions to the four
   fixed ones; `--showcase` replaces them with a realistic dataset of synthetic
-  `claude` and `codex` profiles that run a harmless shell program. `type` cannot
+  `claude` and `codex` profiles that run a harmless shell program, on two
+  synthetic hosts: the second is its own isolated daemon, reached through a
+  second bridge on `showcase_second_host_bridge_port_base + N` (`status` prints
+  it on the `host2` line), so the app shows the Host chip. The two blocked
+  sessions are created in sequence, `showcase_blocked_gap_secs` apart, which
+  fixes the Needs you order. `type` cannot
   enter a literal `%s` (`input text` turns it into a space).
 - **Install and restart.** `install` builds the debug APK and installs it; it
   then compares the SHA-256 of the installed `base.apk` with the built file and
@@ -403,7 +408,8 @@ host name, overlay address, or token.
 `device` from `emulator_screen`, per shot `id`, `file`, `caption`, `alt`,
 `width`, `height`, `sha256`). It takes no option, starts its own
 `ui-agent start --showcase` run (and fails if the worktree already has one),
-adds the showcase daemon as the host "Showcase", forces the dark theme
+adds both showcase daemons as hosts ("Showcase" and "Second host"; the steps are
+`scripts/showcase-prelude`, shared with other captures), forces the dark theme
 (`ui-agent night on`) and a fixed status bar (`ui-agent demo-mode on`: clock
 10:00, full battery and wifi, no notifications; the command fails if the clock
 does not read it), sets `idle_threshold_secs` to a few seconds through
