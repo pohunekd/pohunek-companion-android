@@ -157,6 +157,7 @@ shot_session_list() {
 after_session_list() {
   click_tagged SessionList.groupHeader "$inbox_group"
   wait_text "$terminal_session"
+  sleep 1
 }
 
 shot_search() {
