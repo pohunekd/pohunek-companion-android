@@ -3,6 +3,19 @@
 User-facing changes of Pohunek Companion Android, newest version first. Each
 section is folded from the fragments in `changelog.d/` when its release is prepared.
 
+## 0.1.0-pre.9 - 2026-11-06
+
+### Fixed
+
+- The session list shows a project's name instead of its id for sessions that appear while the app is open, without waiting for Refresh. ([#197](https://github.com/pohunekd/pohunek-companion-android/issues/197))
+- The Clear button in the session list filter bar stays fully on screen on narrow phones when State, a project and a host are all set. ([#234](https://github.com/pohunekd/pohunek-companion-android/issues/234))
+- A terminal fling no longer shows one short scroll step at the moment the finger lifts; the scroll carries on at the release speed. ([#238](https://github.com/pohunekd/pohunek-companion-android/issues/238))
+- A terminal fling no longer jumps a double step when the finger lifts in the same frame as its last move. ([#240](https://github.com/pohunekd/pohunek-companion-android/issues/240))
+
+### Security
+
+- Host keys in the exported log are now derived with a secret that stays on the phone, so a shared log can no longer be used to confirm a host's address. Log lines written by earlier versions are removed on upgrade. ([#121](https://github.com/pohunekd/pohunek-companion-android/issues/121))
+
 ## 0.1.0-pre.8 - 2026-11-06
 
 ### Added
