@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
+import android.graphics.RenderNode
 import android.graphics.Typeface
 import android.provider.Settings
 import android.text.InputType
@@ -44,8 +45,8 @@ import kotlin.math.roundToInt
  * Owns a libghostty-vt session via [GhosttyVt]. PTY output is fed in with
  * [write]; user input (IME text, key escape sequences, VT query responses)
  * comes back through [onInputBytes]. Rendering pulls flattened dirty-row
- * snapshots from JNI once per Choreographer frame and patches them onto a
- * grid-sized bitmap; [onDraw] blits the bitmap and overlays the cursor.
+ * snapshots from JNI once per Choreographer frame and re-records only the dirty
+ * rows into one [RenderNode] each; [onDraw] replays the nodes and overlays the cursor.
  */
 internal class GhosttyTerminalView(context: Context, private val settings: TerminalSettings) : View(context) {
   var onInputBytes: ((ByteArray) -> Unit)? = null
@@ -87,8 +88,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   // ── Grid state ──
   private var cols = INITIAL_COLS
   private var rows = INITIAL_ROWS
-  private var bitmap: Bitmap? = null
-  private var bitmapCanvas: Canvas? = null
+  private var rowNodes = emptyArray<RenderNode>()
   private var snapshotBuf: ByteBuffer? = null
   private var rowChars = CharArray(0)
   private var runChars = CharArray(0)
@@ -132,8 +132,8 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   private var cursorVisible = false
   private var cursorBlinks = false
 
-  // The cursor is an onDraw overlay, so blinking only re-blits the cached
-  // bitmap; the grid is untouched.
+  // The cursor is an onDraw overlay, so blinking only replays the recorded
+  // row nodes; none is re-recorded.
   private var blinkPhaseOn = true
   private var blinkScheduled = false
   private val blinkRunnable = object : Runnable {
@@ -531,7 +531,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     if (rows != 0 || offset != scrollOffsetPx) {
       scrollOffsetPx = offset
       markScrollActivity()
-      // A sub-row move only shifts the bitmap and the cached peek row; whole rows, or a peek that
+      // A sub-row move only shifts the row nodes and the cached peek row; whole rows, or a peek that
       // does not describe the viewport, need a render in this vsync's scroll callback.
       if (rows != 0 || (offset > 0f && peekStale(after))) renderRequested = true else invalidate()
     }
@@ -620,7 +620,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     val changed = newCols != cols || newRows != rows
     cols = newCols
     rows = newRows
-    if (changed || force || bitmap == null) {
+    if (changed || force || rowNodes.isEmpty()) {
       scrollAccumulator.clear()
       scrollOffsetPx = 0f
       GhosttyVt.nativeResize(handle, cols, rows, cellWidth.roundToInt(), cellHeight)
@@ -632,10 +632,10 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
 
   private fun allocateGridBuffers() {
     val widthPx = max(1, ceil(cols * cellWidth).toInt())
-    val heightPx = max(1, rows * cellHeight)
-    bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888).also {
-      bitmapCanvas = Canvas(it)
-      bitmapCanvas?.drawColor(defaultBg)
+    rowNodes = Array(rows) { row ->
+      RenderNode("terminal-row-$row").also { node ->
+        node.setPosition(0, row * cellHeight, widthPx, (row + 1) * cellHeight)
+      }
     }
     val capacity = HEADER_BYTES +
       rows * (ROW_HEADER_BYTES + cols * CELL_RECORD_BYTES + cols * MAX_CELL_TEXT_UNITS * 2 + 4)
@@ -669,7 +669,6 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   private fun renderFrame() {
     renderRequested = false
     val buf = snapshotBuf ?: return
-    val canvas = bitmapCanvas ?: return
     if (handle == 0L) return
     if (syncOutputHoldsFrame()) return
 
@@ -696,8 +695,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     cursorColor = header.cursorColor
     syncBlinkTimer()
 
-    if (header.dirtyKind == DIRTY_FULL) canvas.drawColor(defaultBg)
-    repeat(rowCount) { drawRowRecord(buf, canvas, header.cols) }
+    repeat(rowCount) { drawRowRecord(buf, null, header.cols) }
     syncSelectionUi()
     invalidate()
   }
@@ -987,7 +985,11 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     syncBlinkTimer()
   }
 
-  private fun drawRowRecord(buf: ByteBuffer, canvas: Canvas, snapCols: Int) {
+  /**
+   * Parses one row record and draws it: into the row's [RenderNode] when [peekCanvas] is null,
+   * otherwise onto [peekCanvas] at the row's grid position.
+   */
+  private fun drawRowRecord(buf: ByteBuffer, peekCanvas: Canvas?, snapCols: Int) {
     val rowIndex = buf.int
     val selStart = buf.int
     val selEnd = buf.int
@@ -1002,7 +1004,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
 
     buf.position(textPos)
     if (textUnits > rowChars.size) rowChars = CharArray(textUnits)
-    for (i in 0 until textUnits) rowChars[i] = buf.char
+    buf.asCharBuffer().get(rowChars, 0, textUnits)
     val nextRecord = textPos + textUnits * 2 + if (textUnits % 2 != 0) 2 else 0
 
     buf.position(cellsPos)
@@ -1028,12 +1030,25 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     }
     buf.position(nextRecord)
 
-    val top = (rowIndex * cellHeight).toFloat()
+    if (peekCanvas != null) {
+      drawRow(peekCanvas, (rowIndex * cellHeight).toFloat(), colCount)
+      return
+    }
+    val node = rowNodes.getOrNull(rowIndex) ?: return
+    val canvas = node.beginRecording(max(1, ceil(cols * cellWidth).toInt()), cellHeight)
+    try {
+      drawRow(canvas, 0f, colCount)
+    } finally {
+      node.endRecording()
+    }
+  }
+
+  /** Draws the row parsed into the cell arrays by [drawRowRecord] with its top edge at [top]. */
+  private fun drawRow(canvas: Canvas, top: Float, colCount: Int) {
     val bottom = top + cellHeight
 
-    // Background pass: row clear, then one rect per run of adjacent cells with the same background.
-    fillPaint.color = defaultBg
-    canvas.drawRect(0f, top, canvas.width.toFloat(), bottom, fillPaint)
+    // Background pass: one rect per run of adjacent cells with the same background. Cells with the
+    // default background are left transparent; [onDraw] fills the view with it first.
     var bgRunStart = 0f
     var bgRunEnd = 0f
     var bgRunColor = defaultBg
@@ -1070,12 +1085,14 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     for (col in 0 until colCount) {
       val flags = cellFlags[col]
       val len = cellTextLen[col]
-      if (len == 0 || flags and FLAG_SPACER != 0 || flags and FLAG_INVISIBLE != 0) {
+      val textOff = cellTextOff[col]
+      val unit = if (len == 1) rowChars[textOff] else ' '
+      // A plain space draws nothing; one with a line decoration still has to draw it.
+      val blank = len == 0 || (len == 1 && unit == ' ' && flags and (FLAG_UNDERLINE or FLAG_STRIKETHROUGH) == 0)
+      if (blank || flags and FLAG_SPACER != 0 || flags and FLAG_INVISIBLE != 0) {
         if (runLen > 0) pendingBlanks++
         continue
       }
-      val textOff = cellTextOff[col]
-      val unit = rowChars[textOff]
       if (len == 1 && unit.code in ASCII_PRINTABLE_FIRST..ASCII_PRINTABLE_LAST && flags and FLAG_WIDE == 0) {
         val paint = styledPaint(flags)
         val decoration = flags and RUN_DECORATION_FLAGS
@@ -1156,7 +1173,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     canvas.drawColor(defaultBg)
     canvas.save()
     canvas.translate(0f, -scrollOffsetPx)
-    bitmap?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+    for (node in rowNodes) canvas.drawRenderNode(node)
     if (scrollOffsetPx > 0f) peekBitmap?.let { canvas.drawBitmap(it, 0f, (rows * cellHeight).toFloat(), null) }
     drawCursor(canvas)
     canvas.restore()
