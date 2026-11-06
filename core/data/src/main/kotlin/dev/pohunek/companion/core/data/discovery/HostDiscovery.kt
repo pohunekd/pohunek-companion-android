@@ -1,7 +1,6 @@
 package dev.pohunek.companion.core.data.discovery
 
 import dev.pohunek.companion.core.data.commands.display
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.data.log.logCode
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.DiscoveredPeer
@@ -115,7 +114,7 @@ class HostDiscovery(
         Result.Listed(records)
     } catch (e: ProtocolClientException) {
         val cause = e.logCode()
-        if (loggedCauses.put(route, cause) != cause) log.warn("discovery.failed", listOf(hostKeyField(route), LogField.errorCode(cause)))
+        if (loggedCauses.put(route, cause) != cause) log.warn("discovery.failed", listOf(log.hostKeyField(route), LogField.errorCode(cause)))
         Result.Failed(e.display())
     }
 

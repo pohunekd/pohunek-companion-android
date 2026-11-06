@@ -1,6 +1,5 @@
 package dev.pohunek.companion.core.data.hosts
 
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.HostProblem
 import dev.pohunek.companion.core.domain.hosts.hostProblem
@@ -69,7 +68,7 @@ class HostsRepository(private val store: HostStore, private val log: AppLog) {
         hostProblem(next)?.let { return HostEdit.Refused(it) }
         store.save(next)
         current.value = HostsState.Loaded(next)
-        log.info(event, listOf(hostKeyField(route)))
+        log.info(event, listOf(log.hostKeyField(route)))
         HostEdit.Saved
     }
 }

@@ -21,6 +21,8 @@ import dev.pohunek.companion.core.data.layout.RecentProjectsStore
 import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.live.LastSessionsStore
+import dev.pohunek.companion.core.data.log.HOST_KEY_SALT_BYTES
+import dev.pohunek.companion.core.data.log.HostKeyer
 import dev.pohunek.companion.core.data.log.JsonLineLog
 import dev.pohunek.companion.core.data.log.LogMirror
 import dev.pohunek.companion.core.data.log.RotatingLogFile
@@ -35,6 +37,8 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.module
 import java.io.File
+import java.io.IOException
+import java.security.SecureRandom
 import java.time.Clock
 import kotlin.time.TimeSource
 
@@ -53,6 +57,7 @@ private const val RECENT_PROJECTS_FILE = "recent_projects.json"
 /** The structured log lives in this directory and file of the app's private files directory. */
 private const val LOG_DIRECTORY = "logs"
 private const val LOG_FILE = "app.log"
+private const val HOST_KEY_SALT_FILE = "host_key_salt"
 private const val LOGCAT_TAG = "Pohunek"
 
 /** Koin bindings owned by the application shell. */
@@ -72,11 +77,23 @@ val appModule = module {
         val context = get<Context>()
         val runtime = get<RuntimeConfig>()
         val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        val onWriteFailure: (IOException) -> Unit = { failure -> Log.w(LOGCAT_TAG, "cannot write the log: ${failure.message}") }
+        // The salt lives outside the exported log directory and outside Auto Backup. Without it the keys stay valid for this process only.
+        val logFile = RotatingLogFile(File(context.filesDir, LOG_DIRECTORY), LOG_FILE) { runtime.logMaxBytes() }
+        // Lines written under another salt (or the unsalted keys of older versions) are removed when a salt is created.
+        val hostKeyer = try {
+            HostKeyer.loadOrCreate(File(context.noBackupFilesDir, HOST_KEY_SALT_FILE), SecureRandom(), logFile::clear)
+        } catch (failure: IOException) {
+            Log.w(LOGCAT_TAG, "host key salt unavailable, host keys are valid for this process only: ${failure.message}")
+            HostKeyer(ByteArray(HOST_KEY_SALT_BYTES).also(SecureRandom()::nextBytes))
+        }
         JsonLineLog(
-            RotatingLogFile(File(context.filesDir, LOG_DIRECTORY), LOG_FILE) { runtime.logMaxBytes() },
+            logFile,
             get(),
+            hostKeyer,
             if (debuggable) LogMirror { level, _, line -> Log.println(level.priority(), LOGCAT_TAG, line) } else null,
-        ) { failure -> Log.w(LOGCAT_TAG, "cannot write the log: ${failure.message}") }
+            onWriteFailure,
+        )
     } bind AppLog::class
     single { LogExporter(get(), get(), get(ioDispatcher)) }
     // The process lifecycle: the live loops run only while the app is visible.

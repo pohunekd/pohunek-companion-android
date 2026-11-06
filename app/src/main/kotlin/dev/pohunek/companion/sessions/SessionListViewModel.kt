@@ -21,7 +21,6 @@ import dev.pohunek.companion.core.data.live.HostFeed
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.live.graceRemaining
 import dev.pohunek.companion.core.data.live.link
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.HostOutage
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
@@ -430,7 +429,7 @@ class SessionListViewModel(
             val problem = (fact.value as GroupValue.Rejected).problem
             log.warn(
                 "layout.group_value_ignored",
-                listOf(hostKeyField(route), LogField.sessionId(fact.key.sessionId), LogField.errorCode(problem.code)),
+                listOf(log.hostKeyField(route), LogField.sessionId(fact.key.sessionId), LogField.errorCode(problem.code)),
             )
         }
     }
@@ -557,7 +556,7 @@ class SessionListViewModel(
         updateState { it.copy(actionSheet = null) }
         if (currentState.actionDialog != null) return
         val dialog = actionDialogFor(ref, action) ?: return
-        log.info("session.action_requested", listOf(hostKeyField(ref.route), LogField.sessionId(ref.sessionId), LogField.method(action.method)))
+        log.info("session.action_requested", listOf(log.hostKeyField(ref.route), LogField.sessionId(ref.sessionId), LogField.method(action.method)))
         updateState { it.copy(actionDialog = dialog) }
     }
 
@@ -584,7 +583,7 @@ class SessionListViewModel(
 
     private fun dismissAction() {
         val dialog = currentState.actionDialog?.takeIf { !it.busy } ?: return
-        val fields = listOf(hostKeyField(dialog.ref.route), LogField.sessionId(dialog.ref.sessionId), LogField.method(dialog.action.method))
+        val fields = listOf(log.hostKeyField(dialog.ref.route), LogField.sessionId(dialog.ref.sessionId), LogField.method(dialog.action.method))
         log.info("session.action_dismissed", fields)
         updateState { it.copy(actionDialog = null) }
     }

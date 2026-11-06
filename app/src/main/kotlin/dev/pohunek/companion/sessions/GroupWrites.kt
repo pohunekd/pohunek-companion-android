@@ -2,7 +2,6 @@ package dev.pohunek.companion.sessions
 
 import dev.pohunek.companion.core.data.commands.SessionCommands
 import dev.pohunek.companion.core.data.commands.SetGroupResult
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.domain.layout.GroupNameCheck
 import dev.pohunek.companion.core.domain.layout.checkGroupName
 import dev.pohunek.companion.core.domain.log.AppLog
@@ -50,7 +49,7 @@ internal class GroupWrites(private val commands: SessionCommands, private val lo
     /** Sets [name] on [target], or removes the key when it is null. An external session is never sent a request. */
     suspend fun write(target: WriteTarget, name: String?, maxBytes: Int): WriteOutcome {
         val check = name?.let { checkGroupName(it, maxBytes) }
-        val fields = listOf(hostKeyField(target.route), LogField.sessionId(target.sessionId))
+        val fields = listOf(log.hostKeyField(target.route), LogField.sessionId(target.sessionId))
         return when {
             target.external -> WriteOutcome.Unwritable
             check is GroupNameCheck.Invalid -> {

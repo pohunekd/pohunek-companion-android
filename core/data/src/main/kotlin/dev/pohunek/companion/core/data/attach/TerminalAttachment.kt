@@ -1,6 +1,5 @@
 package dev.pohunek.companion.core.data.attach
 
-import dev.pohunek.companion.core.data.log.hostKeyField
 import dev.pohunek.companion.core.data.log.logCode
 import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
@@ -71,7 +70,7 @@ class TerminalAttachment(
     private val mainDispatcher: CoroutineDispatcher,
     private val log: AppLog,
 ) {
-    private val identity = listOf(hostKeyField(route), LogField.sessionId(sessionId))
+    private val identity = listOf(log.hostKeyField(route), LogField.sessionId(sessionId))
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private val mutableState = MutableStateFlow<AttachState>(AttachState.Connecting)
     private val started = AtomicBoolean(false)

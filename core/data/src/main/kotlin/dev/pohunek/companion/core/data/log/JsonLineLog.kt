@@ -4,6 +4,7 @@ import dev.pohunek.companion.core.domain.log.AppLog
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.LogLevel
 import dev.pohunek.companion.core.domain.log.LogValue
+import dev.pohunek.companion.protocol.HostRoute
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -23,9 +24,12 @@ fun interface LogMirror {
 class JsonLineLog(
     private val file: RotatingLogFile,
     private val clock: Clock,
+    private val hostKeyer: HostKeyer,
     private val mirror: LogMirror?,
     private val onWriteFailure: (IOException) -> Unit,
 ) : AppLog {
+    override fun hostKeyField(route: HostRoute): LogField = hostKeyer.key(route)
+
     override fun log(level: LogLevel, event: String, fields: List<LogField>) {
         val line = format(clock, level, event, fields)
         mirror?.write(level, event, line)

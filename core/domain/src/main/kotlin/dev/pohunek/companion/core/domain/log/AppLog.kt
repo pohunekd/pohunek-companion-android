@@ -1,5 +1,7 @@
 package dev.pohunek.companion.core.domain.log
 
+import dev.pohunek.companion.protocol.HostRoute
+
 enum class LogLevel { Debug, Info, Warn, Error }
 
 /** The value of a [LogField]; only kinds that cannot carry session names, paths, prompts or terminal content exist. */
@@ -19,7 +21,7 @@ class LogField private constructor(val name: String, val value: LogValue) {
         /** Longest text a field keeps. */
         const val MAX_TEXT_LENGTH: Int = 128
 
-        /** A short stable key of a host (see `hostKeyField`), not its address. */
+        /** A short stable key of a host (see [AppLog.hostKeyField]), not its address. */
         fun hostKey(key: String): LogField = text("host", key)
 
         /** The daemon's opaque session id. */
@@ -59,6 +61,9 @@ class LogField private constructor(val name: String, val value: LogValue) {
  */
 interface AppLog {
     fun log(level: LogLevel, event: String, fields: List<LogField> = emptyList())
+
+    /** The field that identifies [route] in this log's lines without disclosing its address; keyed by a secret that stays with the log's owner. */
+    fun hostKeyField(route: HostRoute): LogField
 }
 
 fun AppLog.debug(event: String, fields: List<LogField> = emptyList()) = log(LogLevel.Debug, event, fields)
