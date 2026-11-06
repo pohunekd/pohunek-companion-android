@@ -231,7 +231,10 @@ class HostLive(
             is StreamMessage.Failed -> throw message.error
             is StreamMessage.Event -> {
                 suspectDue = null
-                store.applyEvent(message.event) == EventOutcome.Applied
+                val applied = store.applyEvent(message.event) == EventOutcome.Applied
+                // Events carry no project label; a session in a project no seed has listed is labelled by an immediate re-seed.
+                if (applied && store.hasUnseededProject()) reseedDue = timeSource.markNow()
+                applied
             }
         }
 
