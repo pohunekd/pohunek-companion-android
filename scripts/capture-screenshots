@@ -26,9 +26,9 @@ shots_file="$out_dir/shots.json"
 manifest_file="$out_dir/manifest.json"
 manifest_schema=1
 
-# The showcase session the terminal shot opens and the text its screen must show.
+# The showcase session the terminal shot opens (it runs the scripted demo) and the last text the demo draws.
 terminal_session="bump-tokio-1.48"
-terminal_ready_text="Showcase task running"
+terminal_ready_text="showcase demo: standing by"
 # Swipes the terminal shot may spend scrolling the list to its session.
 max_swipes=3
 
