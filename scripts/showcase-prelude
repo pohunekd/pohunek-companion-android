@@ -1,4 +1,4 @@
-# Sourced by scripts/capture-screenshots (and the video capture): brings a fresh
+# Sourced by scripts/capture-screenshots: brings a fresh
 # `scripts/ui-agent start --showcase` run to the state every capture starts from.
 #
 #   showcase_prelude

@@ -409,7 +409,7 @@ host name, overlay address, or token.
 `width`, `height`, `sha256`). It takes no option, starts its own
 `ui-agent start --showcase` run (and fails if the worktree already has one),
 adds both showcase daemons as hosts ("Showcase" and "Second host"; the steps are
-`scripts/showcase-prelude`, shared with other captures), forces the dark theme
+`scripts/showcase-prelude`, which other captures source), forces the dark theme
 (`ui-agent night on`) and a fixed status bar (`ui-agent demo-mode on`: clock
 10:00, full battery and wifi, no notifications; the command fails if the clock
 does not read it), sets `idle_threshold_secs` to a few seconds through
