@@ -190,8 +190,8 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   private var pendingFlingVelocity = 0
   private var lastScrollStepNanos = 0L
 
-  // Drag distance (content direction) delivered since the previous scroll step. The frame the
-  // finger lifted in carries the final move as well, so it only tops up to the release velocity.
+  // Drag distance (content direction) delivered since the previous scroll step. The lift frame
+  // adds only the release travel this drag does not already cover.
   private var dragSinceStepPx = 0f
   private var scrollbarTotal = 0L
   private var scrollbarOffset = 0L
@@ -506,8 +506,8 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
 
   /**
    * Starts the fling on this frame's clock. The frame the finger lifted in moves by the release
-   * velocity times the frame gap in total, counting the drag already delivered in it, and the
-   * scroller's travel follows from the next frame on.
+   * travel (velocity times the frame gap), or by the drag already delivered in it when that is
+   * larger; the scroller's travel follows from the next frame on.
    */
   private fun startFling(frameTimeNanos: Long) {
     val velocity = pendingFlingVelocity
