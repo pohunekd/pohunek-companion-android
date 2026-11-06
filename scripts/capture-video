@@ -73,16 +73,17 @@ clips=(
 # Clip that scrolls by fling: its frame pacing is measured and gated, and its raw frame intervals are reported.
 fling_clip="terminal-fling"
 
-# Pacing gate for the fling clip, measured on the raw recording (before the constant-rate conversion):
-# frame intervals between two moving frames and the scroll offset of each moving frame. Roughness is the
+# Pacing gate for the fling clip: frame intervals between two moving frames of the raw recording, and the
+# scroll offset of each moving frame of the clip as converted to the video's constant rate (what a viewer
+# sees). Roughness is the
 # relative deviation of a step from the mean of its two neighbours, over bursts of at least
 # pacing_min_burst_frames frames that move in one direction. A clip outside any limit is recorded again, at
 # most pacing_attempts times, then the command fails: a juddering clip is never written to docs/media.
-pacing_attempts=3
+pacing_attempts=8
 pacing_max_p95_ms=20
 pacing_max_p99_ms=40
-pacing_max_roughness_median=0.12
-pacing_max_roughness_p90=0.40
+pacing_max_roughness_median=0.06
+pacing_max_roughness_p90=0.15
 pacing_min_burst_frames=15
 # Frame height of the scroll offset measurement (one column-averaged brightness profile per frame), the
 # rows compared and the largest offset searched, in profile rows.
@@ -315,7 +316,7 @@ wait_quiet() {
   done
 }
 
-# Prints "RUNS MEDIAN P90" of the scroll roughness of the raw clip FILE (see pacing_max_roughness_*).
+# Prints "RUNS MEDIAN P90" of the scroll roughness of the constant-rate clip FILE (see pacing_max_roughness_*).
 scroll_roughness() { # FILE
   ffmpeg -v fatal -nostdin -i "$1" -vf "scale=1:$pacing_profile_rows:flags=area,format=gray,setpts=N/30/TB" \
     -fps_mode passthrough -f rawvideo - |
@@ -359,14 +360,14 @@ scroll_roughness() { # FILE
       END { if (m < 1) { print runs + 0, "-", "-"; exit } printf "%d %.3f %.3f\n", runs, d[int((m + 1) / 2)], d[int(m * 0.9 + 0.5) < 1 ? 1 : int(m * 0.9 + 0.5)] }'
 }
 
-# Prints the pacing numbers of the raw clip FILE (moving between HEAD and TAIL seconds) and succeeds when
-# they are inside the limits of the pacing gate.
-pacing_verdict() { # FILE HEAD TAIL
+# Prints the pacing numbers of the raw clip RAW (moving between HEAD and TAIL seconds) and of its converted
+# SEGMENT, and succeeds when they are inside the limits of the pacing gate.
+pacing_verdict() { # RAW HEAD TAIL SEGMENT
   local stats p95 p99 runs median p90
   stats="$(frame_stats "$1" "$2" "$3")"
   p95="$(sed -n -E 's/.* p95=([0-9.]+).*/\1/p' <<<"$stats")"
   p99="$(sed -n -E 's/.* p99=([0-9.]+).*/\1/p' <<<"$stats")"
-  read -r runs median p90 <<<"$(scroll_roughness "$1")"
+  read -r runs median p90 <<<"$(scroll_roughness "$4")"
   echo "capture-video: pacing: $stats; scroll bursts=$runs roughness median=$median p90=$p90" >&2
   [ -n "$p95" ] && [ -n "$p99" ] || { echo "capture-video: no frame interval statistics" >&2; return 1; }
   [ "$runs" -ge 1 ] && [ "$median" != "-" ] || { echo "capture-video: no scroll burst of ${pacing_min_burst_frames}+ frames in the clip" >&2; return 1; }
@@ -389,20 +390,20 @@ record_clip() { # N ENTRY
     "$agent" record stop "$raw" >/dev/null
     spans="$(motion_span "$raw")"
     read -r head tail <<<"$(sed -n 1p <<<"$spans")"
+    keep="between(t,$head,$tail)"
+    while read -r word from to; do
+      [ "$word" = CUT ] && keep="$keep*not(between(t,$from,$to))"
+    done < <(sed 1d <<<"$spans")
+    echo "capture-video: $id keeps ${head}s..${tail}s of the raw clip, holds ${head_hold}s and ${tail_hold}s" >&2
+    ffmpeg -hide_banner -loglevel error -nostdin -y -i "$raw" \
+      -vf "fps=$fps,select='$keep',setpts=N/($fps*TB),scale=$video_width:-2,tpad=start_mode=clone:start_duration=$head_hold:stop_mode=clone:stop_duration=$tail_hold,format=yuv420p" \
+      -an -c:v ffv1 "$work/seg-$n.mkv"
     [ "$id" = "$fling_clip" ] || break
-    pacing_verdict "$raw" "$head" "$tail" && break
+    pacing_verdict "$raw" "$head" "$tail" "$work/seg-$n.mkv" && break
     [ "$attempt" -lt "$pacing_attempts" ] || die "$id: frame pacing outside the limits in $pacing_attempts recordings; run again on a quieter host"
     echo "capture-video: $id: pacing outside the limits (attempt $attempt of $pacing_attempts); recording it again" >&2
     wait_quiet
   done
-  keep="between(t,$head,$tail)"
-  while read -r word from to; do
-    [ "$word" = CUT ] && keep="$keep*not(between(t,$from,$to))"
-  done < <(sed 1d <<<"$spans")
-  echo "capture-video: $id keeps ${head}s..${tail}s of the raw clip, holds ${head_hold}s and ${tail_hold}s" >&2
-  ffmpeg -hide_banner -loglevel error -nostdin -y -i "$raw" \
-    -vf "fps=$fps,select='$keep',setpts=N/($fps*TB),scale=$video_width:-2,tpad=start_mode=clone:start_duration=$head_hold:stop_mode=clone:stop_duration=$tail_hold,format=yuv420p" \
-    -an -c:v ffv1 "$work/seg-$n.mkv"
 }
 
 # ---- Checks before anything starts -------------------------------------------
