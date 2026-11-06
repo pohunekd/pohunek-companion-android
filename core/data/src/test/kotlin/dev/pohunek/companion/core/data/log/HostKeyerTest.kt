@@ -4,11 +4,9 @@ import dev.pohunek.companion.core.domain.log.LogValue
 import dev.pohunek.companion.protocol.HostRoute
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.IOException
 import java.security.MessageDigest
 import java.security.SecureRandom
 
@@ -41,9 +39,10 @@ class HostKeyerTest {
     }
 
     @Test
-    fun `a salt file of the wrong size is an error, not a new salt`() {
+    fun `a salt file of the wrong size is replaced by a full salt`() {
         val file = folder.newFile("salt").also { it.writeBytes(ByteArray(3)) }
-        assertThrows(IOException::class.java) { HostKeyer.loadOrCreate(file, SecureRandom()) }
-        assertEquals(3, file.length().toInt())
+        val replaced = HostKeyer.loadOrCreate(file, SecureRandom()).keyOf(route)
+        assertEquals(HOST_KEY_SALT_BYTES, file.length().toInt())
+        assertEquals(replaced, HostKeyer.loadOrCreate(file, SecureRandom()).keyOf(route))
     }
 }

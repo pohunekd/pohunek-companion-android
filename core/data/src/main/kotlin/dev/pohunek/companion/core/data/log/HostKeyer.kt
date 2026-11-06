@@ -3,6 +3,7 @@ package dev.pohunek.companion.core.data.log
 import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.protocol.HostRoute
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.security.SecureRandom
 import javax.crypto.Mac
@@ -32,20 +33,22 @@ class HostKeyer(salt: ByteArray) {
 
     companion object {
         /**
-         * The salt stored in [file], created from [random] when the file does not exist. The file must sit in app-private storage that is
-         * not exported or backed up. A file of the wrong size is an [IOException], never replaced: a new salt would split one host's history.
+         * The salt stored in [file], created from [random] when the file is missing or has the wrong size (a torn write leaves no usable
+         * salt). The file must sit in app-private storage that is not exported or backed up.
          */
         @Throws(IOException::class)
         fun loadOrCreate(file: File, random: SecureRandom): HostKeyer {
             if (file.exists()) {
                 val salt = file.readBytes()
-                if (salt.size != HOST_KEY_SALT_BYTES) throw IOException("the host key salt file has ${salt.size} bytes")
-                return HostKeyer(salt)
+                if (salt.size == HOST_KEY_SALT_BYTES) return HostKeyer(salt)
             }
             val salt = ByteArray(HOST_KEY_SALT_BYTES).also(random::nextBytes)
             file.parentFile?.mkdirs()
             val temp = File(file.path + ".tmp")
-            temp.writeBytes(salt)
+            FileOutputStream(temp).use { out ->
+                out.write(salt)
+                out.fd.sync()
+            }
             if (!temp.renameTo(file)) throw IOException("cannot store the host key salt")
             return HostKeyer(salt)
         }

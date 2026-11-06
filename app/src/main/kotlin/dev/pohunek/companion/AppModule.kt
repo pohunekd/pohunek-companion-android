@@ -82,7 +82,7 @@ val appModule = module {
         val hostKeyer = try {
             HostKeyer.loadOrCreate(File(context.noBackupFilesDir, HOST_KEY_SALT_FILE), SecureRandom())
         } catch (failure: IOException) {
-            onWriteFailure(failure)
+            Log.w(LOGCAT_TAG, "host key salt unavailable, host keys are valid for this process only: ${failure.message}")
             HostKeyer(ByteArray(HOST_KEY_SALT_BYTES).also(SecureRandom()::nextBytes))
         }
         JsonLineLog(
