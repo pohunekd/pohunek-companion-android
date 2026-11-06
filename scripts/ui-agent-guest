@@ -949,7 +949,7 @@ find_tag() { # TAG
 }
 
 click_tag() { # TAG [N] [--dwell]
-  local tag="$1" n="${2:-0}" dwell="${3:-}" node x y dwell_ms long_press_ms
+  local tag="$1" n="${2:-0}" dwell="${3:-}" node x y dwell_ms long_press_ms uptime=""
   [[ "$n" =~ ^[0-9]+$ ]] || die "N must be a non-negative integer"
   node="$(find_tag "$tag" | jq -c --argjson n "$n" '.[$n] // empty')"
   [ -n "$node" ] || die "no element matches '$tag' (index $n)"
@@ -959,12 +959,18 @@ click_tag() { # TAG [N] [--dwell]
     dwell_ms="$(config_value tap_dwell_ms)"; positive_int tap_dwell_ms "$dwell_ms"
     long_press_ms="$(config_value android_long_press_timeout_ms)"; positive_int android_long_press_timeout_ms "$long_press_ms"
     [ "$dwell_ms" -lt "$long_press_ms" ] || die "$config: tap_dwell_ms ($dwell_ms) must be below android_long_press_timeout_ms ($long_press_ms)"
-    adbd shell input swipe "$x" "$y" "$x" "$y" "$dwell_ms"
+    uptime="$(adbd shell "input swipe $x $y $x $y $dwell_ms; cat /proc/uptime" | cut -d' ' -f1 | tr -d '\r')"
   else
     [ -z "$dwell" ] || die "usage: click TAG [N] [--dwell]"
     adbd shell input tap "$x" "$y"
   fi
-  echo "tapped $tag at $x,$y"
+  # A dwell tap also reports the device clock when it ended, the time base of a screen recording.
+  echo "tapped $tag at $x,$y${uptime:+ uptime=$uptime}"
+}
+
+# Seconds since the device booted, the clock a screen recording's timestamps follow.
+device_uptime() {
+  adbd shell cat /proc/uptime | cut -d' ' -f1 | tr -d '\r'
 }
 
 type_text() { # TEXT [--enter]
@@ -1270,8 +1276,9 @@ swipe_tag() { # TAG up|down|left|right [--fling]
   else
     swipe_ms="$(config_value gesture_swipe_ms)"; positive_int gesture_swipe_ms "$swipe_ms"
   fi
-  adbd shell input swipe "$x1" "$y1" "$x2" "$y2" "$swipe_ms"
-  echo "swiped $1 $2 from $x1,$y1 to $x2,$y2"
+  local uptime
+  uptime="$(adbd shell "input swipe $x1 $y1 $x2 $y2 $swipe_ms; cat /proc/uptime" | cut -d' ' -f1 | tr -d '\r')"
+  echo "swiped $1 $2 from $x1,$y1 to $x2,$y2 uptime=$uptime"
 }
 
 # Hold time of a long press in ms; it must exceed Android's long-press timeout or the press is a tap.
@@ -1565,6 +1572,7 @@ case "$cmd" in
   shutdown) shutdown ;;
   install) load_run; install_app ;;
   launch) load_run; launch_app ;;
+  device-uptime) load_run; require_isolated_run device-uptime; device_uptime ;;
   screenshot) load_run; adbd exec-out screencap -p ;;
   tree) load_run; ui_nodes ;;
   find) load_run; find_tag "${1:?element tag required}" ;;

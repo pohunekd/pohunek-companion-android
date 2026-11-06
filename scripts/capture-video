@@ -3,7 +3,10 @@
 # the showcase data: demo.webm, demo.mp4, poster.png and manifest.json (schema 1),
 # the files pohunek.dev reads at a release tag.
 #
-#   scripts/capture-video
+#   scripts/capture-video [--keep-raw DIR]
+#
+# --keep-raw copies every clip's raw recording and gesture log into DIR (an existing directory), so the
+# touch placement can be reworked offline.
 #
 # The command owns its run: it fails when this worktree already has one and stops
 # its own on exit. It takes no device or daemon option, so nothing but the
@@ -124,6 +127,9 @@ config_value() {
 # static stretch inside a clip that is kept whole.
 pause_secs="$(config_value video_pause_secs)"
 static_cap_secs="$(config_value video_static_cap_secs)"
+tap_dwell_ms="$(config_value tap_dwell_ms)"
+swipe_ms="$(config_value gesture_swipe_ms)"
+fling_ms="$(config_value gesture_fling_ms)"
 
 # shellcheck source=scripts/showcase-prelude
 . "$root/scripts/showcase-prelude"
@@ -136,7 +142,14 @@ encoders="$(ffmpeg -hide_banner -encoders 2>/dev/null)"
 for encoder in libvpx-vp9 libx264; do
   grep -qF " $encoder " <<<"$encoders" || die "this ffmpeg has no $encoder encoder"
 done
-[ $# -eq 0 ] || die "takes no arguments"
+keep_raw=""
+case $# in
+  0) ;;
+  2) [ "$1" = --keep-raw ] || die "usage: scripts/capture-video [--keep-raw DIR]"
+     [ -d "$2" ] || die "--keep-raw: $2 is not a directory"
+     keep_raw="$(cd "$2" && pwd -P)" ;;
+  *) die "usage: scripts/capture-video [--keep-raw DIR]" ;;
+esac
 
 # ---- Scene steps -------------------------------------------------------------
 
@@ -165,12 +178,34 @@ tag_index_of() { # TAG NAME
 click_tagged() { # TAG NAME
   local index
   index="$(tag_index_of "$1" "$2")" || die "no $1 for '$2'"
-  "$agent" click "$1" "$index" --dwell >/dev/null
+  tap "$1" "$index"
 }
 
-# Presses the element like a finger: the touch dot shows for tap_dwell_ms before the tap lands.
+# Every touch of a scene goes through tap and swipe_view, which log it for scripts/touch-overlay:
+# one line per gesture with the device clock at which it ended (the clock a recording's timestamps follow;
+# the emulator can run slower than the host, so host times do not line up with the video).
+gestures_file=""
+start_gesture_log() { # CLIP UPTIME_BEFORE_RECORDING
+  gestures_file="$work/gestures-$1.log"
+  printf 'REC\t%s\t%s\n' "$2" "$("$agent" device-uptime)" >"$gestures_file"
+}
+
+# Presses the element like a finger: it rests on it for tap_dwell_ms before the tap lands.
 tap() { # TAG [N]
-  "$agent" click "$1" "${2:-0}" --dwell >/dev/null
+  local out
+  out="$("$agent" click "$1" "${2:-0}" --dwell)"
+  [[ "$out" =~ at\ ([0-9]+),([0-9]+)\ uptime=([0-9.]+)$ ]] || die "cannot read the tap point and time from '$out'"
+  printf 'G\ttap\t%s\t%s\t%s\t%s\t%s\t%s\n' "${BASH_REMATCH[3]}" "$tap_dwell_ms" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" \
+    "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" >>"$gestures_file"
+}
+
+swipe_view() { # TAG up|down [--fling]
+  local out ms="$swipe_ms"
+  [ "${3:-}" != --fling ] || ms="$fling_ms"
+  out="$("$agent" swipe "$@")"
+  [[ "$out" =~ from\ ([0-9]+),([0-9]+)\ to\ ([0-9]+),([0-9]+)\ uptime=([0-9.]+)$ ]] || die "cannot read the swipe path and time from '$out'"
+  printf 'G\tswipe\t%s\t%s\t%s\t%s\t%s\t%s\n' "${BASH_REMATCH[5]}" "$ms" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" \
+    "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}" >>"$gestures_file"
 }
 
 pause() { sleep "$pause_secs"; }
@@ -183,9 +218,9 @@ scene_list() {
 }
 
 scene_bar() {
-  "$agent" swipe SessionList.list up >/dev/null
+  swipe_view SessionList.list up
   pause
-  "$agent" swipe SessionList.list down >/dev/null
+  swipe_view SessionList.list down
   wait_tag SessionList.filterBar
   pause
 }
@@ -221,8 +256,9 @@ scene_terminal_open() {
   local index swipes=0
   until tag_index_of SessionList.row "$terminal_session" >/dev/null; do
     [ "$swipes" -lt "$max_swipes" ] || die "no SessionList.row for '$terminal_session' after $max_swipes swipes"
-    "$agent" swipe SessionList.list up >/dev/null
+    swipe_view SessionList.list up
     swipes=$((swipes + 1))
+    sleep "$pause_secs"
   done
   index="$(tag_index_of SessionList.row "$terminal_session")"
   pause
@@ -235,11 +271,11 @@ scene_terminal_open() {
 scene_terminal_fling() {
   local i
   for ((i = 0; i < terminal_flings; i++)); do
-    "$agent" swipe Terminal.view down --fling >/dev/null
+    swipe_view Terminal.view down --fling
     sleep 1
   done
   for ((i = 0; i < terminal_flings; i++)); do
-    "$agent" swipe Terminal.view up --fling >/dev/null
+    swipe_view Terminal.view up --fling
     sleep 1
   done
   pause
@@ -250,9 +286,10 @@ scene_back() {
   "$agent" key back >/dev/null
   wait_tag SessionList.row
   pause
-  # The list kept the scroll position it had when the session was opened; swipes at the top change nothing.
-  for ((i = 0; i < max_swipes; i++)); do
-    "$agent" swipe SessionList.list down >/dev/null
+  # The list kept the scroll position it had when the session was opened; swipe until its top shows.
+  for ((i = 0; i < max_swipes && $(tag_count SessionList.needsYou) == 0; i++)); do
+    swipe_view SessionList.list down
+    sleep "$pause_secs"
   done
   wait_tag SessionList.needsYou
   pause
@@ -351,15 +388,39 @@ pacing_verdict() { # RAW HEAD TAIL SEGMENT
 }
 
 # Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv.
+# Writes the cut, held and scaled segment of the clip SRC (on the raw time axis) to OUT.
+build_segment() { # SRC OUT KEEP HEAD_HOLD TAIL_HOLD
+  ffmpeg -hide_banner -loglevel error -nostdin -y -i "$1" \
+    -vf "fps=$fps,select='$3',setpts=N/($fps*TB),scale=$video_width:-2,tpad=start_mode=clone:start_duration=$4:stop_mode=clone:stop_duration=$5,format=yuv420p" \
+    -an -c:v ffv1 "$2"
+}
+
+# Composites the clip's logged touches into RAW (scripts/touch-overlay) and writes the result to OUT.
+overlay_touches() { # RAW GESTURES OUT
+  "$root/scripts/touch-overlay" "$1" "$2" "$3" --work "$work" --fps "$fps" \
+    --render-ms "$(config_value touch_render_ms)" --start-slack-ms "$(config_value touch_start_slack_ms)" \
+    --onset-window-ms "$(config_value touch_onset_window_ms)" --scale "$(config_value touch_scale)" \
+    --box-px "$(config_value touch_box_px)" --box-threshold "$(config_value touch_box_threshold)" \
+    --rest-threshold "$(config_value touch_rest_threshold)" --change-threshold "$(config_value touch_change_threshold)" \
+    --ring-px "$(config_value touch_ring_px)" --ring-thickness-px "$(config_value touch_ring_thickness_px)" \
+    --edge-px "$(config_value touch_edge_px)" --opacity "$(config_value touch_opacity)" \
+    --edge-opacity "$(config_value touch_edge_opacity)" --release-scale "$(config_value touch_release_scale)" \
+    --fade-in-ms "$(config_value touch_fade_in_ms)" --release-ms "$(config_value touch_release_ms)"
+}
+
+# Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv. The pacing gate
+# measures the segment before the touches are composited into it.
 record_clip() { # N ENTRY
-  local n="$1" id head_hold tail_hold fn raw head tail keep word from to spans
+  local n="$1" id head_hold tail_hold fn raw head tail keep word from to spans uptime_before
   IFS='|' read -r id head_hold tail_hold fn <<<"$2"
   echo "capture-video: $id" >&2
   raw="$work/raw-$id.mp4"
   local attempt=0
   while :; do
     attempt=$((attempt + 1))
+    uptime_before="$("$agent" device-uptime)"
     "$agent" record start >&2
+    start_gesture_log "$id" "$uptime_before"
     "$fn"
     "$agent" record stop "$raw" >/dev/null
     spans="$(motion_span "$raw")"
@@ -369,15 +430,23 @@ record_clip() { # N ENTRY
       [ "$word" = CUT ] && keep="$keep*not(between(t,$from,$to))"
     done < <(sed 1d <<<"$spans")
     echo "capture-video: $id keeps ${head}s..${tail}s of the raw clip, holds ${head_hold}s and ${tail_hold}s" >&2
-    ffmpeg -hide_banner -loglevel error -nostdin -y -i "$raw" \
-      -vf "fps=$fps,select='$keep',setpts=N/($fps*TB),scale=$video_width:-2,tpad=start_mode=clone:start_duration=$head_hold:stop_mode=clone:stop_duration=$tail_hold,format=yuv420p" \
-      -an -c:v ffv1 "$work/seg-$n.mkv"
+    build_segment "$raw" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold"
     [ "$id" = "$fling_clip" ] || break
     pacing_verdict "$raw" "$head" "$tail" "$work/seg-$n.mkv" && break
     [ "$attempt" -lt "$pacing_attempts" ] || die "$id: frame pacing outside the limits in $pacing_attempts recordings; run again on a quieter host"
     echo "capture-video: $id: pacing outside the limits (attempt $attempt of $pacing_attempts); recording it again" >&2
     wait_quiet
   done
+  if [ -n "$keep_raw" ]; then cp "$raw" "$keep_raw/raw-$id.mp4"; cp "$gestures_file" "$keep_raw/gestures-$id.log"; fi
+  if grep -q '^G' "$gestures_file"; then
+    if ! overlay_touches "$raw" "$gestures_file" "$work/ov-$id.mkv"; then
+      # The work directory is removed on exit, so the recording and its gesture log are kept for inspection.
+      kept="$(mktemp -d)"
+      cp "$raw" "$gestures_file" "$kept/"
+      die "$id: the touches could not be placed in the recording; the clip and its gesture log are in $kept"
+    fi
+    build_segment "$work/ov-$id.mkv" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold"
+  fi
 }
 
 # ---- Checks before anything starts -------------------------------------------

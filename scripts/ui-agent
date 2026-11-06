@@ -41,6 +41,7 @@
 #   scripts/ui-agent stall SECONDS|on|off  freeze the bridge without closing a socket (bytes stop, connects still complete), for SECONDS or until off
 #   scripts/ui-agent host-stop | host-start    stop and restart the isolated daemon
 #   scripts/ui-agent health                one daemon.health request sent from the device
+#   scripts/ui-agent device-uptime         seconds since the device booted (the clock of a recording's timestamps; isolated emulator runs only)
 #   scripts/ui-agent screen                text of the attached terminal's grid (debug build, a terminal open)
 #   scripts/ui-agent session-screen ID [--size]
 #                                          the same screen as the isolated daemon renders it for session ID, or only its COLSxROWS
@@ -342,6 +343,7 @@ case "${1:-}" in
     [ -s "$out.tmp" ] || { rm -f "$out.tmp"; die "the screenshot is empty"; }
     mv "$out.tmp" "$out"
     echo "$out" ;;
+  device-uptime) guest device-uptime ;;
   screen) warn_unpublishable; guest screen ;;
   session-screen) guest session-screen "${2:?session id required}" "${3:-}" ;;
   tree) warn_unpublishable; guest tree ;;
