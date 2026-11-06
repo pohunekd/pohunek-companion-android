@@ -73,7 +73,7 @@ clips=(
 # Clip whose raw frame intervals are reported.
 fling_clip="terminal-fling"
 
-# Text alternative of the video and one line per scene, which the site shows.
+# Text alternative of the video and one line per scene (the two terminal clips are one scene), which the site shows.
 alt="Screen recording of the Pohunek Companion app on demo data: it filters the session list, then opens a live terminal and scrolls through its history."
 descriptions=(
   "The session list puts the sessions that need you first, with a chip for the host."
@@ -342,13 +342,13 @@ ffmpeg -hide_banner -loglevel error -nostdin -y -i "$work/joined.mkv" -an -r "$f
   -c:v libx264 -profile:v high -level 4.0 -pix_fmt yuv420p -crf "$mp4_crf" -movflags +faststart "$stage/demo.mp4"
 ffmpeg -hide_banner -loglevel error -nostdin -y -i "$work/joined.mkv" -frames:v 1 -compression_level 9 -pred mixed "$stage/poster.png"
 
-# The last frame of the joined video must match its first, or the loop jumps.
+# The end of the joined video (its last 0.2 s are one held frame) must match its first frame, or the loop jumps.
 ffmpeg -hide_banner -loglevel error -nostdin -y -sseof -0.2 -i "$work/joined.mkv" -update 1 -frames:v 1 "$work/last.png"
 ssim="$(ffmpeg -hide_banner -nostdin -i "$stage/poster.png" -i "$work/last.png" -lavfi ssim -f null - 2>&1 | sed -n -E 's/.*All:([0-9.]+).*/\1/p' | tail -n 1)"
 [ -n "$ssim" ] || die "could not compare the first and last frame"
 if ! awk -v s="$ssim" -v min="$loop_min_ssim" 'BEGIN { exit !(s >= min) }'; then
   # The work directory is removed on exit, so the two frames are kept for inspection.
-  kept="$(dirname "$work")"
+  kept="$(mktemp -d)"
   cp "$stage/poster.png" "$kept/capture-video-first.png"; cp "$work/last.png" "$kept/capture-video-last.png"
   die "the last frame differs from the first (SSIM $ssim, need $loop_min_ssim); the video would not loop cleanly; the frames are $kept/capture-video-first.png and $kept/capture-video-last.png"
 fi
@@ -387,6 +387,9 @@ file_entry() { # FILE TYPE CODECS
 "$root/scripts/check-media" --dir "$stage" >&2 || die "the encodes are outside their budgets (see above); adjust the crf values or the holds"
 
 mkdir -p "$out_dir"
-find "$out_dir" -mindepth 1 -maxdepth 1 -type f -delete
 mv "$stage"/* "$out_dir/"
+# Files that are not part of the new set are stale.
+find "$out_dir" -mindepth 1 -maxdepth 1 -type f | while IFS= read -r stale; do
+  jq -e --arg f "$(basename "$stale")" '$f == "manifest.json" or any(.files[]; .file == $f)' "$out_dir/manifest.json" >/dev/null || rm -f "$stale"
+done
 echo "capture-video: wrote demo.webm, demo.mp4, poster.png and manifest.json to docs/media (appTree $app_tree)"

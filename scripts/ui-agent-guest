@@ -1052,15 +1052,15 @@ record_stop() {
   local wait deadline
   wait="$(config_value record_stop_wait_secs)"; positive_int record_stop_wait_secs "$wait"
   # A recording that ended at its time limit has already exited; its file is still pulled.
-  if record_running; then adbd shell pkill -2 screenrecord || true; fi
+  if record_running; then adbd shell pkill -2 screenrecord >/dev/null || true; fi
   deadline=$((SECONDS + wait))
   while record_running; do
     [ "$SECONDS" -lt "$deadline" ] || die "screenrecord did not exit within ${wait}s"
     sleep 0.2
   done
-  adbd shell "[ -s $record_device_file ]" || die "no recording to stop; start one with: record start"
+  adbd shell "[ -s $record_device_file ]" >/dev/null || die "no recording to stop; start one with: record start"
   adbd exec-out cat "$record_device_file"
-  adbd shell rm -f "$record_device_file"
+  adbd shell rm -f "$record_device_file" >/dev/null
 }
 
 # Night mode of the emulator, which the app's DayNight theme follows.
