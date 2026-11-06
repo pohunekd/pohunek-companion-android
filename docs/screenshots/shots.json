@@ -2,7 +2,37 @@
   {
     "id": "session-list",
     "caption": "Every session on every host, with the ones that need you at the top.",
-    "alt": "Pohunek Companion session list in the dark theme with the My groups view selected from the title dropdown: a Needs you section with two blocked agent sessions above an Inbox group of working and idle sessions, and a bottom bar with Search, State and Project filters."
+    "alt": "Pohunek Companion session list in the dark theme with the My groups view selected: a Needs you section with two blocked agent sessions, the Inbox group collapsed to its header, and the Dependencies group listing sessions of a second host. The bottom bar has a search icon and the State, Project and Host filter chips."
+  },
+  {
+    "id": "search",
+    "caption": "Tap the search icon and the field takes the whole bar; the list narrows to the sessions that match, on every host.",
+    "alt": "Pohunek Companion session list in the dark theme with the bottom bar expanded into a full-width search field holding the query tokio, over the two sessions of two hosts that match it."
+  },
+  {
+    "id": "filters",
+    "caption": "Narrow the list from the bottom bar by state, project or host; here one project is shown with its ended sessions.",
+    "alt": "Pohunek Companion session list in the dark theme with the bottom filter bar showing a search icon, a State chip with a count of four, a project chip and a Host chip, over the sessions of that one project including an ended one."
+  },
+  {
+    "id": "project-picker",
+    "caption": "The project picker is searchable and lists the projects you picked last first.",
+    "alt": "Pohunek Companion project picker sheet in the dark theme: a search field, a Recent section with the three projects picked last, then the full list of projects."
+  },
+  {
+    "id": "terminal",
+    "caption": "A full-screen terminal attached to a running session; this one runs a scripted demo of an agent at work.",
+    "alt": "Pohunek Companion full-screen terminal in the dark theme showing the output of a scripted demo program: a build log, a test run with a progress bar and a pass summary, and a prompt line."
+  },
+  {
+    "id": "terminal-keys",
+    "caption": "Tap the terminal for the keyboard; an accessory bar above it holds the keys a phone keyboard lacks.",
+    "alt": "Pohunek Companion terminal in the dark theme with the on-screen keyboard up and, above it, a row of accessory keys: Esc, Tab, Ctrl, Alt and the arrow keys."
+  },
+  {
+    "id": "new-session",
+    "caption": "Start a session on a host from a project template, with its agent and prompt filled in.",
+    "alt": "Pohunek Companion New session form in the dark theme with a project template selected, its agent chosen and its prompt filled in."
   },
   {
     "id": "by-state",
@@ -10,14 +40,14 @@
     "alt": "Pohunek Companion session list in the dark theme with the By state view selected: sessions in Needs you, Working and Idle sections."
   },
   {
-    "id": "filters",
-    "caption": "Narrow the list from the bottom bar by state, project or host; here one project is shown with its ended sessions.",
-    "alt": "Pohunek Companion session list in the dark theme with the bottom filter bar showing a State chip with a count of four, a project chip and a Clear button, over the sessions of that one project including an ended one."
-  },
-  {
     "id": "groups",
     "caption": "Your own groups, shared with the desktop app, hold the sessions you sort into them.",
-    "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then the Dependencies group open with its session and the Docs and Tooling groups collapsed to a header with a count."
+    "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then the Dependencies group open with its sessions and a count, below the two blocked ones."
+  },
+  {
+    "id": "hosts",
+    "caption": "The hosts the app follows, each with its connection state.",
+    "alt": "Pohunek Companion Hosts screen in the dark theme: two hosts, each with its address and a Connected status, and an Add a host button."
   },
   {
     "id": "row-actions",
@@ -28,25 +58,5 @@
     "id": "session-details",
     "caption": "The identity, agent and location of one session, each field with a Copy button.",
     "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button."
-  },
-  {
-    "id": "new-session",
-    "caption": "Start a session on a host from a project template, with its agent and prompt filled in.",
-    "alt": "Pohunek Companion New session form in the dark theme with a project template selected, its agent chosen and its prompt filled in."
-  },
-  {
-    "id": "hosts",
-    "caption": "The hosts the app follows, each with its connection state.",
-    "alt": "Pohunek Companion Hosts screen in the dark theme: one host with its address and a Connected status, and an Add a host button."
-  },
-  {
-    "id": "settings",
-    "caption": "Every tunable of the app in one list, with its default and a reset.",
-    "alt": "Pohunek Companion settings screen in the dark theme: a list of tunables, each with its default value."
-  },
-  {
-    "id": "terminal",
-    "caption": "A full-screen terminal attached to a running session.",
-    "alt": "Pohunek Companion full-screen terminal attached to a session of a working agent, in the dark theme."
   }
 ]

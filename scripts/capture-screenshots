@@ -10,9 +10,9 @@
 # the isolated emulator and its synthetic daemon can appear in an image.
 # app/ must be committed, because the manifest's appTree names the built tree.
 #
-# Shots run in the order of shots.json; the terminal shot stays last because the
-# attached terminal has no back control a script can reach; row-actions leaves its
-# sheet open for session-details, which opens from it. shots.json lists id,
+# Shots run in the order of shots.json; search and terminal-keys restart the app, because
+# the search field and the attached terminal have no control a script can reach to leave
+# them; row-actions leaves its sheet open for session-details, which opens from it. shots.json lists id,
 # caption and alt per shot; each id needs a function shot_<id with - as _> below
 # that leaves the screen as it should be captured. The image size is the
 # emulator_screen of config/dev.toml.
@@ -41,9 +41,16 @@ groups=(
   "Docs|docs-install-guide tray-badge-polish triage-open-issues"
   "Tooling|lsp-semantic-tokens multibuffer-scroll-fix rustfmt-edition-2024 review-pr-1655 scratch-shell"
 )
-# Project the filters shot narrows to, the session whose actions and details are
-# shown, and the project whose template the new-session shot picks.
+# Project the filters shot narrows to, the projects it picks first so the picker has a
+# recent list (the last pick is listed first), the query the search shot types, the
+# session whose actions and details are shown, and the project whose template the
+# new-session shot picks.
 filter_project="pohunek-companion"
+recent_projects=("neovim" "tokio")
+search_query="tokio"
+# The group the session-list shot collapses and a session of the second host it shows.
+inbox_group="Inbox"
+second_host_session="nightly-bench-sweep"
 sheet_session="review-pr-1412"
 template_project="pohunek-companion"
 template_name="fix-issue"
@@ -137,9 +144,39 @@ session_id() { # NAME
   printf '%s' "$id"
 }
 
+# The Inbox group is collapsed so that the Dependencies group, which holds the second host's sessions, is on the first screen.
 shot_session_list() {
   wait_tag SessionList.needsYou
   wait_no_tag SessionList.loading
+  wait_tagged SessionList.groupHeader "$inbox_group"
+  click_tagged SessionList.groupHeader "$inbox_group"
+  wait_text "$second_host_session"
+  sleep 1
+}
+
+after_session_list() {
+  click_tagged SessionList.groupHeader "$inbox_group"
+  wait_text "$terminal_session"
+  sleep 1
+}
+
+shot_search() {
+  "$agent" click SessionList.searchIcon >/dev/null
+  wait_tag SessionList.search
+  "$agent" type "$search_query" >/dev/null
+  # The Search action closes the keyboard and keeps the field and its query, so the image
+  # has no suggestion strip and the same layout on every run.
+  "$agent" key enter >/dev/null
+  wait_tag SessionList.searchClear
+  wait_text "$terminal_session"
+  sleep 1
+}
+
+# The field keeps the whole bar while it has the focus and no script gesture takes it away; relaunching the app brings the chips back.
+after_search() {
+  "$agent" restart >&2
+  wait_tag SessionList.filter.project
+  wait_tag SessionList.needsYou
 }
 
 shot_terminal() {
@@ -157,6 +194,21 @@ shot_terminal() {
   wait_screen_text "$terminal_ready_text"
 }
 
+# The terminal's input is a plain text field without suggestions, so the keyboard shows no
+# suggestion strip; the accessory bar sits above it.
+shot_terminal_keys() {
+  "$agent" click Terminal.view >/dev/null
+  sleep 3
+  wait_screen_text "$terminal_ready_text"
+}
+
+# The terminal has no back control a script can reach; relaunching the app returns to the list.
+after_terminal_keys() {
+  "$agent" restart >&2
+  wait_tag SessionList.overflow
+  wait_tag SessionList.needsYou
+}
+
 shot_by_state() {
   "$agent" click SessionList.viewMenu >/dev/null
   wait_tag SessionList.view.by-state
@@ -172,10 +224,14 @@ after_by_state() {
 }
 
 shot_filters() {
-  "$agent" click SessionList.filter.project >/dev/null
-  wait_tag ProjectSheet.project
-  click_tagged ProjectSheet.project "$filter_project"
-  wait_no_tag ProjectSheet.project
+  local project
+  # Each pick is remembered as recent; the project of the shot is picked last.
+  for project in "${recent_projects[@]}" "$filter_project"; do
+    "$agent" click SessionList.filter.project >/dev/null
+    wait_tag ProjectSheet.project
+    click_tagged ProjectSheet.project "$project"
+    wait_no_tag ProjectSheet.project
+  done
   "$agent" click SessionList.filter.state >/dev/null
   wait_tag StateSheet.state.ended
   "$agent" click StateSheet.state.ended >/dev/null
@@ -197,6 +253,18 @@ after_filters() {
   "$agent" click ProjectSheet.all >/dev/null
   wait_no_tag ProjectSheet.all
   wait_no_tag SessionList.noMatch
+}
+
+shot_project_picker() {
+  "$agent" click SessionList.filter.project >/dev/null
+  wait_tag ProjectSheet.recent
+  sleep 1
+}
+
+# The sheet covers nearly the whole screen, so no scrim tap reaches it; choosing All projects closes it and is not a pick.
+after_project_picker() {
+  "$agent" click ProjectSheet.all >/dev/null
+  wait_no_tag ProjectSheet.recent
 }
 
 shot_groups() {
@@ -286,18 +354,6 @@ after_hosts() {
   wait_tag SessionList.overflow
 }
 
-shot_settings() {
-  "$agent" click SessionList.overflow >/dev/null
-  wait_tag SessionList.settings
-  "$agent" click SessionList.settings >/dev/null
-  wait_tag Settings.list
-}
-
-after_settings() {
-  "$agent" click Settings.back >/dev/null
-  wait_tag SessionList.overflow
-}
-
 shot_function() { printf 'shot_%s' "${1//-/_}"; }
 
 # ---- Checks before anything starts -------------------------------------------
@@ -315,6 +371,11 @@ while read -r fn; do
   id="${fn#shot_}"; id="${id//_/-}"
   printf '%s\n' "${ids[@]}" | grep -qxF -- "$id" || die "capture step $fn has no entry '$id' in shots.json"
 done < <(declare -F | awk '{print $3}' | grep '^shot_' | grep -v '^shot_function$')
+
+while read -r fn; do
+  id="${fn#after_}"; id="${id//_/-}"
+  printf '%s\n' "${ids[@]}" | grep -qxF -- "$id" || die "hook $fn has no entry '$id' in shots.json"
+done < <(declare -F | awk '{print $3}' | grep '^after_')
 
 [ -z "$(git -C "$root" status --porcelain -- app)" ] ||
   die "app/ has uncommitted or untracked changes; commit them first so appTree describes the captured build"
