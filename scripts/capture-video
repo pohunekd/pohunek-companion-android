@@ -71,6 +71,8 @@ clips=(
 )
 # Clip that scrolls by fling: its frame pacing is measured and gated, and its raw frame intervals are reported.
 fling_clip="terminal-fling"
+# The list scroll clip: an injected drag is uneven by itself, so only a stalled or repeated frame is judged.
+list_clip="bar"
 
 # Pacing gate for the fling clip: frame intervals between two moving frames of the raw recording, and the
 # scroll offset of each moving frame of the clip as converted to the video's constant rate (what a viewer
@@ -376,7 +378,7 @@ wait_quiet() {
   done
 }
 
-# Prints "BURSTS MEDIAN PEAKMAX" of the scroll offsets of the constant-rate clip FILE (see scripts/scroll-pacing).
+# Prints "BURSTS MEDIAN PEAKMAX STALLS" of the scroll offsets of the constant-rate clip FILE (see scripts/scroll-pacing).
 scroll_roughness() { # FILE
   "$root/scripts/scroll-pacing" "$1" --width "$pacing_profile_cols" --height "$frame_height" \
     --compare-from "$pacing_compare_from" --compare-to "$pacing_compare_to" --max-shift "$pacing_max_shift" \
@@ -392,7 +394,7 @@ pacing_verdict() { # RAW HEAD TAIL SEGMENT
   stats="$(frame_stats "$1" "$2" "$3")"
   p95="$(sed -n -E 's/.* p95=([0-9.]+).*/\1/p' <<<"$stats")"
   p99="$(sed -n -E 's/.* p99=([0-9.]+).*/\1/p' <<<"$stats")"
-  read -r runs median peak <<<"$(scroll_roughness "$4")"
+  read -r runs median peak _ <<<"$(scroll_roughness "$4")"
   echo "capture-video: pacing: $stats; scroll bursts=$runs roughness median=$median peak-step max=$peak" >&2
   [ -n "$p95" ] && [ -n "$p99" ] || { echo "capture-video: no frame interval statistics" >&2; return 1; }
   [ "$runs" -ge 1 ] && [ "$median" != "-" ] || { echo "capture-video: no scroll burst of ${pacing_min_burst_frames}+ frames in the clip" >&2; return 1; }
@@ -404,6 +406,15 @@ pacing_verdict() { # RAW HEAD TAIL SEGMENT
 # The setpts filter that places frames less than retime_gap_ms apart on the retime_hz grid, in order.
 retime_filter="$(awk -v hz="$retime_hz" -v gap="$retime_gap_ms" 'BEGIN {
   printf "setpts='"'"'if(isnan(PREV_OUTPTS),PTS,if(lt(PTS-PREV_INPTS,%.6f/TB),PREV_OUTPTS+%.8f/TB,max(PTS,PREV_OUTPTS+%.8f/TB)))'"'"'", gap / 1000, 1 / hz, 1 / hz }')"
+
+# Succeeds when the list scroll clip SEGMENT has scroll bursts and no stalled frame inside them.
+stall_verdict() { # SEGMENT
+  local runs median peak stalls
+  read -r runs median peak stalls <<<"$(scroll_roughness "$1")"
+  echo "capture-video: list scroll bursts=$runs stalled frames=$stalls" >&2
+  [ "$runs" -ge 1 ] && [ "$median" != "-" ] || { echo "capture-video: no scroll burst of ${pacing_min_burst_frames}+ frames in the clip" >&2; return 1; }
+  [ "$stalls" -eq 0 ]
+}
 
 # Records the clip id of ENTRY, cuts it and writes its segment to $work/seg-N.mkv.
 # Writes the cut, held and scaled segment of the clip SRC (on the raw time axis) to OUT.
@@ -460,8 +471,13 @@ record_clip() { # N ENTRY
     keep="$(keep_expression "$head" "$tail" "$spans")"
     echo "capture-video: $id keeps ${head}s..${tail}s of the raw clip, holds ${head_hold}s and ${tail_hold}s" >&2
     build_segment "$raw" "$work/seg-$n.mkv" "$keep" "$head_hold" "$tail_hold" 1
-    [ "$id" = "$fling_clip" ] || break
-    pacing_verdict "$raw" "$head" "$tail" "$work/seg-$n.mkv" && break
+    if [ "$id" = "$fling_clip" ]; then
+      pacing_verdict "$raw" "$head" "$tail" "$work/seg-$n.mkv" && break
+    elif [ "$id" = "$list_clip" ]; then
+      stall_verdict "$work/seg-$n.mkv" && break
+    else
+      break
+    fi
     [ "$attempt" -lt "$pacing_attempts" ] || die "$id: frame pacing outside the limits in $pacing_attempts recordings; run again on a quieter host"
     echo "capture-video: $id: pacing outside the limits (attempt $attempt of $pacing_attempts); recording it again" >&2
     wait_quiet

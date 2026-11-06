@@ -442,7 +442,8 @@ pacing: the raw recording's frame intervals (p95/p99) and, on the converted 30 f
 offset of every frame (`scripts/scroll-pacing`, needs python3 with numpy): the median
 step-to-step deviation and the largest deviation among the peak-speed steps, where a single dip
 shows; a stalled or repeated frame between two moving steps stays inside its burst and counts as a dip.
-Outside the limits in the header of `scripts/capture-video` the clip is recorded again, and
+The list scroll clip is gated only on a stalled or repeated frame inside a scroll burst (an injected
+drag is uneven by itself, so no peak-step rule applies to it). Outside the limits in the header of `scripts/capture-video` the clip is recorded again, and
 after `pacing_attempts` the command fails, so a juddering clip is never written. The numbers are
 printed; quote them when judging scroll smoothness. The recorder stamps frames with jittering times
 (12 to 33 ms between frames the display shows 1/60 s apart, each frame's content advancing evenly), and
