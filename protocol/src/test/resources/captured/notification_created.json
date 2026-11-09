@@ -1,22 +1,24 @@
 {
   "event": "notification_created",
   "record": {
-    "agent_kind": "shell",
-    "body": "",
-    "created_at": "2026-10-23T12:23:45.945997395Z",
-    "dedupe_key": "k-4",
-    "id": "n-303-1792758225946012355-6",
+    "body": "Session s-01M710TMV6YACC3NGVX6YA3921 is waiting for owner attention.",
+    "created_at": "2026-11-09T20:43:41.103077421Z",
+    "dedupe_key": "attention:s-01M710TMV6YACC3NGVX6YA3921",
+    "id": "n-371-1794257021103090836-6",
     "kind": "agent_blocked",
-    "project_id": "p-580819b0",
-    "session_id": "s-01M5MBCMAP8JVX9AXXHRBDFMMB",
+    "metadata": {
+      "reason": "blocked"
+    },
+    "session_id": "s-01M710TMV6YACC3NGVX6YA3921",
     "severity": "action_required",
     "source": {
-      "host_local_source_id": "ui-agent-1792758225920403291",
-      "provider": "ui-agent",
-      "provider_event": "ui-agent"
+      "host_local_source_id": "projector:s-01M710TMV6YACC3NGVX6YA3921:agent_blocked:1",
+      "provider": "pohunek",
+      "provider_event": "agent_state"
     },
+    "source_id": "projector:s-01M710TMV6YACC3NGVX6YA3921:agent_blocked:1",
     "status": "unread",
-    "title": "capture 4"
+    "title": "Agent needs attention"
   },
-  "v": 4
+  "v": 5
 }

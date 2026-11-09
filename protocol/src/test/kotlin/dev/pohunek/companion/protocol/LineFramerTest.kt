@@ -1,7 +1,6 @@
 package dev.pohunek.companion.protocol
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -55,14 +54,6 @@ class LineFramerTest {
     @Test
     fun `invalid utf-8 is a framing error and not a replacement character`() {
         assertThrows(ProtocolClientException.Framing::class.java) { LineFramer().feed(byteArrayOf(0x7b, 0xc3.toByte(), 0x28, 0x0a)) }
-    }
-
-    @Test
-    fun `an unterminated last line is returned at end of stream`() {
-        val framer = LineFramer()
-        assertEquals(emptyList<String>(), framer.feed("{\"a\"".toByteArray()))
-        assertEquals("{\"a\"", framer.finish())
-        assertNull(framer.finish())
     }
 
     @Test

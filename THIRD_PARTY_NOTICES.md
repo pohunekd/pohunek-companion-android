@@ -191,7 +191,7 @@ packages. Re-take it when `ghostty_commit` changes.
 ## Pohunek wire fixtures
 
 - Repository: https://github.com/zajca/pohunek
-- Tag: `v0.35.2` (commit `e4fcb1f32380841491625bfc9363689ff8e304ba`)
+- Tag: `v0.41.0` (commit `86cd002d805478df0e0eecba6c066e747ccfa640`)
 - License: MIT
 - Files, copied unchanged from `sdk/ts/protocol/fixtures` into
   `protocol/src/test/resources/fixtures/`: `request-session-list.json`,

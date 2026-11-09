@@ -222,7 +222,7 @@ scripts/ui-agent pohunek ARGS...
   (`project_label`, `no_project`, `host`) and the app log has `layout.project_changed` and `layout.host_changed`; delete characters with `adb shell input keyevent KEYCODE_DEL` as for Settings), the app log has `layout.states_changed`. The app log
   (`scripts/ui-agent app-file cat logs/app.log`) records `host.added`, `host.edited` and `host.removed` with
   the host key, and `live.owner_state` with the session id and the previous and new owner state each time a
-  session changes state, which is how a `pohunek notification create|delete` is observed without waiting for
+  session changes state, which is how a `pohunek notification create` is observed without waiting for
   a re-seed. The loops run
   only while the app is visible: after `background` (the process lifecycle stops about 700 ms
   later) `sockets` shows no ESTABLISHED connection to the daemon, and `foreground` reconnects and
@@ -261,14 +261,17 @@ scripts/ui-agent pohunek ARGS...
   TCP connections in the device as `STATE LOCAL REMOTE` lines, read from
   `/proc/net/tcp*` by the app's uid. `pohunek ARGS...` runs the Pohunek CLI
   of the slot against the isolated daemon (`session new|rename|stop|rm`, ...);
-  `--host` is refused. The CLI of v0.35.2 has no `notifications create`, so
+  `--host` is refused. The CLI has no `notifications create`, so
   `pohunek notification create --title T [--body B] [--session ID] [--kind K]
   [--severity S] [--provider P] [--dedupe-key KEY]` sends `notification.create`
-  on the daemon socket (default kind `agent_blocked`, severity
+  on the daemon socket (kind `agent_blocked` or `approval_required`, the only
+  kinds the inbox stores; default `agent_blocked`, severity
   `action_required`, provider `ui-agent`; a session-scoped create with a hooked
   provider such as `claude` is refused by the daemon), and `pohunek
-  notification delete|list|read|ack|archive ...` is the CLI's `notifications`
-  group. The debug build's `GestureDemoActivity` (open it with `am start -n
+  notification list|watch ...` is the CLI's `notifications` group. The daemon
+  clears a record itself: a session that enters `working` or ends resolves its
+  attention records with `notification_updated`, so a Needs you entry is cleared
+  by driving the session to `working` or by removing it. The debug build's `GestureDemoActivity` (open it with `am start -n
   dev.pohunek.companion/.debug.GestureDemoActivity`) is a scratch list for
   `drag`: rows `GestureDemo.row`, the current order in `GestureDemo.order`,
   and `GestureDemo.copy` puts that order on the clipboard.

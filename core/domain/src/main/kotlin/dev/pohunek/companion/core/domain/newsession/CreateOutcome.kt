@@ -45,7 +45,6 @@ private val DEFINITE_REFUSALS = setOf(
     "agent_binary_missing",
     "agent_runtime_unsupported",
     "agent_profile_revision_unavailable",
-    "migration_manifest_missing",
     "worker_socket_path_invalid",
     "session_input_not_ready",
     "version_mismatch",

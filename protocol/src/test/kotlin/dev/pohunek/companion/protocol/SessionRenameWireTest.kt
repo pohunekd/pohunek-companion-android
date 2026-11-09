@@ -40,6 +40,6 @@ class SessionRenameWireTest {
             ResponseDecoder().decode(Fixtures.captured("session-rename-control-char-error").trim(), "req-3")
         }
         assertEquals("bad_request", failure.error.code)
-        assertEquals("session name must not contain control characters", failure.error.msg)
+        assertEquals("session name must not contain control, separator, or format characters", failure.error.msg)
     }
 }

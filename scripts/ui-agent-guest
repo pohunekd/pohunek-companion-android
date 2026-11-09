@@ -1187,7 +1187,7 @@ session_screen() { # SESSION_ID [--size]
 }
 
 health() {
-  local request='{"v":{"minimum":3,"maximum":4},"id":"ui-agent-health","method":"daemon.health","params":null}'
+  local request='{"v":{"minimum":5,"maximum":5},"id":"ui-agent-health","method":"daemon.health","params":null}'
   local wait reply
   require_isolated health
   wait="$(config_value health_wait_secs)"; positive_int health_wait_secs "$wait"
@@ -1442,11 +1442,11 @@ app_sockets() {
     $1 ~ /^[0-9]+:$/ && $8 == uid { print (st[$4] ? st[$4] : $4), addr($2), addr($3) }'
 }
 
-# One request line to the isolated daemon's socket and its reply line. The CLI of
-# v0.35.2 has no `notifications create`, so records are created on the wire.
+# One request line to the isolated daemon's socket and its reply line. The CLI has no
+# `notifications create`, so records are created on the wire.
 daemon_request() { # METHOD PARAMS_JSON
   local request reply
-  request="$(jq -cn --arg m "$1" --argjson p "$2" '{v: {minimum: 3, maximum: 4}, id: "ui-agent", method: $m, params: $p}')"
+  request="$(jq -cn --arg m "$1" --argjson p "$2" '{v: {minimum: 5, maximum: 5}, id: "ui-agent", method: $m, params: $p}')"
   reply="$(printf '%s\n' "$request" | socat -t "$(config_value daemon_reply_wait_secs)" - "UNIX-CONNECT:$iso/run/pohunek/daemon.sock")"
   [ -n "$reply" ] || die "no reply from the isolated daemon to $1"
   printf '%s\n' "$reply"
@@ -1472,8 +1472,8 @@ notification_create() {
     shift 2
   done
   [ -n "$title" ] || die "notification create needs --title"
-  case "$kind" in agent_blocked | approval_required | turn_completed | session_finished | error | system) ;; *)
-    die "--kind must be agent_blocked, approval_required, turn_completed, session_finished, error or system" ;; esac
+  case "$kind" in agent_blocked | approval_required) ;; *)
+    die "--kind must be agent_blocked or approval_required: the daemon answers created:false and stores nothing for another kind" ;; esac
   case "$severity" in info | success | warning | error | action_required) ;; *)
     die "--severity must be info, success, warning, error or action_required" ;; esac
   [ -z "$session" ] || [[ "$session" =~ ^s-[A-Za-z0-9]+$ ]] || die "invalid session id '$session'"
@@ -1487,7 +1487,7 @@ notification_create() {
 }
 
 # Runs the Pohunek CLI of the slot against the isolated daemon. `notification
-# create` is sent on the wire; `notification delete|list|...` is the CLI's
+# create` is sent on the wire; `notification list|watch` is the CLI's
 # `notifications` group. `--host` would leave the slot and is refused.
 pohunek_cli() {
   local arg
@@ -1503,7 +1503,7 @@ pohunek_cli() {
     shift
     case "${1:-}" in
       create) shift; notification_create "$@"; return ;;
-      "") die "notification needs create, delete, list, read, ack or archive" ;;
+      "") die "notification needs create, list or watch" ;;
       *) iso_run "$cli" notifications "$@"; return ;;
     esac
   fi

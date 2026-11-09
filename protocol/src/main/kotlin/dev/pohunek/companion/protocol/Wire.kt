@@ -3,10 +3,10 @@ package dev.pohunek.companion.protocol
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/** Wire contract of the pinned Pohunek tag v0.35.2 (docs/public-api.md, "Compatibility Model" and "Transports"). */
+/** Wire contract of the pinned Pohunek tag v0.41.0 (docs/public-api.md, "Compatibility Model" and "Transports"). */
 object Wire {
-    /** The only protocol version this client speaks; there are no adapters for protocol 3. */
-    const val PROTOCOL_VERSION: Int = 4
+    /** The only protocol version this client speaks; there are no adapters for older protocols. */
+    const val PROTOCOL_VERSION: Int = 5
 
     /** Longest control line in bytes, excluding the newline; the daemon and the SDK use the same cap. */
     const val MAX_CONTROL_LINE_BYTES: Int = 1_048_576

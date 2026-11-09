@@ -43,7 +43,7 @@ class EventDecoderTest {
     @Test
     fun `an unknown event name decodes to Unknown`() {
         assertEquals(DaemonEvent.Unknown("session_future_thing"), decode("unknown_event"))
-        assertEquals(DaemonEvent.Unknown("session_future_thing"), EventDecoder.decode("""{"v":4,"event":"session_future_thing","x":1}"""))
+        assertEquals(DaemonEvent.Unknown("session_future_thing"), EventDecoder.decode("""{"v":5,"event":"session_future_thing","x":1}"""))
     }
 
     @Test
@@ -55,8 +55,8 @@ class EventDecoderTest {
 
     @Test
     fun `a modelled event with a wrong payload decodes to Malformed and leaves the stream usable`() {
-        assertTrue(EventDecoder.decode("""{"v":4,"event":"session_updated"}""") is DaemonEvent.Malformed)
-        assertTrue(EventDecoder.decode("""{"v":4,"event":"session_updated","session":{"id":"s"}}""") is DaemonEvent.Malformed)
+        assertTrue(EventDecoder.decode("""{"v":5,"event":"session_updated"}""") is DaemonEvent.Malformed)
+        assertTrue(EventDecoder.decode("""{"v":5,"event":"session_updated","session":{"id":"s"}}""") is DaemonEvent.Malformed)
     }
 
     @Test
@@ -67,7 +67,7 @@ class EventDecoderTest {
             put("runtime_generation", "1")
         }
         val line = buildJsonObject {
-            put("v", 4)
+            put("v", 5)
             put("event", "session_updated")
             put("session", JsonObject(session + ("runtime" to runtime)))
         }.toString()
@@ -79,9 +79,9 @@ class EventDecoderTest {
     @Test
     fun `malformed event lines are typed failures`() {
         assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("not json") }
-        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("""{"v":4}""") }
-        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("""{"v":4,"event":""}""") }
-        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("{\"v\":4,\"event\":\"a\\nb\"}") }
-        assertThrows(ProtocolClientException.VersionMismatch::class.java) { EventDecoder.decode("""{"v":3,"event":"session_updated"}""") }
+        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("""{"v":5}""") }
+        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("""{"v":5,"event":""}""") }
+        assertThrows(ProtocolClientException.MalformedEvent::class.java) { EventDecoder.decode("{\"v\":5,\"event\":\"a\\nb\"}") }
+        assertThrows(ProtocolClientException.VersionMismatch::class.java) { EventDecoder.decode("""{"v":6,"event":"session_updated"}""") }
     }
 }

@@ -1,6 +1,6 @@
 {
   "event": "session_native_recovered",
-  "previous_worker_instance_id": "runtime-99f6c1700c0f3a1a558689c8ce02a4e1",
+  "previous_worker_instance_id": "runtime-3c39de51aa6ffb4a02000cbb2e3b59c9",
   "session": {
     "activity": "working",
     "agent": "shell",
@@ -10,26 +10,26 @@
       "resume": false
     },
     "cols": 80,
-    "created_at": "2026-10-23T10:57:32.005255233Z",
+    "created_at": "2026-11-09T20:37:42.71639258Z",
     "cwd": "/tmp",
     "cwd_source": "launch",
     "external": false,
-    "id": "s-01M5M6HA9W9RB9PHX1XPH9PG93",
+    "id": "s-01M710FW4KGAJ2W6K7S489ZR8V",
     "name": "capture-b",
-    "pid": 879,
+    "pid": 883,
     "rows": 24,
     "runtime": {
-      "last_connected_at": "2026-10-23T10:57:32.108628258Z",
+      "last_connected_at": "2026-11-09T20:37:42.820863566Z",
       "runtime_generation": "2",
-      "started_at": "2026-10-23T10:57:32.108628258Z",
+      "started_at": "2026-11-09T20:37:42.820863566Z",
       "state": "live",
-      "worker_id": "worker-ea57c4772abcb7f272367bf3b4dc74ed",
+      "worker_id": "worker-9323189b90c690b97880e0e9fced20ce",
       "worker_instance_id": "runtime-recovered-0001"
     },
     "state": "running",
     "state_source": "process",
-    "updated_at": "2026-10-23T10:57:33.661472935Z"
+    "updated_at": "2026-11-09T20:37:47.965399658Z"
   },
-  "v": 4,
+  "v": 5,
   "worker_instance_id": "runtime-recovered-0001"
 }

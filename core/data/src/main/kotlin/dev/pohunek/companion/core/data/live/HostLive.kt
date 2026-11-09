@@ -360,9 +360,12 @@ class HostLive(
     }
 }
 
-/** The daemon's protocol error code when it refused the connection with one. */
-private fun ProtocolClientException.protocolCode(): String? = when (this) {
-    is ProtocolClientException.Daemon -> error.code
+/** Error code a daemon answers in-flight requests with while it stops or upgrades; the host comes back by itself. */
+internal const val DAEMON_SHUTTING_DOWN_CODE = "daemon_shutting_down"
+
+/** The daemon's protocol error code when it refused the connection with one; a daemon that is stopping has refused nothing. */
+internal fun ProtocolClientException.protocolCode(): String? = when (this) {
+    is ProtocolClientException.Daemon -> error.code.takeUnless { it == DAEMON_SHUTTING_DOWN_CODE }
     is ProtocolClientException.VersionMismatch -> ProtocolError.VERSION_MISMATCH_CODE
     else -> null
 }

@@ -9,11 +9,11 @@
         "resume": false
       },
       "cols": 80,
-      "created_at": "2026-10-23T10:56:51.86104754Z",
+      "created_at": "2026-11-09T20:35:27.01950761Z",
       "cwd": "/work/proj-alpha",
       "cwd_source": "launch",
       "external": false,
-      "id": "s-01M5M6G34MV40GQ5EWNZK85KKN",
+      "id": "s-01M710BQNAPFF3TJRA9H56WRNY",
       "is_linked_worktree": false,
       "metadata": {
         "work.link.id": "12",
@@ -23,22 +23,22 @@
         "work.role": "implementer"
       },
       "name": "alpha-agent",
-      "pid": 504,
+      "pid": 535,
       "project_id": "p-79d0ea2e",
       "project_label": "proj-alpha",
       "rows": 24,
       "runtime": {
-        "last_connected_at": "2026-10-23T10:56:51.965396109Z",
+        "last_connected_at": "2026-11-09T20:35:27.125763905Z",
         "loss_reason": "runtime_lost",
         "runtime_generation": "1",
-        "started_at": "2026-10-23T10:56:51.965396109Z",
+        "started_at": "2026-11-09T20:35:27.125763905Z",
         "state": "lost",
-        "worker_id": "worker-eb7f7741ce3fe3702e3a7c3fc64b7ad2",
-        "worker_instance_id": "runtime-7ca4289cafbacdfe0f9af13b2b56ae60"
+        "worker_id": "worker-a9083d622c5d9ad8154c38a2342ea940",
+        "worker_instance_id": "runtime-d827db003c758d73c410aa68c12ed1f0"
       },
-      "state": "running",
+      "state": "failed",
       "state_source": "process",
-      "updated_at": "2026-10-23T10:57:50.733578406Z"
+      "updated_at": "2026-11-09T20:39:18.30102783Z"
     },
     {
       "agent": "shell",
@@ -48,11 +48,11 @@
         "resume": false
       },
       "cols": 80,
-      "created_at": "2026-10-23T10:56:51.862350537Z",
+      "created_at": "2026-11-09T20:35:27.021167421Z",
       "cwd": "/work/proj-beta",
       "cwd_source": "launch",
       "external": false,
-      "id": "s-01M5M6G34N6PFBKK9C8XZTBVN6",
+      "id": "s-01M710BQNB87ZTNV5D41NKKDBN",
       "is_linked_worktree": false,
       "metadata": {
         "work.link.id": "34",
@@ -62,22 +62,22 @@
         "work.role": "reviewer"
       },
       "name": "beta-review",
-      "pid": 509,
+      "pid": 534,
       "project_id": "p-5c805590",
       "project_label": "proj-beta",
       "rows": 24,
       "runtime": {
-        "last_connected_at": "2026-10-23T10:56:51.967312968Z",
+        "last_connected_at": "2026-11-09T20:35:27.125852511Z",
         "loss_reason": "runtime_lost",
         "runtime_generation": "1",
-        "started_at": "2026-10-23T10:56:51.967312968Z",
+        "started_at": "2026-11-09T20:35:27.125852511Z",
         "state": "lost",
-        "worker_id": "worker-a9b99f0bea43af8cc44068048b3dc6db",
-        "worker_instance_id": "runtime-ba44ebe5e3428463dc8d72d913c7d3ee"
+        "worker_id": "worker-48cd2e02581db90340210b8f2334ba28",
+        "worker_instance_id": "runtime-54e8fb084866659f0cd26f6a3cafca58"
       },
-      "state": "running",
+      "state": "failed",
       "state_source": "process",
-      "updated_at": "2026-10-23T10:57:50.734820852Z"
+      "updated_at": "2026-11-09T20:39:18.302153015Z"
     },
     {
       "agent": "shell",
@@ -87,29 +87,29 @@
         "resume": false
       },
       "cols": 80,
-      "created_at": "2026-10-23T10:56:51.864098585Z",
+      "created_at": "2026-11-09T20:35:27.02193322Z",
       "cwd": "/work/proj-gamma",
       "cwd_source": "launch",
       "external": false,
-      "id": "s-01M5M6G34P5Z5ZPZNF0Q0YW20M",
+      "id": "s-01M710BQNCJA0NPVF4EKP8V6NE",
       "is_linked_worktree": false,
       "name": "gamma-docs",
-      "pid": 512,
+      "pid": 536,
       "project_id": "p-9d1199fd",
       "project_label": "proj-gamma",
       "rows": 24,
       "runtime": {
-        "last_connected_at": "2026-10-23T10:56:51.968986506Z",
+        "last_connected_at": "2026-11-09T20:35:27.125794492Z",
         "loss_reason": "runtime_lost",
         "runtime_generation": "1",
-        "started_at": "2026-10-23T10:56:51.968986506Z",
+        "started_at": "2026-11-09T20:35:27.125794492Z",
         "state": "lost",
-        "worker_id": "worker-61f25750d72a857dfee08ea62fd5147f",
-        "worker_instance_id": "runtime-53c8e14297017463cf4f1a256596cf6a"
+        "worker_id": "worker-831c17967c7d00f6ca7cd39e15514134",
+        "worker_instance_id": "runtime-089d51478d46927c55fd7826af465ff9"
       },
-      "state": "running",
+      "state": "failed",
       "state_source": "process",
-      "updated_at": "2026-10-23T10:57:50.735780377Z"
+      "updated_at": "2026-11-09T20:39:18.302898667Z"
     },
     {
       "agent": "shell",
@@ -119,26 +119,26 @@
         "resume": false
       },
       "cols": 80,
-      "created_at": "2026-10-23T10:56:51.905528359Z",
+      "created_at": "2026-11-09T20:35:27.064078981Z",
       "cwd": "/work",
       "cwd_source": "launch",
       "external": false,
-      "id": "s-01M5M6G34Q9NTN37S4J037QYF0",
+      "id": "s-01M710BQNFB1V6EYHHRSGCFP0T",
       "name": "delta-build",
-      "pid": 516,
+      "pid": 547,
       "rows": 24,
       "runtime": {
-        "last_connected_at": "2026-10-23T10:56:52.008745602Z",
+        "last_connected_at": "2026-11-09T20:35:27.166716162Z",
         "loss_reason": "runtime_lost",
         "runtime_generation": "1",
-        "started_at": "2026-10-23T10:56:52.008745602Z",
+        "started_at": "2026-11-09T20:35:27.166716162Z",
         "state": "lost",
-        "worker_id": "worker-9a27768de669bfa4d8240de72dd6138d",
-        "worker_instance_id": "runtime-d08d0b70494062bc7415254cc7964fed"
+        "worker_id": "worker-e49cd87e6d1a6f40c5f3028387fdeda2",
+        "worker_instance_id": "runtime-28020de6d1e41c89adbb8714ad196e6f"
       },
-      "state": "running",
+      "state": "failed",
       "state_source": "process",
-      "updated_at": "2026-10-23T10:57:50.736680581Z"
+      "updated_at": "2026-11-09T20:39:18.303624471Z"
     },
     {
       "agent": "shell",
@@ -148,27 +148,27 @@
         "resume": false
       },
       "cols": 80,
-      "created_at": "2026-10-23T10:57:48.30881915Z",
+      "created_at": "2026-11-09T20:39:15.881352857Z",
       "cwd": "/tmp",
       "cwd_source": "launch",
       "external": false,
-      "id": "s-01M5M6HT7B5HD1E3Z20WGTFYX9",
+      "id": "s-01M710JQ40650XRGW11ST7VFG7",
       "name": "capture-rt",
-      "pid": 943,
+      "pid": 1142,
       "rows": 24,
       "runtime": {
-        "last_connected_at": "2026-10-23T10:57:48.412530766Z",
+        "last_connected_at": "2026-11-09T20:39:15.985811229Z",
         "loss_reason": "runtime_lost",
         "runtime_generation": "1",
-        "started_at": "2026-10-23T10:57:48.412530766Z",
+        "started_at": "2026-11-09T20:39:15.985811229Z",
         "state": "lost",
-        "worker_id": "worker-09a19f55424649736901fa3a68b93564",
-        "worker_instance_id": "runtime-f10dce29467b8a5a2246b236c53f6273"
+        "worker_id": "worker-35c9736cb6f29f6ba716ba95d6324c45",
+        "worker_instance_id": "runtime-fd160fdfc2b285af4833a2fb824c3919"
       },
-      "state": "running",
+      "state": "failed",
       "state_source": "process",
-      "updated_at": "2026-10-23T10:57:50.737573445Z"
+      "updated_at": "2026-11-09T20:39:18.30428324Z"
     }
   ],
-  "v": 4
+  "v": 5
 }

@@ -112,7 +112,7 @@ data class SessionCapabilities(val resume: Boolean, val fork: Boolean)
 
 /** Why the daemon cleared a frozen capability; each value is an error code. */
 @Serializable
-data class CapabilityRefusals(val resume: String? = null, val fork: String? = null)
+data class CapabilityRefusals(val resume: String? = null)
 
 /**
  * One entry of `session.list`. Timestamps are RFC 3339 strings as sent. `warnings` is ignored on decode until a consumer needs it.

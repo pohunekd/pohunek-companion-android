@@ -1,1 +1,7 @@
-{"v":4,"id":"cap-1","ok":{"stopped":true}}
+{
+  "id": "cap-1",
+  "ok": {
+    "stopped": true
+  },
+  "v": 5
+}

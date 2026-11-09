@@ -1,43 +1,49 @@
 # Captured wire fixtures
 
-`sdk/ts/protocol/fixtures` of Pohunek `v0.35.2` has no fixture for `session_*`
+`sdk/ts/protocol/fixtures` of Pohunek `v0.41.0` has no fixture for `session_*`
 events or for runtime-bearing `session.list` entries, so these files were
-captured from the isolated `pohunekd` 0.35.2 that `scripts/ui-agent` runs (same
+captured from the isolated `pohunekd` 0.41.0 (protocol 5) that `scripts/ui-agent` runs (same
 tag as `POHUNEK_VERSION` in `container/Containerfile`). Working directories of the fixed sessions are rewritten to
 `/work/...` and sessions created for the capture run in `/tmp`; ids, names, and timestamps are the synthetic ones of the run.
+
+- `version-mismatch-protocol-4-response.json` is the one file that is not protocol 5: the `daemon/version_mismatch`
+  reply (`"v":4`) of the isolated `pohunekd` 0.35.2 (protocol range 3..=4), the daemon of the previous toolchain image, to a
+  `daemon.health` request advertising `{"minimum":5,"maximum":5}` (request id `req-1`). A 0.41 client sees exactly this from a host that
+  has not been upgraded.
 
 Captured as received (keys sorted, pretty-printed):
 
 - `session_created.json`, `session_updated.json` (rename), `session_stopped.json`,
   `session_removed.json`: one `subscribe` event each.
-- `agent_state.json`, `notification_created.json`, `notification_updated.json` (marked read),
-  `notification_deleted.json`: one `subscribe` event each, from a `--showcase` run (its sessions
-  report activity, so `agent_state` arrives continuously; the notification events come from
-  `scripts/ui-agent pohunek notification create|read|delete` on an idle session).
+- `agent_state.json`: one `subscribe` event of a plain session (the first `agent_state` after its creation).
+- `notification_created.json`, `notification_updated.json`: one `subscribe` event each, from a `--showcase` run: a `claude`
+  session started with `--input blocked` makes the daemon's projector create an `agent_blocked` record, and stopping the session resolves it
+  (`status: acknowledged`).
 - `notification-list-page-1.json`, `notification-list-page-2.json`: `notification.list` for
-  `kind: agent_blocked` with `limit: 2`, the second page with the first one's `next_cursor`
-  (request ids rewritten to `req-1` and `req-2`; the second page holds the records the daemon's own
-  projector created for its blocked sessions).
+  `kind: approval_required` with `limit: 2`, the second page with the first one's `next_cursor`
+  (request ids `req-1` and `req-2`); four records made with `scripts/ui-agent pohunek notification create --kind approval_required`.
+
 - `session-rename-response.json`, `session-rename-clear-response.json`: the `session.rename` responses
   that set `renamed-agent` and that clear the name (no `name` in the result);
   `session-rename-control-char-error.json`: the `daemon/bad_request` refusal of a name with a control
-  character (request ids rewritten to `req-1` to `req-3`, working directories to `/work/...`).
+  character (v0.41 words it "control, separator, or format characters") (request ids rewritten to `req-1` to `req-3`, working directories to `/work/...`).
 - `session-rename-request.jsonl`, `session-rename-clear-request.jsonl`: the request lines of the client's encoder that the isolated daemon answered `ok` (session id rewritten to `s-1`), sent with `socat` as in the capture command below.
 - `session-set-metadata-request.jsonl`, `session-set-metadata-clear-request.jsonl`: the request lines of the client's encoder for `session.set_metadata` that set `companion.group` and
   that remove it with JSON `null` (session id rewritten to `s-1`), sent with `socat` as in the capture command below;
   `session-set-metadata-response.json`, `session-set-metadata-clear-response.json`: the `ok` results the isolated daemon answered (a session with no other metadata, so the second has none; ids and
   timestamps are the synthetic ones of the run, working directories rewritten to `/work/...`, request ids to `req-1` and `req-2`).
-- `session-resume-request.jsonl`: the bare-id request line of the client's encoder (session id rewritten to `s-1`); the isolated daemon parsed it and answered with `session-resume-not-resumable-error.json`, the `runtime/agent_not_resumable` refusal of a stopped `claude` session. No session of the isolated daemon is resumable (none has a native session), so a successful `session.resume` result is not captured; its `{session}` body is the shape of `session.rename`.
+- `session-resume-request.jsonl`: the bare-id request line of the client's encoder (session id rewritten to `s-1`); the isolated daemon parsed it and answered with `session-resume-not-resumable-error.json`, the `runtime/agent_not_resumable` refusal of a stopped `shell` session. No session of the isolated daemon is resumable (none has a native session), so a successful `session.resume` result is not captured; its `{session}` body is the shape of `session.rename`.
 - `project-list-response.json`, `host-inspect-response.json`, `session-new-response.json`, `session-new-project-not-found-error.json`: the responses of
   the `--showcase` daemon to `project.list` (params `{}`), `host.inspect` and `session.new` (a `claude` session in the `pohunek` project with a name and
   an initial prompt, which the daemon applied) and to a `session.new` naming an unknown project (request ids rewritten to `req-1`, working directories to
   `/work/...`). `project-list-request.jsonl`, `host-inspect-request.jsonl` and `session-new-request.jsonl` are the request lines of the client's encoder that
   the daemon answered. The daemon does not answer while the client has closed its write side, so hold the input open (`(printf ...; sleep 10) | socat - TCP:...`).
-- `host-discover-netbird-cli-missing-response.json`: the `host.discover` response of the isolated daemon, which has no NetBird CLI
-  (`discovery/netbird_cli_missing`; request id rewritten to `req-1`), sent with `socat` as in the capture command below.
+- `host-discover-netbird-cli-missing-response.json`: the `discovery/netbird_cli_missing` envelope (code and class as documented in
+  `docs/public-api.md`; the `msg` and `recover` text were captured from 0.35.2). The isolated 0.41 daemon answers `host.discover` with an empty
+  list, so this file is kept with `"v":5` and not recaptured.
 - `session-list-response.json`: the `session.list` response with the four fixed
-  synthetic sessions and one created later; `alpha-agent` carries
-  `runtime.state` `lost` with `loss_reason`, as left by a daemon restart.
+  synthetic sessions and one created later, after `ui-agent host-stop` and `host-start`: v0.41 marks
+  every session whose runtime the restart ended `state: failed` with `runtime.state` `lost` and `loss_reason`.
 
 - `session-stop-response.json`, `session-stop-ended-response.json` (stop of a session that had ended: `stopped:false`),
   `session-remove-response.json` (a live session: `stopped:true`), `session-remove-ended-response.json`,
@@ -59,7 +65,7 @@ emit them (`--dev-subprocess` has no agent with a native session, and the
 restart-time events fire before a subscriber can connect):
 
 - `session_runtime_lost.json`: the envelope of the table in `docs/public-api.md`
-  around the captured `lost` session of the list.
+  around the captured `lost` `alpha-agent` of the list.
 - `session_runtime_reconnected.json`, `session_runtime_conflict.json`,
   `session_native_recovered.json`: the captured `session_updated` snapshot with
   the event name, and for conflict `runtime.state` and for native recovery the
@@ -77,8 +83,10 @@ restart-time events fire before a subscriber can connect):
   envelope. The code and class are the documented ones; the `msg` and `recover` text are written
   for the test, because the isolated daemon never produces a result that does not fit one line.
 - `host-discover-response.json`: the `ok` list of `host.discover` built from the `HostRecord` and `HostClass` types of the pinned tag
-  (`crates/protocol/src/discovery.rs`: flat records with an internal `classification` tag), one record per classification and one with a
-  classification the client does not model. The isolated daemon has no overlay, so it never produces a peer.
+  (`crates/protocol/src/discovery.rs`: flat records with an internal `classification` tag), one record per classification, one with a
+  classification the client does not model and the last one marked `local: true`, the record a v0.41 daemon lists for the machine it runs on. The isolated daemon has no overlay, so it never produces a peer.
+- `notification_deleted.json`: the envelope with the id of `notification_created.json`; the daemon emits it only when a resolved record
+  expires after 14 days.
 - `unknown_event.json`: an event name the daemon does not emit today.
 
 ## Capture command
@@ -89,7 +97,7 @@ the CLI, and read the file:
 
 ```bash
 podman exec -d pohunek-ui-agent-slot-0 sh -c '(printf "%s\n" \
-  "{\"v\":{\"minimum\":4,\"maximum\":4},\"id\":\"sub-1\",\"method\":\"subscribe\",\"params\":null}"; \
+  "{\"v\":{\"minimum\":5,\"maximum\":5},\"id\":\"sub-1\",\"method\":\"subscribe\",\"params\":null}"; \
   sleep 100) | socat - TCP:127.0.0.1:PORT > /tmp/ev.jsonl'
 scripts/ui-agent pohunek session new --name capture-a --cwd /tmp
 scripts/ui-agent pohunek session rename ID capture-b

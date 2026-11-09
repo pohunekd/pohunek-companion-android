@@ -6,5 +6,5 @@
     "recover": "run `pohunek project list` to see known projects, or `project add` to register one"
   },
   "id": "req-1",
-  "v": 4
+  "v": 5
 }

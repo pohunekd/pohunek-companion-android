@@ -9,27 +9,27 @@
       "resume": false
     },
     "cols": 80,
-    "created_at": "2026-10-23T18:43:26.470638904Z",
+    "created_at": "2026-11-09T20:41:49.406203766Z",
     "cwd": "/work/pohunek",
     "cwd_source": "launch",
     "external": false,
-    "id": "s-01M5N16DM3NBXC9N01QJ2YB679",
+    "id": "s-01M710QD2WPY0E976Q2TWG4V6V",
     "is_linked_worktree": false,
     "name": "fixture-three",
-    "pid": 1255,
+    "pid": 1896,
     "project_id": "p-617cf33c",
     "rows": 24,
     "runtime": {
-      "last_connected_at": "2026-10-23T18:43:26.574277017Z",
+      "last_connected_at": "2026-11-09T20:41:49.510985957Z",
       "runtime_generation": "1",
-      "started_at": "2026-10-23T18:43:26.574277017Z",
+      "started_at": "2026-11-09T20:41:49.510985957Z",
       "state": "live",
-      "worker_id": "worker-5aafeeb71cd47838bcd836f62e057e97",
-      "worker_instance_id": "runtime-404a258e4d124c587332ae08ef1c6aba"
+      "worker_id": "worker-f17b7bb5bb6a5e7428f6c5eae8e19910",
+      "worker_instance_id": "runtime-7f58bdd496ff1c1f19f84644b65054dc"
     },
     "state": "running",
     "state_source": "process",
-    "updated_at": "2026-10-23T18:43:26.574288557Z"
+    "updated_at": "2026-11-09T20:41:49.510993251Z"
   },
-  "v": 4
+  "v": 5
 }

@@ -11,10 +11,10 @@ class SessionLifecycleWireTest {
 
     @Test
     fun `stop remove and consent requests carry the bare session id`() {
-        assertEquals("""{"v":{"minimum":4,"maximum":4},"id":"r1","method":"session.stop","params":"s-1"}""", Requests.sessionStop("r1", "s-1").toLine())
-        assertEquals("""{"v":{"minimum":4,"maximum":4},"id":"r2","method":"session.remove","params":"s-1"}""", Requests.sessionRemove("r2", "s-1").toLine())
+        assertEquals("""{"v":{"minimum":5,"maximum":5},"id":"r1","method":"session.stop","params":"s-1"}""", Requests.sessionStop("r1", "s-1").toLine())
+        assertEquals("""{"v":{"minimum":5,"maximum":5},"id":"r2","method":"session.remove","params":"s-1"}""", Requests.sessionRemove("r2", "s-1").toLine())
         assertEquals(
-            """{"v":{"minimum":4,"maximum":4},"id":"r3","method":"session.remove_accepting_unconfirmed","params":"s-1"}""",
+            """{"v":{"minimum":5,"maximum":5},"id":"r3","method":"session.remove_accepting_unconfirmed","params":"s-1"}""",
             Requests.sessionRemoveAcceptingUnconfirmed("r3", "s-1").toLine(),
         )
     }

@@ -62,7 +62,7 @@ private fun demoDialog(action: SessionAction, runtimeProblem: Boolean, busy: Boo
 
 /** `captured/session-remove-ambiguous-response.json` of the protocol tests. */
 private const val AMBIGUOUS_LINE =
-    """{"v":4,"id":"cap-8","err":{"class":"runtime","code":"runtime_supervision_ambiguous","msg":"cannot confirm that every process of the """ +
+    """{"v":5,"id":"cap-8","err":{"class":"runtime","code":"runtime_supervision_ambiguous","msg":"cannot confirm that every process of the """ +
         """runtime ended; unreadable: 4242 (node)","recover":"inspect and end the processes that belong to the session, then retry"}}"""
 
 /** `captured/session-remove-accepted-processes-response.json` of the protocol tests, reduced to the fields the dialog reads. */
