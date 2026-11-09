@@ -2,6 +2,7 @@ package dev.pohunek.companion.core.data.live
 
 import dev.pohunek.companion.core.domain.sessions.OwnerSession
 import dev.pohunek.companion.protocol.HostRoute
+import dev.pohunek.companion.protocol.VersionGap
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +21,11 @@ sealed interface HostConnection {
 
     data object Connected : HostConnection
 
-    /** The connection is down; [code] is the daemon's protocol error code when it refused, such as `version_mismatch`. */
-    data class Reconnecting(val attempt: Int, val reason: String, val code: String?) : HostConnection
+    /**
+     * The connection is down; [code] is the daemon's protocol error code when it refused, such as `version_mismatch`,
+     * whose [gap] says which side is behind.
+     */
+    data class Reconnecting(val attempt: Int, val reason: String, val code: String?, val gap: VersionGap? = null) : HostConnection
 
     /** Discovery no longer lists the host: its loop is stopped and its last rows are kept. */
     data object NotReported : HostConnection
@@ -153,5 +157,5 @@ private fun HostFeed.apply(update: LiveUpdate, now: ComparableTimeMark): HostFee
     is LiveUpdate.Sessions -> copy(sessions = update.sessions, lastKnown = null)
     LiveUpdate.Reseeded -> copy(refreshing = false)
     is LiveUpdate.Reconnecting ->
-        copy(connection = HostConnection.Reconnecting(update.attempt, update.reason, update.code), refreshing = false, downSince = downSince ?: now)
+        copy(connection = HostConnection.Reconnecting(update.attempt, update.reason, update.code, update.gap), refreshing = false, downSince = downSince ?: now)
 }

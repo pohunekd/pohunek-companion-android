@@ -1,6 +1,7 @@
 package dev.pohunek.companion.core.data.live
 
 import dev.pohunek.companion.core.domain.sessions.OwnerSession
+import dev.pohunek.companion.protocol.VersionGap
 
 /** What a host's live loop tells its collector. */
 sealed interface LiveUpdate {
@@ -13,6 +14,9 @@ sealed interface LiveUpdate {
     /** A re-seed finished and the store holds its result. */
     data object Reseeded : LiveUpdate
 
-    /** The connection is down; [attempt] counts consecutive failures and [code] is the daemon's protocol error code when it refused. */
-    data class Reconnecting(val attempt: Int, val reason: String, val code: String?) : LiveUpdate
+    /**
+     * The connection is down; [attempt] counts consecutive failures and [code] is the daemon's protocol error code when it refused.
+     * [gap] is set when the refusal is a protocol version mismatch.
+     */
+    data class Reconnecting(val attempt: Int, val reason: String, val code: String?, val gap: VersionGap? = null) : LiveUpdate
 }

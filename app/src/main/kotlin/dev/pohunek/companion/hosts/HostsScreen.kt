@@ -31,6 +31,8 @@ import dev.pohunek.companion.R
 import dev.pohunek.companion.core.data.live.HostConnection
 import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
+import dev.pohunek.companion.protocol.VersionGap
+import dev.pohunek.companion.protocol.versionGap
 import dev.pohunek.companion.sessions.Centered
 import dev.pohunek.companion.sessions.Message
 
@@ -140,7 +142,11 @@ private fun LazyListScope.discoveryItems(state: HostsScreenState) {
             headlineContent = { Text(peer.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             supportingContent = {
                 Text(
-                    stringResource(R.string.hosts_discovered_incompatible, peer.protocolVersion),
+                    when (val gap = versionGap(peer.protocolVersion)) {
+                        is VersionGap.Older -> stringResource(R.string.hosts_discovered_older, gap.daemonProtocol)
+                        is VersionGap.Newer -> stringResource(R.string.hosts_discovered_newer, gap.daemonProtocol)
+                        VersionGap.Unknown -> stringResource(R.string.hosts_discovered_incompatible, peer.protocolVersion)
+                    },
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.testTag("Hosts.incompatibleNote"),
                 )
@@ -159,7 +165,10 @@ private fun ConnectionText(connection: HostConnection?) {
         HostConnection.NotReported -> stringResource(R.string.host_state_not_reported)
         is HostConnection.Reconnecting -> {
             val code = connection.code
-            if (code != null) {
+            val gap = connection.gap
+            if (gap != null) {
+                versionGapText(gap)
+            } else if (code != null) {
                 stringResource(R.string.host_state_refused, code, connection.reason)
             } else {
                 stringResource(R.string.host_state_reconnecting, connection.attempt, connection.reason)
