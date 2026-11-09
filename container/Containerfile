@@ -120,6 +120,24 @@ RUN base="https://github.com/zajca/pohunek/releases/download/v${POHUNEK_VERSION}
     tar -xzf /tmp/dmn.tgz -C /opt/pohunek/daemon --strip-components=1; \
     rm /tmp/cli.tgz /tmp/dmn.tgz
 
+# The protocol-4 release v0.35.2, kept apart from the current one so that
+# `ui-agent start --showcase --legacy-host2` can run a host this app must report as
+# an older Pohunek. Nothing but that option puts it on PATH.
+ARG LEGACY_POHUNEK_VERSION=0.35.2
+ARG LEGACY_POHUNEK_CLI_SHA256=c78a9d794ce2e21cc1f9380bbd1c498a4d1a0596a1b93701d9140cafb511a7f8
+ARG LEGACY_POHUNEK_DAEMON_SHA256=500445beba73cce3786f7f423ce0c9260f52d73d22eb11c6c9250c957d474bef
+RUN base="https://github.com/zajca/pohunek/releases/download/v${LEGACY_POHUNEK_VERSION}"; \
+    cli="pohunek-cli-${LEGACY_POHUNEK_VERSION}-x86_64-unknown-linux-musl"; \
+    dmn="pohunek-daemon-${LEGACY_POHUNEK_VERSION}-x86_64-unknown-linux-musl"; \
+    curl -fsSL --retry 5 -o /tmp/cli.tgz "${base}/${cli}.tar.gz"; \
+    curl -fsSL --retry 5 -o /tmp/dmn.tgz "${base}/${dmn}.tar.gz"; \
+    echo "${LEGACY_POHUNEK_CLI_SHA256}  /tmp/cli.tgz" | sha256sum -c -; \
+    echo "${LEGACY_POHUNEK_DAEMON_SHA256}  /tmp/dmn.tgz" | sha256sum -c -; \
+    mkdir -p /opt/pohunek-legacy/cli /opt/pohunek-legacy/daemon; \
+    tar -xzf /tmp/cli.tgz -C /opt/pohunek-legacy/cli --strip-components=1; \
+    tar -xzf /tmp/dmn.tgz -C /opt/pohunek-legacy/daemon --strip-components=1; \
+    rm /tmp/cli.tgz /tmp/dmn.tgz
+
 ENV PATH=/opt/pohunek/cli:/opt/pohunek/daemon:/opt/java/bin:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/emulator:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Writable by whichever uid scripts/dev maps in: HOME is per container, the

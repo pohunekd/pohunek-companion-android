@@ -18,6 +18,8 @@ iso="$run_dir/iso"
 # The showcase's second synthetic host: a second isolated daemon with its own XDG tree and bridge.
 iso_host2="$run_dir/iso-host2"
 bridge2_pid_file="$run_dir/bridge2.pid"
+# Present while the second host runs the protocol-4 release of the legacy toolchain directory.
+legacy_host2_file="$run_dir/legacy-host2"
 up_status="$run_dir/up.status"
 bridge_pid_file="$run_dir/bridge.pid"
 stall_file="$run_dir/stall.since"
@@ -298,6 +300,8 @@ connect_phone() {
 # ---- Isolated Pohunek daemon -------------------------------------------------
 
 cli=pohunek
+legacy_cli=/opt/pohunek-legacy/cli/pohunek
+legacy_daemon=/opt/pohunek-legacy/daemon/pohunekd
 
 synthetic_projects=(proj-alpha proj-beta proj-gamma)
 
@@ -760,6 +764,34 @@ start_daemon() { # EXTRA_SESSIONS SHOWCASE(0|1)
   fi
 }
 
+# Starts the second host on the protocol-4 daemon of the legacy toolchain directory: no projects and no sessions,
+# because it only has to be there and refuse this app's protocol.
+start_legacy_host2() {
+  local current_cli="$cli"
+  select_host 2
+  [ -x "$legacy_daemon" ] && [ -x "$legacy_cli" ] || die "the legacy Pohunek release is not in the toolchain image"
+  mkdir -p "$iso/run" "$iso/state" "$iso/config" "$iso/data" "$iso/cache" "$iso/bin" "$iso/work"
+  chmod 700 "$iso" "$iso/run"
+  ln -sf "$legacy_daemon" "$iso/bin/pohunekd"
+  cli="$legacy_cli"
+  launch_daemon
+  cli="$current_cli"
+  touch "$legacy_host2_file"
+  select_host 1
+}
+
+# Replaces the legacy second host with the current release and its showcase sessions; the first host is not touched.
+upgrade_host2() {
+  [ -f "$legacy_host2_file" ] || die "the second host does not run the legacy release; start with --showcase --legacy-host2"
+  select_host 2
+  halt_daemon
+  [ -n "$iso_host2" ] && rm -rf -- "$iso_host2"
+  rm -f "$legacy_host2_file"
+  start_daemon 0 1
+  select_host 1
+  echo "host2 upgraded"
+}
+
 # ---- Bridge ------------------------------------------------------------------
 
 # TCP on the device's loopback reaches the daemon's Unix socket: adb reverse
@@ -1216,10 +1248,12 @@ status() {
   fi
   if [ "$DAEMON" = isolated ] && [ -d "$iso_host2" ]; then
     local host2_daemon=down host2_bridge=down
-    if select_host 2 && iso_run "$cli" health >/dev/null 2>&1; then host2_daemon=up; fi
+    local host2_cli="$cli"
+    [ ! -f "$legacy_host2_file" ] || host2_cli="$legacy_cli"
+    if select_host 2 && iso_run "$host2_cli" health >/dev/null 2>&1; then host2_daemon=up; fi
     select_host 1
     if [ -f "$bridge2_pid_file" ] && kill -0 "$(cat "$bridge2_pid_file")" 2>/dev/null; then host2_bridge="127.0.0.1:$HOST2_PORT"; fi
-    echo "host2 daemon=isolated state=$host2_daemon bridge=$host2_bridge"
+    echo "host2 daemon=isolated state=$host2_daemon bridge=$host2_bridge$([ ! -f "$legacy_host2_file" ] || echo ' release=legacy-0.35.2')"
   fi
 }
 
@@ -1514,8 +1548,8 @@ pohunek_cli() {
 
 # Boots the device and starts the daemon and bridge; run in the background by
 # scripts/ui-agent, which polls the status file.
-up() { # EXTRA_SESSIONS SHOWCASE
-  local extra="${1:-0}" showcase="${2:-0}"
+up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2]
+  local extra="${1:-0}" showcase="${2:-0}" legacy="${3:-0}"
   rm -f "$up_status"
   exec >"$run_dir/up.log" 2>&1
   trap 'rc=$?; if [ "$rc" -eq 0 ]; then echo ok >"$up_status"; else echo "failed: $(tail -n 5 "$run_dir/up.log" | tr "\n" " ")" >"$up_status"; fi' EXIT
@@ -1525,10 +1559,14 @@ up() { # EXTRA_SESSIONS SHOWCASE
     start_daemon "$extra" "$showcase"
     start_bridge
     if [ "$showcase" -eq 1 ]; then
-      select_host 2
-      start_daemon 0 1
+      if [ "$legacy" -eq 1 ]; then
+        start_legacy_host2
+      else
+        select_host 2
+        start_daemon 0 1
+        select_host 1
+      fi
       start_host2_bridge
-      select_host 1
     fi
   fi
 }
@@ -1596,6 +1634,7 @@ case "$cmd" in
   net-restore) load_run; require_isolated net-restore; stop_bridge; start_bridge; echo "bridge up" ;;
   stall) load_run; require_isolated_run stall; stall "${1:-}" ;;
   host-stop) load_run; require_isolated host-stop; halt_daemon; echo "daemon stopped" ;;
+  host2-upgrade) load_run; require_isolated host2-upgrade; upgrade_host2 ;;
   host-start) load_run; require_isolated host-start; launch_daemon; echo "daemon started" ;;
   health) load_run; health ;;
   screen) load_run; screen ;;

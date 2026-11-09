@@ -4,7 +4,7 @@
 # touching the owner's desktop, phone, or daemon. All of it runs in one Podman
 # container per run (a slot), started through scripts/dev.
 #
-#   scripts/ui-agent start [--sessions N] [--showcase] [--device phone] [--owner-daemon]
+#   scripts/ui-agent start [--sessions N] [--showcase [--legacy-host2]] [--device phone] [--owner-daemon]
 #                                          claim a slot, boot, build, install, launch
 #   scripts/ui-agent install               build the debug APK and install it (fails if the device runs another build)
 #   scripts/ui-agent restart               install, then force-stop and launch the app again
@@ -40,6 +40,7 @@
 #   scripts/ui-agent net-drop | net-restore    cut and restore the app's path to the daemon
 #   scripts/ui-agent stall SECONDS|on|off  freeze the bridge without closing a socket (bytes stop, connects still complete), for SECONDS or until off
 #   scripts/ui-agent host-stop | host-start    stop and restart the isolated daemon
+#   scripts/ui-agent host2-upgrade         replace the legacy second host (start --showcase --legacy-host2) with the current Pohunek release
 #   scripts/ui-agent health                one daemon.health request sent from the device
 #   scripts/ui-agent device-uptime         seconds since the device booted (the clock of a recording's timestamps; isolated emulator runs only)
 #   scripts/ui-agent screen                text of the attached terminal's grid (debug build, a terminal open)
@@ -235,7 +236,7 @@ cleanup_failed_start() {
 }
 
 start() {
-  local sessions=0 showcase=0 device=emulator daemon=isolated slot name phone_adb="" deadline timeout state
+  local sessions=0 showcase=0 legacy=0 device=emulator daemon=isolated slot name phone_adb="" deadline timeout state
   while [ $# -gt 0 ]; do
     case "$1" in
       --sessions)
@@ -243,6 +244,7 @@ start() {
         [[ "$sessions" =~ ^(0|[1-9][0-9]*)$ ]] || die "--sessions must be a number without leading zeros"
         shift 2 ;;
       --showcase) showcase=1; shift ;;
+      --legacy-host2) legacy=1; shift ;;
       --device)
         [ "${2:-}" = phone ] || die "--device takes only 'phone'; the default is the emulator"
         device=phone; shift 2 ;;
@@ -253,6 +255,7 @@ start() {
   [ "$daemon" = isolated ] || { [ "$sessions" -eq 0 ] && [ "$showcase" -eq 0 ]; } ||
     die "--sessions and --showcase need the isolated daemon"
   [ "$sessions" -eq 0 ] || [ "$showcase" -eq 0 ] || die "--showcase and --sessions cannot be combined"
+  [ "$legacy" -eq 0 ] || [ "$showcase" -eq 1 ] || die "--legacy-host2 needs --showcase"
   if [ "$device" = phone ]; then
     phone_adb="${UI_AGENT_PHONE_ADB:-}"
     [ -n "$phone_adb" ] || die "--device phone needs UI_AGENT_PHONE_ADB=HOST:PORT (the phone's adb Wi-Fi address)"
@@ -268,7 +271,7 @@ start() {
   echo "slot=$slot container=$name"
 
   podman exec "$name" "$guest_script" init "$slot" "$device" "$daemon" $phone_adb
-  podman exec -d "$name" "$guest_script" up "$sessions" "$showcase"
+  podman exec -d "$name" "$guest_script" up "$sessions" "$showcase" "$legacy"
   # The device boots and the daemon starts while the APK builds.
   build_app
 
@@ -392,7 +395,7 @@ case "${1:-}" in
   display) shift; guest display "$@" ;;
   font-scale | talkback) guest "$1" "${2:-}" ;;
   stall) guest stall "${2:?on, off or a number of seconds required}" ;;
-  net-drop | net-restore | host-stop | host-start | health) guest "$1" ;;
+  net-drop | net-restore | host-stop | host-start | host2-upgrade | health) guest "$1" ;;
   log) warn_unpublishable; guest log "${2:-app}" ;;
   *) sed -n '2,/ui-agent log \[app/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

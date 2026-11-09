@@ -69,13 +69,13 @@ runtime directory or real daemon, never run the toolchain on the host outside
 `scripts/dev`, and never point an emulator at the owner's daemon.
 
 ```bash
-scripts/ui-agent start [--sessions N] [--showcase] [--device phone] [--owner-daemon]
+scripts/ui-agent start [--sessions N] [--showcase [--legacy-host2]] [--device phone] [--owner-daemon]
 scripts/ui-agent install | restart | stop | status
 scripts/ui-agent screenshot OUT.png | tree | find TAG | click TAG [N]
 scripts/ui-agent type TEXT [--enter] | key esc|ctrl-c|tab|up|down|left|right|enter
 scripts/ui-agent demo-mode on|off | night on|off (emulator status bar fixed; dark theme)
 scripts/ui-agent display WxH DPI|reset | font-scale F|reset | talkback on|off
-scripts/ui-agent rotate | net-drop | net-restore | stall SECONDS|on|off | host-stop | host-start
+scripts/ui-agent rotate | net-drop | net-restore | stall SECONDS|on|off | host-stop | host-start | host2-upgrade
 scripts/ui-agent health | log [app|daemon|emulator]
 scripts/ui-agent screen | session-screen ID [--size]
 scripts/ui-agent record start | record stop OUT.mp4   # screenrecord, isolated emulator runs only
@@ -121,7 +121,13 @@ scripts/ui-agent pohunek ARGS...
   second bridge on `showcase_second_host_bridge_port_base + N` (`status` prints
   it on the `host2` line), so the app shows the Host chip. The two blocked
   sessions are created in sequence, `showcase_blocked_gap_secs` apart, which
-  fixes the Needs you order. `type` cannot
+  fixes the Needs you order. `--legacy-host2` (with `--showcase`) runs that second
+  host on the protocol-4 release v0.35.2 kept in the image under `/opt/pohunek-legacy`
+  (no projects, no sessions): the app refuses it and must show "Runs an older Pohunek
+  (protocol 4)" on the Hosts screen and the session list while the first host works;
+  `status` marks it `release=legacy-0.35.2`. `host2-upgrade` replaces that host with the
+  current release and its showcase sessions, leaving the first host alone, so the app
+  connects to it without user action. `type` cannot
   enter a literal `%s` (`input text` turns it into a space).
 - **Install and restart.** `install` builds the debug APK and installs it; it
   then compares the SHA-256 of the installed `base.apk` with the built file and

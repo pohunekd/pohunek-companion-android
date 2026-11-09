@@ -1,7 +1,9 @@
 package dev.pohunek.companion.core.domain.hosts
 
-/** A followed host whose connection is down; [code] is the daemon's protocol error code when it refused the connection. */
-data class HostOutage(val hostLabel: String, val attempt: Int, val reason: String, val code: String?)
+import dev.pohunek.companion.protocol.VersionGap
+
+/** A followed host whose connection is down; [code] is the daemon's protocol error code when it refused the connection, [gap] the version gap of a mismatch. */
+data class HostOutage(val hostLabel: String, val attempt: Int, val reason: String, val code: String?, val gap: VersionGap? = null)
 
 /**
  * The host status lines above the session list. A refusal needs the owner to act, so each keeps its own line in [refused];

@@ -17,6 +17,7 @@
     <string name="host_status_reconnecting">%1$s: Reconnecting (attempt %2$d): %3$s</string>
     <string name="host_status_reconnecting_many">%1$d of %2$d hosts reconnecting · %3$s: attempt %4$d (%5$s)</string>
     <string name="host_status_reconnecting_open_hosts">%1$d of %2$d hosts reconnecting, open Hosts</string>
+    <string name="host_status_version">%1$s: %2$s</string>
     <string name="host_status_refused">%1$s: Connection refused (%2$s): %3$s</string>
     <string name="session_list_needs_you">Needs you</string>
     <string name="session_list_no_match">No sessions match</string>
@@ -160,10 +161,15 @@
     <string name="host_state_connected">Connected</string>
     <string name="host_state_connecting">Connecting</string>
     <string name="host_state_reconnecting">Reconnecting (attempt %1$d): %2$s</string>
+    <string name="host_version_older">Runs an older Pohunek (protocol %1$d). Upgrade it to Pohunek 0.41 or newer.</string>
+    <string name="host_version_newer">Runs a newer Pohunek (protocol %1$d). Update the app.</string>
+    <string name="host_version_unknown">Runs a Pohunek this app cannot talk to (different protocol). Upgrade Pohunek to 0.41 or newer, or update the app.</string>
     <string name="host_state_refused">Connection refused (%1$s): %2$s</string>
     <string name="host_state_not_reported">Not reported by discovery</string>
     <string name="hosts_discovered_header">Discovered hosts</string>
     <string name="hosts_discovered_incompatible">Incompatible daemon (protocol %1$d)</string>
+    <string name="hosts_discovered_older">Older Pohunek (protocol %1$d): upgrade to 0.41 or newer to use it</string>
+    <string name="hosts_discovered_newer">Newer Pohunek (protocol %1$d): update the app to use it</string>
     <string name="hosts_discovery_failed">Discovery through %1$s failed: %2$s</string>
 
     <string name="settings_title">Settings</string>

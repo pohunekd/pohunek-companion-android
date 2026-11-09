@@ -19,13 +19,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import dev.pohunek.companion.R
 import dev.pohunek.companion.core.domain.hosts.HostStatusSummary
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
+import dev.pohunek.companion.hosts.versionGapText
 
 /** One tappable line for all reconnecting hosts, and a line of its own for each refusal. */
 @Composable
 internal fun HostStatusLines(summary: HostStatusSummary, onOpenHosts: () -> Unit) {
     summary.refused.forEach { outage ->
+        val gap = outage.gap
         Text(
-            text = stringResource(R.string.host_status_refused, outage.hostLabel, outage.code.orEmpty(), outage.reason),
+            text = if (gap != null) {
+                stringResource(R.string.host_status_version, outage.hostLabel, versionGapText(gap))
+            } else {
+                stringResource(R.string.host_status_refused, outage.hostLabel, outage.code.orEmpty(), outage.reason)
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.fillMaxWidth().padding(PohunekTheme.spacing.gutter).testTag("SessionList.statusRefused"),

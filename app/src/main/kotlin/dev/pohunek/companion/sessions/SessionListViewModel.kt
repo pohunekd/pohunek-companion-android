@@ -625,7 +625,7 @@ private fun listed(
     val statuses = summarizeHostStatus(
         entries.mapNotNull { entry ->
             (feeds[entry.host.route]?.connection as? HostConnection.Reconnecting)?.takeIf { entry.link == HostLink.Down }
-                ?.let { HostOutage(hostDisplayLabel(entry.host), it.attempt, it.reason, it.code) }
+                ?.let { HostOutage(hostDisplayLabel(entry.host), it.attempt, it.reason, it.code, it.gap) }
         },
         followed = hostList.size,
     )

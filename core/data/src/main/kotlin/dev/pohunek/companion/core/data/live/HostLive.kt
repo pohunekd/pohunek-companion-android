@@ -15,6 +15,7 @@ import dev.pohunek.companion.protocol.DaemonEvent
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProtocolClientException
 import dev.pohunek.companion.protocol.ProtocolError
+import dev.pohunek.companion.protocol.gap
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.SendChannel
@@ -123,7 +124,7 @@ class HostLive(
             failures++
             val delay = backoffDelay(config, failures)
             logEnded(connection.store, held != null, error, failures, delay)
-            emit(LiveUpdate.Reconnecting(failures, error.message.orEmpty(), error.protocolCode()))
+            emit(LiveUpdate.Reconnecting(failures, error.message.orEmpty(), error.protocolCode(), (error as? ProtocolClientException.VersionMismatch)?.gap))
             early = waitForNextAttempt(delay) == WaitEnd.Network
         }
     }
