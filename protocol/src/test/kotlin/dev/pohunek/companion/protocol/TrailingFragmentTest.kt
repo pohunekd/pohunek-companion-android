@@ -18,7 +18,7 @@ class TrailingFragmentTest {
         ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { server ->
             val daemon = thread {
                 server.accept().use { socket ->
-                    socket.getInputStream().read()
+                    socket.getInputStream().bufferedReader().readLine()
                     socket.getOutputStream().write(complete.toByteArray())
                 }
             }

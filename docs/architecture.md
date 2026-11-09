@@ -251,7 +251,7 @@ a Pohunek release changes the protocol version, and the toolchain image and
   period is the nearest equivalent that still shows a long outage.
 - **Discovered hosts** join the configured ones without being stored. While the app is
   visible, every connected configured host is asked for `host.discover {force:false}`
-  (the request keeps `v:{4,4}`, so a protocol-3 peer comes back as `version_mismatch`)
+  (the request keeps `v:{5,5}`, so a protocol-4 peer comes back as `version_mismatch`)
   when it connects and every `discover_interval_secs`, each question with its own
   connection and `discover_timeout_secs`. Every `reachable_daemon` peer with an IP
   `address` is followed at `address:port` without confirmation (the owner's choice for
