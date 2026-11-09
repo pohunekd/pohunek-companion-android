@@ -269,9 +269,10 @@ scripts/ui-agent pohunek ARGS...
   `action_required`, provider `ui-agent`; a session-scoped create with a hooked
   provider such as `claude` is refused by the daemon), and `pohunek
   notification list|watch ...` is the CLI's `notifications` group. The daemon
-  clears a record itself: a session that enters `working` or ends resolves its
-  attention records with `notification_updated`, so a Needs you entry is cleared
-  by driving the session to `working` or by removing it. The debug build's `GestureDemoActivity` (open it with `am start -n
+  clears the attention records it projects itself: a session that enters `working`
+  or ends resolves them with `notification_updated`. A record made with
+  `notification create` stays `unread` (it is never resolved by the daemon), and
+  the app drops its Needs you row once the session is removed. The debug build's `GestureDemoActivity` (open it with `am start -n
   dev.pohunek.companion/.debug.GestureDemoActivity`) is a scratch list for
   `drag`: rows `GestureDemo.row`, the current order in `GestureDemo.order`,
   and `GestureDemo.copy` puts that order on the clipboard.
