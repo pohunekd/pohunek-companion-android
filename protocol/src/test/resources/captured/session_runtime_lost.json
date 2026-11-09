@@ -8,11 +8,11 @@
       "resume": false
     },
     "cols": 80,
-    "created_at": "2026-10-23T10:56:51.86104754Z",
+    "created_at": "2026-11-09T20:35:27.01950761Z",
     "cwd": "/work/proj-alpha",
     "cwd_source": "launch",
     "external": false,
-    "id": "s-01M5M6G34MV40GQ5EWNZK85KKN",
+    "id": "s-01M710BQNAPFF3TJRA9H56WRNY",
     "is_linked_worktree": false,
     "metadata": {
       "work.link.id": "12",
@@ -22,22 +22,22 @@
       "work.role": "implementer"
     },
     "name": "alpha-agent",
-    "pid": 504,
+    "pid": 535,
     "project_id": "p-79d0ea2e",
     "project_label": "proj-alpha",
     "rows": 24,
     "runtime": {
-      "last_connected_at": "2026-10-23T10:56:51.965396109Z",
+      "last_connected_at": "2026-11-09T20:35:27.125763905Z",
       "loss_reason": "runtime_lost",
       "runtime_generation": "1",
-      "started_at": "2026-10-23T10:56:51.965396109Z",
+      "started_at": "2026-11-09T20:35:27.125763905Z",
       "state": "lost",
-      "worker_id": "worker-eb7f7741ce3fe3702e3a7c3fc64b7ad2",
-      "worker_instance_id": "runtime-7ca4289cafbacdfe0f9af13b2b56ae60"
+      "worker_id": "worker-a9083d622c5d9ad8154c38a2342ea940",
+      "worker_instance_id": "runtime-d827db003c758d73c410aa68c12ed1f0"
     },
-    "state": "running",
+    "state": "failed",
     "state_source": "process",
-    "updated_at": "2026-10-23T10:57:50.733578406Z"
+    "updated_at": "2026-11-09T20:39:18.30102783Z"
   },
-  "v": 4
+  "v": 5
 }

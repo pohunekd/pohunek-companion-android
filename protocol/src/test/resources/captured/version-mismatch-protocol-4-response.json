@@ -1,0 +1,10 @@
+{
+  "err": {
+    "class": "daemon",
+    "code": "version_mismatch",
+    "msg": "client protocol range 5..=5 does not overlap daemon protocol range 3..=4",
+    "recover": "upgrade the older side so the client and daemon support an overlapping protocol version"
+  },
+  "id": "req-1",
+  "v": 4
+}

@@ -36,6 +36,8 @@ data class HostRecord(
     val overlay: String,
     val peerId: String?,
     val hostClass: HostClass,
+    /** True for the record of the machine that enumerated the hosts, which is the asked host itself. */
+    val local: Boolean = false,
 )
 
 /** The flat wire object: the classification is an internal tag whose fields sit beside the record's own. */
@@ -47,6 +49,7 @@ private data class HostRecordWire(
     val port: Int,
     val overlay: String,
     @SerialName("peer_id") val peerId: String? = null,
+    val local: Boolean = false,
     val classification: String,
     @SerialName("daemon_version") val daemonVersion: String? = null,
     @SerialName("daemon_protocol_version") val daemonProtocolVersion: Int? = null,
@@ -68,7 +71,7 @@ object HostRecordSerializer : KSerializer<HostRecord> {
             "candidate" -> HostClass.Candidate
             else -> HostClass.Unknown(wire.classification)
         }
-        return HostRecord(wire.name, wire.fqdn, wire.address, wire.port, wire.overlay, wire.peerId, hostClass)
+        return HostRecord(wire.name, wire.fqdn, wire.address, wire.port, wire.overlay, wire.peerId, hostClass, wire.local)
     }
 
     override fun serialize(encoder: Encoder, value: HostRecord): Unit = throw SerializationException("a host record is only decoded")

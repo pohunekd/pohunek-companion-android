@@ -14,17 +14,17 @@ class ObservationEventsTest {
     @Test
     fun `agent_state decodes with its runtime, epoch and revision`() {
         val update = (decode("agent_state") as DaemonEvent.AgentState).update
-        assertEquals("s-01M5MBCMAVJ27MX7S3W8P0PGV1", update.sessionId)
+        assertEquals("s-01M710FW4KGAJ2W6K7S489ZR8V", update.sessionId)
         assertEquals(AgentActivity.Working, update.activity)
-        assertEquals(StateSource.Screen, update.source)
-        assertEquals("d-303-1792758140128403886-0", update.activityEpoch)
-        assertEquals(DecimalWire(50UL), update.revision)
+        assertEquals(StateSource.Process, update.source)
+        assertEquals("d-338-1794256526453735779-0", update.activityEpoch)
+        assertEquals(DecimalWire(1UL), update.revision)
         assertEquals(DecimalWire(1UL), update.runtime?.runtimeGeneration)
     }
 
     @Test
     fun `agent_state without the additive fields still decodes`() {
-        val line = """{"v":4,"event":"agent_state","session_id":"s","activity":"idle","source":"osc_title"}"""
+        val line = """{"v":5,"event":"agent_state","session_id":"s","activity":"idle","source":"osc_title"}"""
         val update = (EventDecoder.decode(line) as DaemonEvent.AgentState).update
         assertNull(update.runtime)
         assertNull(update.activityEpoch)
@@ -41,7 +41,7 @@ class ObservationEventsTest {
         assertEquals(DecimalWire(9UL), background?.revision)
         assertEquals(listOf(BackgroundItem("b-1", BackgroundStatus.Running), BackgroundItem("b-2", BackgroundStatus.Other)), background?.items)
 
-        val cleared = EventDecoder.decode("""{"v":4,"event":"background_state","session_id":"s","background":null}""") as DaemonEvent.BackgroundState
+        val cleared = EventDecoder.decode("""{"v":5,"event":"background_state","session_id":"s","background":null}""") as DaemonEvent.BackgroundState
         assertNull(cleared.update.background)
     }
 
@@ -50,11 +50,11 @@ class ObservationEventsTest {
         val created = (decode("notification_created") as DaemonEvent.NotificationCreated).record
         assertEquals(NotificationKind.AgentBlocked, created.kind)
         assertEquals(NotificationStatus.Unread, created.status)
-        assertEquals("s-01M5MBCMAP8JVX9AXXHRBDFMMB", created.sessionId)
+        assertEquals("s-01M710TMV6YACC3NGVX6YA3921", created.sessionId)
         val updated = (decode("notification_updated") as DaemonEvent.NotificationUpdated).record
         assertEquals(created.id, updated.id)
-        assertEquals(NotificationStatus.Read, updated.status)
-        assertTrue(updated.status.isOpen)
+        assertEquals(NotificationStatus.Acknowledged, updated.status)
+        assertTrue(!updated.status.isOpen)
         assertEquals(created.id, (decode("notification_deleted") as DaemonEvent.NotificationDeleted).notificationId)
     }
 
@@ -66,7 +66,7 @@ class ObservationEventsTest {
 
         val runtime = """"runtime":{"worker_instance_id":"w","runtime_generation":"1"}"""
         for (revision in listOf("\"01\"", "5", "\"\"")) {
-            val line = """{"v":4,"event":"agent_state","session_id":"s","activity":"idle","source":"screen",$runtime,"revision":$revision}"""
+            val line = """{"v":5,"event":"agent_state","session_id":"s","activity":"idle","source":"screen",$runtime,"revision":$revision}"""
             assertTrue(revision, EventDecoder.decode(line) is DaemonEvent.Malformed)
         }
     }
@@ -74,11 +74,11 @@ class ObservationEventsTest {
     @Test
     fun `a payload of the wrong shape decodes to Malformed`() {
         for (line in listOf(
-            """{"v":4,"event":"agent_state","session_id":"s","activity":"sleeping","source":"screen"}""",
-            """{"v":4,"event":"subagent_state","session_id":"s"}""",
-            """{"v":4,"event":"notification_created"}""",
-            """{"v":4,"event":"notification_created","record":{"id":"n","kind":"agent_blocked","status":"vanished","created_at":"t"}}""",
-            """{"v":4,"event":"notification_deleted","notification_id":7}""",
+            """{"v":5,"event":"agent_state","session_id":"s","activity":"sleeping","source":"screen"}""",
+            """{"v":5,"event":"subagent_state","session_id":"s"}""",
+            """{"v":5,"event":"notification_created"}""",
+            """{"v":5,"event":"notification_created","record":{"id":"n","kind":"agent_blocked","status":"vanished","created_at":"t"}}""",
+            """{"v":5,"event":"notification_deleted","notification_id":7}""",
         )) {
             assertTrue(line, EventDecoder.decode(line) is DaemonEvent.Malformed)
         }
@@ -87,7 +87,7 @@ class ObservationEventsTest {
     @Test
     fun `the notification list request carries only the set parameters`() {
         val line = Requests.notificationList("r", NotificationListParams(NotificationKind.ApprovalRequired, limit = 200)).toLine()
-        assertEquals("""{"v":{"minimum":4,"maximum":4},"id":"r","method":"notification.list","params":{"kind":"approval_required","limit":200}}""", line)
+        assertEquals("""{"v":{"minimum":5,"maximum":5},"id":"r","method":"notification.list","params":{"kind":"approval_required","limit":200}}""", line)
         assertTrue(Requests.notificationList("r", NotificationListParams()).toLine().endsWith(""""params":{}}"""))
     }
 
@@ -95,7 +95,7 @@ class ObservationEventsTest {
     fun `captured pages decode and are followed by their cursor`() = runBlocking {
         val first = page("notification-list-page-1", "req-1")
         assertEquals(2, first.notifications.size)
-        assertEquals("2026-10-23T12:23:16.987665134Z|n-303-1792758196987674174-3", first.nextCursor)
+        assertEquals("2026-11-09T20:44:28.964985398Z|n-371-1794257068964998102-9", first.nextCursor)
         val second = page("notification-list-page-2", "req-2")
         assertNull(second.nextCursor)
 

@@ -14,7 +14,7 @@ class HostDiscoverWireTest {
     @Test
     fun `request asks for the cached snapshot with the client range`() {
         assertEquals(
-            """{"v":{"minimum":4,"maximum":4},"id":"req-1","method":"host.discover","params":{"force":false}}""",
+            """{"v":{"minimum":5,"maximum":5},"id":"req-1","method":"host.discover","params":{"force":false}}""",
             Requests.hostDiscover("req-1").toLine(),
         )
     }
@@ -23,7 +23,7 @@ class HostDiscoverWireTest {
     fun `every classification decodes beside the record's own fields`() {
         val peers = decode("host-discover-response")
         assertEquals(
-            HostRecord("air", "air.example.net", "100.92.30.40", 18722, "netbird", "key-air", HostClass.ReachableDaemon("0.35.2")),
+            HostRecord("air", "air.example.net", "100.92.30.40", 18722, "netbird", "key-air", HostClass.ReachableDaemon("0.41.0")),
             peers[0],
         )
         assertEquals(HostClass.VersionMismatch(3), peers[1].hostClass)
@@ -31,6 +31,12 @@ class HostDiscoverWireTest {
         assertEquals(HostClass.Candidate, peers[3].hostClass)
         assertNull(peers[3].address)
         assertNull(peers[3].peerId)
+    }
+
+    @Test
+    fun `the record of the asked machine is marked local and a peer record is not`() {
+        val peers = decode("host-discover-response")
+        assertEquals(listOf(false, false, false, false, false, true), peers.map { it.local })
     }
 
     @Test
@@ -42,7 +48,7 @@ class HostDiscoverWireTest {
     fun `a classification without its detail or a port out of range is malformed`() {
         val body = """{"name":"a","port":%d,"overlay":"netbird","classification":"%s"}"""
         for ((port, classification) in listOf(18722 to "reachable_daemon", 18722 to "version_mismatch", -1 to "candidate", 65536 to "candidate")) {
-            val line = """{"v":4,"id":"req-1","ok":[${body.format(port, classification)}]}"""
+            val line = """{"v":5,"id":"req-1","ok":[${body.format(port, classification)}]}"""
             assertThrows(ProtocolClientException.MalformedResponse::class.java) { ResponseDecoder().decode(line, "req-1").decodeResult(records) }
         }
     }

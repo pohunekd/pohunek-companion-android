@@ -1,5 +1,5 @@
 // Ported to Kotlin from pohunek-companion `crates/core/src/session.rs` (offer_stop, offer_remove) and `crates/core/src/lifecycle.rs`;
-// the eligibility rules mirror `SessionInfo::can_stop` and `can_remove` of Pohunek v0.35.2. Repository:
+// the eligibility rules mirror `SessionInfo::can_stop` and `can_remove` of Pohunek v0.41.0. Repository:
 // https://github.com/pohunekd/pohunek-companion, MIT, Copyright (c) 2026 pohunekd. See THIRD_PARTY_NOTICES.md.
 package dev.pohunek.companion.core.domain.sessions
 

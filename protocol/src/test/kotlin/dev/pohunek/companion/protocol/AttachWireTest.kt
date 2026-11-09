@@ -13,16 +13,16 @@ class AttachWireTest {
     private val streamId = "a-1"
 
     private fun errorLine(id: String = streamId) =
-        """{"v":4,"id":"$id","err":{"class":"runtime","code":"attach_expired","msg":"the attach stream id expired"}}"""
+        """{"v":5,"id":"$id","err":{"class":"runtime","code":"attach_expired","msg":"the attach stream id expired"}}"""
 
     @Test
     fun `attach request carries the view geometry as initial dimensions`() {
         assertEquals(
-            """{"v":{"minimum":4,"maximum":4},"id":"r1","method":"session.attach","params":{"session_id":"s-1","initial_dimensions":{"cols":80,"rows":24}}}""",
+            """{"v":{"minimum":5,"maximum":5},"id":"r1","method":"session.attach","params":{"session_id":"s-1","initial_dimensions":{"cols":80,"rows":24}}}""",
             Requests.sessionAttach("r1", "s-1", TerminalDimensions(80, 24)).toLine(),
         )
         assertEquals(
-            """{"v":{"minimum":4,"maximum":4},"id":"r2","method":"session.attach","params":{"session_id":"s-1"}}""",
+            """{"v":{"minimum":5,"maximum":5},"id":"r2","method":"session.attach","params":{"session_id":"s-1"}}""",
             Requests.sessionAttach("r2", "s-1", null).toLine(),
         )
     }
@@ -30,11 +30,11 @@ class AttachWireTest {
     @Test
     fun `resize and detach requests are emitted as documented`() {
         assertEquals(
-            """{"v":{"minimum":4,"maximum":4},"id":"r3","method":"session.resize","params":{"session_id":"s-1","cols":100,"rows":30}}""",
+            """{"v":{"minimum":5,"maximum":5},"id":"r3","method":"session.resize","params":{"session_id":"s-1","cols":100,"rows":30}}""",
             Requests.sessionResize("r3", "s-1", TerminalDimensions(100, 30)).toLine(),
         )
         assertEquals(
-            """{"v":{"minimum":4,"maximum":4},"id":"r4","method":"session.detach","params":{"stream_id":"a-1"}}""",
+            """{"v":{"minimum":5,"maximum":5},"id":"r4","method":"session.detach","params":{"stream_id":"a-1"}}""",
             Requests.sessionDetach("r4", "a-1").toLine(),
         )
     }
@@ -91,8 +91,8 @@ class AttachWireTest {
 
     @Test
     fun `only a chunk that opens an object without a newline waits for more bytes`() {
-        assertTrue(AttachRedemption.mayBeResponse("""{"v":4""".toByteArray()))
-        assertTrue(!AttachRedemption.mayBeResponse("""{"v":4}""".toByteArray() + 0x0a))
+        assertTrue(AttachRedemption.mayBeResponse("""{"v":5""".toByteArray()))
+        assertTrue(!AttachRedemption.mayBeResponse("""{"v":5}""".toByteArray() + 0x0a))
         assertTrue(!AttachRedemption.mayBeResponse("\u001b[H".toByteArray()))
         assertArrayEquals(buildJsonObject { put("attach", "x") }.toString().toByteArray() + 0x0a, AttachRedemption.prelude("x"))
     }

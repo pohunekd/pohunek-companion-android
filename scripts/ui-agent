@@ -35,7 +35,7 @@
 #   scripts/ui-agent app-file cat|put|rm PATH
 #                                          read (stdout), write (stdin) or remove a file below the app's files directory (run-as, debug build)
 #   scripts/ui-agent sockets               the app's open TCP connections in the device, as STATE LOCAL REMOTE lines
-#   scripts/ui-agent pohunek ARGS...       the Pohunek CLI against the isolated daemon (session new|rename|stop|rm; notification create|delete|list)
+#   scripts/ui-agent pohunek ARGS...       the Pohunek CLI against the isolated daemon (session new|rename|stop|rm; notification create|list|watch)
 #   scripts/ui-agent rotate                toggle portrait and landscape
 #   scripts/ui-agent net-drop | net-restore    cut and restore the app's path to the daemon
 #   scripts/ui-agent stall SECONDS|on|off  freeze the bridge without closing a socket (bytes stop, connects still complete), for SECONDS or until off

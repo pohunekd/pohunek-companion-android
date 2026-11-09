@@ -3,46 +3,36 @@
   "ok": {
     "notifications": [
       {
-        "body": "Session s-01M5MBCM9TN9D7EXWJH6X47DYF is waiting for owner attention.",
-        "created_at": "2026-10-23T12:22:26.67204676Z",
-        "dedupe_key": "attention:s-01M5MBCM9TN9D7EXWJH6X47DYF",
-        "id": "n-303-1792758146672061061-2",
-        "kind": "agent_blocked",
-        "metadata": {
-          "reason": "blocked"
-        },
-        "session_id": "s-01M5MBCM9TN9D7EXWJH6X47DYF",
+        "body": "",
+        "created_at": "2026-11-09T20:44:28.503782331Z",
+        "dedupe_key": "k-2",
+        "id": "n-371-1794257068503793402-8",
+        "kind": "approval_required",
         "severity": "action_required",
         "source": {
-          "host_local_source_id": "projector:s-01M5MBCM9TN9D7EXWJH6X47DYF:agent_blocked:1",
-          "provider": "pohunek",
-          "provider_event": "agent_state"
+          "host_local_source_id": "ui-agent-1794257068479276717",
+          "provider": "ui-agent",
+          "provider_event": "ui-agent"
         },
-        "source_id": "projector:s-01M5MBCM9TN9D7EXWJH6X47DYF:agent_blocked:1",
         "status": "unread",
-        "title": "Agent needs attention"
+        "title": "cap-ap-2"
       },
       {
-        "body": "Session s-01M5MBCM9M703HCWKNT67CH9QR is waiting for owner attention.",
-        "created_at": "2026-10-23T12:22:26.571404944Z",
-        "dedupe_key": "attention:s-01M5MBCM9M703HCWKNT67CH9QR",
-        "id": "n-303-1792758146571421034-1",
-        "kind": "agent_blocked",
-        "metadata": {
-          "reason": "blocked"
-        },
-        "session_id": "s-01M5MBCM9M703HCWKNT67CH9QR",
+        "body": "",
+        "created_at": "2026-11-09T20:44:28.041946729Z",
+        "dedupe_key": "k-1",
+        "id": "n-371-1794257068041957369-7",
+        "kind": "approval_required",
         "severity": "action_required",
         "source": {
-          "host_local_source_id": "projector:s-01M5MBCM9M703HCWKNT67CH9QR:agent_blocked:1",
-          "provider": "pohunek",
-          "provider_event": "agent_state"
+          "host_local_source_id": "ui-agent-1794257068016715013",
+          "provider": "ui-agent",
+          "provider_event": "ui-agent"
         },
-        "source_id": "projector:s-01M5MBCM9M703HCWKNT67CH9QR:agent_blocked:1",
         "status": "unread",
-        "title": "Agent needs attention"
+        "title": "cap-ap-1"
       }
     ]
   },
-  "v": 4
+  "v": 5
 }

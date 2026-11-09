@@ -34,12 +34,17 @@ Open folder, iOS (out of scope for now).
 
 ## Protocol boundary
 
-The app speaks the Pohunek public protocol only, pinned to the same Pohunek tag
-as the desktop companion: `v0.35.2` today.
+The app speaks the Pohunek public protocol only, pinned to one Pohunek tag:
+`v0.41.0` today. The desktop companion is on its own schedule and does not set
+the tag. The app follows the oldest release whose protocol window it speaks, so
+a host that upgrades to that release or newer keeps working; the pin moves when
+a Pohunek release changes the protocol version, and the toolchain image and
+`scripts/ui-agent` run the same tag so every feature is verified against it.
 
 - Transport: newline-delimited JSON over TCP on the overlay.
-- Version: the request envelope advertises `v:{4,4}`. There are no protocol-3
-  shape adapters; a `daemon/version_mismatch` answer is shown clearly.
+- Version: the request envelope advertises `v:{5,5}`, the single-version window
+  of Pohunek 0.41. There are no adapters for older protocols; a
+  `daemon/version_mismatch` answer is shown clearly.
 - State: seed with `session.list` and `notification.list`, then keep current
   with one `subscribe` connection. Re-seed on every reconnect and
   periodically.
@@ -246,7 +251,7 @@ as the desktop companion: `v0.35.2` today.
   period is the nearest equivalent that still shows a long outage.
 - **Discovered hosts** join the configured ones without being stored. While the app is
   visible, every connected configured host is asked for `host.discover {force:false}`
-  (the request keeps `v:{4,4}`, so a protocol-3 peer comes back as `version_mismatch`)
+  (the request keeps `v:{5,5}`, so a protocol-4 peer comes back as `version_mismatch`)
   when it connects and every `discover_interval_secs`, each question with its own
   connection and `discover_timeout_secs`. Every `reachable_daemon` peer with an IP
   `address` is followed at `address:port` without confirmation (the owner's choice for
@@ -307,7 +312,7 @@ updates its entry.
   `live.rs`, `needs_you.rs`, `filter.rs`, `layout.rs`, `discovery.rs`,
   `view.rs`, `sort_key.rs`.
 - **Pohunek wire fixtures** (MIT): `sdk/ts/protocol/fixtures` at the pinned tag
-  `v0.35.2`.
+  `v0.41.0`.
 
 ## Development environment
 

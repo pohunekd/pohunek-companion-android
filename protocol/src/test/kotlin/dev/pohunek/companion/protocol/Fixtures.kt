@@ -2,7 +2,7 @@ package dev.pohunek.companion.protocol
 
 import kotlinx.serialization.json.JsonElement
 
-/** Wire fixtures copied from Pohunek `sdk/ts/protocol/fixtures` at v0.35.2. */
+/** Wire fixtures copied from Pohunek `sdk/ts/protocol/fixtures` at v0.41.0. */
 object Fixtures {
     fun text(name: String): String =
         (Fixtures::class.java.getResourceAsStream("/fixtures/$name.json") ?: error("missing fixture $name")).use { it.readBytes().toString(Charsets.UTF_8) }

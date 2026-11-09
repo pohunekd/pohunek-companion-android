@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DiscoveryTest {
-    private val reachable = HostClass.ReachableDaemon("0.35.2")
+    private val reachable = HostClass.ReachableDaemon("0.41.0")
 
     private fun record(name: String, hostClass: HostClass = reachable, address: String? = "100.92.30.40", port: Int = 18722) =
         HostRecord(name, "$name.example.net", address, port, "netbird", "key-$name", hostClass)
@@ -36,6 +36,16 @@ class DiscoveryTest {
         val addresses = listOf(null, "", "air.example.net", "100.92.30", "100.92.30.256", "100.92.030.4", "fe80::1%eth0", "not:ip", "1.2.3.4:80", ".:", ".1:2")
         val records = listOf(noIdentity, noOverlay) + addresses.map { record("c").copy(address = it) } + record("z", port = 0) + record("d", port = 18722)
         assertEquals(listOf("netbird:key-d"), planDiscovery(records, emptyList()).connect.map { it.key })
+    }
+
+    @Test
+    fun `the local record of the asked host is neither followed nor listed`() {
+        val local = record("here", address = "127.0.0.1", port = 28722).copy(local = true, peerId = null)
+        val localMismatch = record("there", HostClass.VersionMismatch(4)).copy(local = true)
+        val plan = planDiscovery(listOf(local, localMismatch, record("air")), listOf(manual("100.92.30.40:1")))
+        assertEquals(emptyList<DiscoveredHost>(), plan.connect)
+        assertEquals(emptyList<IncompatibleHost>(), plan.incompatible)
+        assertEquals(listOf("netbird:key-air"), planDiscovery(listOf(local, record("air")), emptyList()).connect.map { it.key })
     }
 
     @Test

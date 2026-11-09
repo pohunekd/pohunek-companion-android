@@ -24,6 +24,7 @@ data class DiscoveryPlan(val connect: List<DiscoveredHost>, val incompatible: Li
 /**
  * Derives the peers to follow from [records], which are ordered by the host that reported them. Only a `reachable_daemon` record with
  * an IP address literal is followed; `version_mismatch` records are reported as incompatible; every other classification is ignored.
+ * The `local` record is the asked host itself, which the app already follows, so it is skipped.
  * Records of one peer collapse to the first, and a peer a configured host in [manual] names keeps that entry.
  */
 fun planDiscovery(records: List<HostRecord>, manual: List<ConfiguredHost>): DiscoveryPlan {
@@ -39,6 +40,7 @@ private class PlanBuilder(private val manual: List<ConfiguredHost>) {
     private val manualRoutes = manual.map { it.route }.toSet()
 
     fun add(record: HostRecord) {
+        if (record.local) return
         val key = hostKey(record) ?: return
         if (manual.any { namesRecord(it, record, key) }) {
             claimed += key

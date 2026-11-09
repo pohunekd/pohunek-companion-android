@@ -29,14 +29,6 @@ class LineFramer {
         return lines
     }
 
-    /** At end of stream: the unterminated last line, if one is pending. */
-    fun finish(): String? {
-        if (pending.size() == 0) return null
-        val line = decodeLine(pending.toByteArray())
-        pending.reset()
-        return line
-    }
-
     private fun appendBounded(chunk: ByteArray, offset: Int, length: Int) {
         if (pending.size().toLong() + length > Wire.MAX_CONTROL_LINE_BYTES) throw ProtocolClientException.Framing("control line exceeded maximum length")
         pending.write(chunk, offset, length)

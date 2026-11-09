@@ -199,7 +199,8 @@ class PohunekConnection private constructor(
         while (true) {
             readBuffer.clear()
             val count = channel.read(readBuffer)
-            if (count < 0) return framer.finish() ?: throw ProtocolClientException.ConnectionLost("the daemon closed the connection without a response")
+            // Bytes without a terminating newline at end of stream are a closed connection, not a line: the daemon may stop mid-line.
+            if (count < 0) throw ProtocolClientException.ConnectionLost("the daemon closed the connection without a complete response")
             val lines = framer.feed(readBuffer.array(), 0, count)
             if (lines.size > 1) throw ProtocolClientException.MalformedResponse("more than one line answered a single request")
             if (lines.isNotEmpty()) return lines.single()

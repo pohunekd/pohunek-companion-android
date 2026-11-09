@@ -1,1 +1,1 @@
-{"v":{"minimum":4,"maximum":4},"id":"req-1","method":"session.rename","params":{"session_id":"s-1","name":"renamed-agent"}}
+{"v":{"minimum":5,"maximum":5},"id":"req-1","method":"session.rename","params":{"session_id":"s-1","name":"renamed-agent"}}

@@ -115,5 +115,5 @@
     <bool name="attach_after_create">true</bool>
 
     <!-- The Pohunek release whose protocol the app is written for (docs/architecture.md); shown on the About screen. -->
-    <string name="pohunek_protocol_tag" translatable="false">v0.35.2</string>
+    <string name="pohunek_protocol_tag" translatable="false">v0.41.0</string>
 </resources>

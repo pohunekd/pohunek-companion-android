@@ -1,1 +1,63 @@
-{"v":4,"id":"req-1","ok":[{"name":"air","fqdn":"air.example.net","address":"100.92.30.40","port":18722,"overlay":"netbird","peer_id":"key-air","classification":"reachable_daemon","daemon_version":"0.35.2"},{"name":"old","fqdn":"old.example.net","address":"100.92.30.41","port":18722,"overlay":"netbird","peer_id":"key-old","classification":"version_mismatch","daemon_protocol_version":3},{"name":"down","fqdn":"down.example.net","address":"100.92.30.42","port":18722,"overlay":"netbird","peer_id":"key-down","classification":"unreachable"},{"name":null,"fqdn":"idle.example.net","address":null,"port":18722,"overlay":"netbird","peer_id":null,"classification":"candidate"},{"name":"new","fqdn":"new.example.net","address":"100.92.30.43","port":18722,"overlay":"netbird","peer_id":"key-new","classification":"quarantined"}]}
+{
+  "id": "req-1",
+  "ok": [
+    {
+      "address": "100.92.30.40",
+      "classification": "reachable_daemon",
+      "daemon_version": "0.41.0",
+      "fqdn": "air.example.net",
+      "name": "air",
+      "overlay": "netbird",
+      "peer_id": "key-air",
+      "port": 18722
+    },
+    {
+      "address": "100.92.30.41",
+      "classification": "version_mismatch",
+      "daemon_protocol_version": 3,
+      "fqdn": "old.example.net",
+      "name": "old",
+      "overlay": "netbird",
+      "peer_id": "key-old",
+      "port": 18722
+    },
+    {
+      "address": "100.92.30.42",
+      "classification": "unreachable",
+      "fqdn": "down.example.net",
+      "name": "down",
+      "overlay": "netbird",
+      "peer_id": "key-down",
+      "port": 18722
+    },
+    {
+      "address": null,
+      "classification": "candidate",
+      "fqdn": "idle.example.net",
+      "name": null,
+      "overlay": "netbird",
+      "peer_id": null,
+      "port": 18722
+    },
+    {
+      "address": "100.92.30.43",
+      "classification": "quarantined",
+      "fqdn": "new.example.net",
+      "name": "new",
+      "overlay": "netbird",
+      "peer_id": "key-new",
+      "port": 18722
+    },
+    {
+      "address": "127.0.0.1",
+      "classification": "reachable_daemon",
+      "daemon_version": "0.41.0",
+      "fqdn": "here.example.net",
+      "local": true,
+      "name": "here",
+      "overlay": "netbird",
+      "port": 18722
+    }
+  ],
+  "v": 5
+}

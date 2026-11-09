@@ -2,42 +2,33 @@
   "id": "req-2",
   "ok": {
     "session": {
-      "activity": "blocked",
-      "agent": "claude",
+      "activity": "working",
+      "agent": "shell",
       "agent_base": "shell",
       "capabilities": {
         "fork": false,
         "resume": false
       },
       "cols": 80,
-      "created_at": "2026-10-23T14:57:02.577074218Z",
-      "cwd": "/work/ripgrep",
+      "created_at": "2026-11-09T20:38:32.512107411Z",
+      "cwd": "/tmp",
       "cwd_source": "launch",
       "external": false,
-      "id": "s-01M5MM7W3F83FYDAD3DH6YSEY4",
-      "is_linked_worktree": false,
-      "metadata": {
-        "work.link.id": "1412",
-        "work.link.kind": "pr",
-        "work.link.provider": "github",
-        "work.link.url": "https://github.com/BurntSushi/ripgrep/pull/1412",
-        "work.role": "reviewer"
-      },
-      "pid": 650,
-      "project_id": "p-729f4a0c",
+      "id": "s-01M710HCRQRVH4VVYG6FGH703K",
+      "pid": 960,
       "rows": 24,
       "runtime": {
-        "last_connected_at": "2026-10-23T14:57:02.681291134Z",
+        "last_connected_at": "2026-11-09T20:38:32.616245591Z",
         "runtime_generation": "1",
-        "started_at": "2026-10-23T14:57:02.681291134Z",
+        "started_at": "2026-11-09T20:38:32.616245591Z",
         "state": "live",
-        "worker_id": "worker-5c73a3d5b122ba9f2ee5cfb66c72a98d",
-        "worker_instance_id": "runtime-edf4bd8ae27973b1bc70fefc0d48d0b4"
+        "worker_id": "worker-dd121ef3759af97c0cbb093fad861c0d",
+        "worker_instance_id": "runtime-d25eea17b3ada4aea244c5650c867169"
       },
       "state": "running",
-      "state_source": "screen",
-      "updated_at": "2026-10-23T15:00:29.002522487Z"
+      "state_source": "process",
+      "updated_at": "2026-11-09T20:38:34.765591583Z"
     }
   },
-  "v": 4
+  "v": 5
 }

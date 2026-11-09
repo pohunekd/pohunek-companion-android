@@ -2,9 +2,9 @@
   "err": {
     "class": "runtime",
     "code": "action_not_found",
-    "msg": "no action named 'nope' in the project's .pohunek/actions.toml or the host config",
+    "msg": "no action named 'no-such-action' in the project's .pohunek/actions.toml or the host config",
     "recover": "define [action.<name>] in .pohunek/actions.toml or ~/.config/pohunek/actions.toml"
   },
   "id": "req-1",
-  "v": 4
+  "v": 5
 }
