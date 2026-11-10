@@ -3,6 +3,13 @@
 User-facing changes of Pohunek Companion Android, newest version first. Each
 section is folded from the fragments in `changelog.d/` when its release is prepared.
 
+## 0.1.0-pre.10 - 2026-11-10
+
+### Changed
+
+- **Breaking:** The app now connects to hosts running Pohunek 0.41 and no longer connects to hosts on an older Pohunek, which refuse it until they are upgraded. ([#245](https://github.com/pohunekd/pohunek-companion-android/issues/245))
+- A host that runs a Pohunek older than 0.41 now says "Runs an older Pohunek (protocol 4). Upgrade it to Pohunek 0.41 or newer." instead of showing a raw `version_mismatch` refusal, and a host on a newer protocol says to update the app. The same applies to hosts found by discovery, and an upgraded host connects by itself. ([#246](https://github.com/pohunekd/pohunek-companion-android/issues/246))
+
 ## 0.1.0-pre.9 - 2026-11-06
 
 ### Fixed
