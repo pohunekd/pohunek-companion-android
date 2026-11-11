@@ -12,7 +12,6 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RenderNode
 import android.graphics.Typeface
-import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
 import android.view.ActionMode
@@ -1240,7 +1239,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
 
   private fun isScrolledAwayFromBottom() = scrollbarTotal > 0 && scrollbarOffset + scrollbarLen < scrollbarTotal
 
-  private fun jumpToBottom() {
+  fun jumpToBottom() {
     GhosttyVt.nativeScrollToBottom(handle)
     scrollAccumulator.clear()
     scrollOffsetPx = 0f
@@ -1251,16 +1250,8 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
   override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
     super.onInitializeAccessibilityNodeInfo(info)
     if (isScrolledAwayFromBottom()) {
-      info.addAction(AccessibilityNodeInfo.AccessibilityAction(R_ACTION_JUMP_TO_BOTTOM, JUMP_CHIP_LABEL))
+      info.addAction(AccessibilityNodeInfo.AccessibilityAction(ACTION_JUMP_TO_BOTTOM, JUMP_CHIP_LABEL))
     }
-  }
-
-  override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
-    if (action == R_ACTION_JUMP_TO_BOTTOM) {
-      jumpToBottom()
-      return true
-    }
-    return super.performAccessibilityAction(action, arguments)
   }
 
   private fun jumpChipCenter(): Pair<Float, Float> {
@@ -1554,13 +1545,15 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     const val JUMP_CHIP_TOUCH_TARGET_DP = 48f
     const val JUMP_CHIP_RADIUS_DP = JUMP_CHIP_TOUCH_TARGET_DP / 2
     const val JUMP_CHIP_INSET_DP = 36f
-    const val JUMP_CHIP_BACKGROUND = HANDLE_COLOR
+    const val JUMP_CHIP_BACKGROUND = 0xFF4C8DF5.toInt()
     const val JUMP_CHIP_ARROW_COLOR = 0xFFFFFFFF.toInt()
     const val JUMP_CHIP_ARROW_WIDTH_DP = 3f
     const val JUMP_CHIP_RING_COLOR = 0xFFFFFFFF.toInt()
     const val JUMP_CHIP_RING_WIDTH_DP = 2f
     const val JUMP_CHIP_LABEL = "Jump to bottom"
-    const val R_ACTION_JUMP_TO_BOTTOM = 0x504A42
 
   }
 }
+
+/** Accessibility action id of the jump-to-bottom control; it must not collide with a platform action id. */
+internal const val ACTION_JUMP_TO_BOTTOM = 0x504A42
