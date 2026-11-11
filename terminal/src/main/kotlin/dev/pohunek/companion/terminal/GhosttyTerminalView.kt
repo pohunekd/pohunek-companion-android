@@ -12,6 +12,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RenderNode
 import android.graphics.Typeface
+import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
 import android.view.ActionMode
@@ -25,6 +26,7 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -218,14 +220,11 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
       override fun onDown(e: MotionEvent) = true
 
       override fun onSingleTapUp(e: MotionEvent): Boolean {
-        if (scrollbarTotal > 0 && scrollbarOffset + scrollbarLen < scrollbarTotal) {
+        if (isScrolledAwayFromBottom()) {
           val (cx, cy) = jumpChipCenter()
-          val slop = JUMP_CHIP_RADIUS_DP * 1.5f * resources.displayMetrics.density
-          if (hypot(e.x - cx, e.y - cy) <= slop) {
-            GhosttyVt.nativeScrollToBottom(handle)
-            scrollAccumulator.clear()
-            scrollOffsetPx = 0f
-            scheduleFrame()
+          val target = JUMP_CHIP_TOUCH_TARGET_DP / 2 * resources.displayMetrics.density
+          if (hypot(e.x - cx, e.y - cy) <= target) {
+            jumpToBottom()
             return true
           }
         }
@@ -1239,19 +1238,49 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     if (elapsed > SCROLLBAR_FADE_START_MS) invalidate()
   }
 
+  private fun isScrolledAwayFromBottom() = scrollbarTotal > 0 && scrollbarOffset + scrollbarLen < scrollbarTotal
+
+  private fun jumpToBottom() {
+    GhosttyVt.nativeScrollToBottom(handle)
+    scrollAccumulator.clear()
+    scrollOffsetPx = 0f
+    scheduleFrame()
+  }
+
+  /** Exposes the jump-to-bottom control to TalkBack as a labelled action while the viewport is scrolled up. */
+  override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
+    super.onInitializeAccessibilityNodeInfo(info)
+    if (isScrolledAwayFromBottom()) {
+      info.addAction(AccessibilityNodeInfo.AccessibilityAction(R_ACTION_JUMP_TO_BOTTOM, JUMP_CHIP_LABEL))
+    }
+  }
+
+  override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
+    if (action == R_ACTION_JUMP_TO_BOTTOM) {
+      jumpToBottom()
+      return true
+    }
+    return super.performAccessibilityAction(action, arguments)
+  }
+
   private fun jumpChipCenter(): Pair<Float, Float> {
     val density = resources.displayMetrics.density
-    return Pair(width - 32 * density, height - 32 * density)
+    return Pair(width - JUMP_CHIP_INSET_DP * density, height - JUMP_CHIP_INSET_DP * density)
   }
 
   private fun drawJumpToBottomChip(canvas: Canvas) {
-    if (scrollbarTotal <= 0 || scrollbarOffset + scrollbarLen >= scrollbarTotal) return
+    if (!isScrolledAwayFromBottom()) return
     val density = resources.displayMetrics.density
     val (cx, cy) = jumpChipCenter()
     val radius = JUMP_CHIP_RADIUS_DP * density
     jumpChipPaint.style = Paint.Style.FILL
     jumpChipPaint.color = JUMP_CHIP_BACKGROUND
     canvas.drawCircle(cx, cy, radius, jumpChipPaint)
+    // The ring keeps the accent fill distinct on both light and dark terminal backgrounds.
+    jumpChipPaint.style = Paint.Style.STROKE
+    jumpChipPaint.strokeWidth = JUMP_CHIP_RING_WIDTH_DP * density
+    jumpChipPaint.color = JUMP_CHIP_RING_COLOR
+    canvas.drawCircle(cx, cy, radius - jumpChipPaint.strokeWidth / 2, jumpChipPaint)
     // Downward chevron.
     val span = radius * 0.45f
     jumpChipArrow.reset()
@@ -1259,7 +1288,7 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     jumpChipArrow.lineTo(cx, cy + span * 0.5f)
     jumpChipArrow.lineTo(cx + span, cy - span * 0.5f)
     jumpChipPaint.style = Paint.Style.STROKE
-    jumpChipPaint.strokeWidth = 2 * density
+    jumpChipPaint.strokeWidth = JUMP_CHIP_ARROW_WIDTH_DP * density
     jumpChipPaint.color = JUMP_CHIP_ARROW_COLOR
     canvas.drawPath(jumpChipArrow, jumpChipPaint)
   }
@@ -1520,9 +1549,18 @@ internal class GhosttyTerminalView(context: Context, private val settings: Termi
     const val SCROLLBAR_FADE_START_MS = 800L
     const val SCROLLBAR_FADE_END_MS = 1400L
     const val SCROLLBAR_COLOR = 0xB3AAAAAA.toInt()
-    const val JUMP_CHIP_RADIUS_DP = 18f
-    const val JUMP_CHIP_BACKGROUND = 0xCC2A2A2E.toInt()
-    const val JUMP_CHIP_ARROW_COLOR = 0xFFE0E0E0.toInt()
+
+    // Jump-to-bottom control: the drawn circle is the whole 48 dp touch target (Material minimum).
+    const val JUMP_CHIP_TOUCH_TARGET_DP = 48f
+    const val JUMP_CHIP_RADIUS_DP = JUMP_CHIP_TOUCH_TARGET_DP / 2
+    const val JUMP_CHIP_INSET_DP = 36f
+    const val JUMP_CHIP_BACKGROUND = HANDLE_COLOR
+    const val JUMP_CHIP_ARROW_COLOR = 0xFFFFFFFF.toInt()
+    const val JUMP_CHIP_ARROW_WIDTH_DP = 3f
+    const val JUMP_CHIP_RING_COLOR = 0xFFFFFFFF.toInt()
+    const val JUMP_CHIP_RING_WIDTH_DP = 2f
+    const val JUMP_CHIP_LABEL = "Jump to bottom"
+    const val R_ACTION_JUMP_TO_BOTTOM = 0x504A42
 
   }
 }
