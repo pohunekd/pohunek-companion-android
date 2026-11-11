@@ -1,6 +1,7 @@
 package dev.pohunek.companion.terminal
 
 import android.content.Context
+import android.os.Bundle
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.LinearLayout
@@ -34,6 +35,15 @@ internal class TerminalHostView(context: Context, settings: TerminalSettings) : 
             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
                 super.onInitializeAccessibilityNodeInfo(host, info)
                 info.viewIdResourceName = tag
+            }
+
+            // A delegate bypasses the view's own performAccessibilityAction, so the custom action is handled here.
+            override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean {
+                if (action == ACTION_JUMP_TO_BOTTOM) {
+                    terminal.jumpToBottom()
+                    return true
+                }
+                return super.performAccessibilityAction(host, action, args)
             }
         }
     }
