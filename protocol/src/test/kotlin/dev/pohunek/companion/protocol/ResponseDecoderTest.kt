@@ -1,5 +1,6 @@
 package dev.pohunek.companion.protocol
 
+import kotlinx.serialization.SerializationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -106,20 +107,37 @@ class ResponseDecoderTest {
             """{"v":0,"id":"r1","ok":{}}""",
             """{"v":"4","id":"r1","ok":{}}""",
             """{"v":5,"ok":{}}""",
-            """{"v":5,"id":"r1","err":{"class":"unheard-of","code":"x","msg":"y"}}""",
         )
         for (line in lines) failure<ProtocolClientException.MalformedResponse>(line)
     }
 
     @Test
-    fun `a result of the wrong shape or with an unknown enum value is malformed`() {
-        val decoder = ResponseDecoder()
+    fun `a result of the wrong shape is malformed`() {
         assertThrows(ProtocolClientException.MalformedResponse::class.java) {
-            decoder.decode(ok(5, result = """{"status":"ok"}"""), "r1").decodeResult(DaemonHealth.serializer())
+            ResponseDecoder().decode(ok(5, result = """{"status":"ok"}"""), "r1").decodeResult(DaemonHealth.serializer())
         }
-        val badState = Fixtures.text("session-info-minimal").replace("\"running\"", "\"levitating\"")
-        assertThrows(ProtocolClientException.MalformedResponse::class.java) {
-            decoder.decode(ok(5, "r2", "[$badState]"), "r2").decodeResult(sessionListSerializer)
+    }
+
+    @Test
+    fun `a session with an unmodelled enum value does not fail the list that carries it`() {
+        val running = Fixtures.text("session-info-minimal")
+        val levitating = running.replace("\"running\"", "\"levitating\"")
+        val sessions = ResponseDecoder().decode(ok(5, "r2", "[$running,$levitating]"), "r2").decodeResult(sessionListSerializer)
+        assertEquals(listOf(SessionState.Running, SessionState.Unknown), sessions.map { it.state })
+    }
+
+    @Test
+    fun `an error class this client does not model still surfaces as the daemon error`() {
+        val error = failure<ProtocolClientException.Daemon>("""{"v":5,"id":"r1","err":{"class":"unheard-of","code":"x","msg":"y"}}""").error
+        assertEquals(ErrorClass.Unknown, error.errorClass)
+        assertEquals("x", error.code)
+    }
+
+    @Test
+    fun `a placeholder for an unmodelled value is never sent`() {
+        assertThrows(IllegalArgumentException::class.java) { SessionFilter.state(SessionState.Unknown) }
+        assertThrows(SerializationException::class.java) {
+            Wire.json.encodeToString(NotificationListParams.serializer(), NotificationListParams(kind = NotificationKind.Unknown))
         }
     }
 }

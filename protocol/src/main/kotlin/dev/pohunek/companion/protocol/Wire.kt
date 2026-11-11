@@ -14,7 +14,7 @@ object Wire {
     /** The range every request of this client advertises. */
     val CLIENT_RANGE: ProtocolVersionRange = ProtocolVersionRange(PROTOCOL_VERSION, PROTOCOL_VERSION)
 
-    /** Results ignore unknown fields; enum values stay closed, so an unknown one is a decode error. */
+    /** Results ignore unknown fields; an enum value the client does not model decodes to the enum's `Unknown` member (see [WireEnumSerializer]). */
     val json: Json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false

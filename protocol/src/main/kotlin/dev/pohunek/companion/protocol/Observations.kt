@@ -45,23 +45,17 @@ data class SessionRuntimeIdentity(
     @SerialName("runtime_generation") val runtimeGeneration: DecimalWire,
 )
 
-@Serializable
-enum class SubagentLifecycle {
-    @SerialName("running")
-    Running,
-
-    @SerialName("completed")
-    Completed,
-
-    @SerialName("failed")
-    Failed,
-
-    @SerialName("cancelled")
-    Cancelled,
-
-    @SerialName("lost")
-    Lost,
+@Serializable(with = SubagentLifecycleSerializer::class)
+enum class SubagentLifecycle(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Running("running"),
+    Completed("completed"),
+    Failed("failed"),
+    Cancelled("cancelled"),
+    Lost("lost"),
+    Unknown("", true),
 }
+
+internal object SubagentLifecycleSerializer : WireEnumSerializer<SubagentLifecycle>("SubagentLifecycle", SubagentLifecycle.entries, SubagentLifecycle.Unknown)
 
 /** The fields of a provider-managed subagent that owner state reads; `(provider, id)` identifies it and a newer [revision] replaces it. */
 @Serializable
@@ -72,17 +66,15 @@ data class SubagentInfo(
     val revision: DecimalWire,
 )
 
-@Serializable
-enum class BackgroundStatus {
-    @SerialName("running")
-    Running,
-
-    @SerialName("pending")
-    Pending,
-
-    @SerialName("other")
-    Other,
+@Serializable(with = BackgroundStatusSerializer::class)
+enum class BackgroundStatus(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Running("running"),
+    Pending("pending"),
+    Other("other"),
+    Unknown("", true),
 }
+
+internal object BackgroundStatusSerializer : WireEnumSerializer<BackgroundStatus>("BackgroundStatus", BackgroundStatus.entries, BackgroundStatus.Unknown)
 
 @Serializable
 data class BackgroundItem(val id: String, val status: BackgroundStatus)

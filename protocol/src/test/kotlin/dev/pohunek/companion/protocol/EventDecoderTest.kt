@@ -54,6 +54,13 @@ class EventDecoderTest {
     }
 
     @Test
+    fun `a snapshot event with an unmodelled enum value still carries the session`() {
+        val line = Fixtures.captured("session_updated").replace("\"running\"", "\"levitating\"")
+        val event = EventDecoder.decode(line) as DaemonEvent.SessionUpdated
+        assertEquals(SessionState.Unknown, event.session.state)
+    }
+
+    @Test
     fun `a modelled event with a wrong payload decodes to Malformed and leaves the stream usable`() {
         assertTrue(EventDecoder.decode("""{"v":5,"event":"session_updated"}""") is DaemonEvent.Malformed)
         assertTrue(EventDecoder.decode("""{"v":5,"event":"session_updated","session":{"id":"s"}}""") is DaemonEvent.Malformed)

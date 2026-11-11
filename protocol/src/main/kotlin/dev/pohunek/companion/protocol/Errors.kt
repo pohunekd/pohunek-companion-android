@@ -5,23 +5,17 @@ import kotlinx.serialization.Serializable
 import java.net.UnknownHostException
 import java.nio.channels.UnresolvedAddressException
 
-@Serializable
-enum class ErrorClass {
-    @SerialName("configuration")
-    Configuration,
-
-    @SerialName("daemon")
-    Daemon,
-
-    @SerialName("transport")
-    Transport,
-
-    @SerialName("runtime")
-    Runtime,
-
-    @SerialName("discovery")
-    Discovery,
+@Serializable(with = ErrorClassSerializer::class)
+enum class ErrorClass(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Configuration("configuration"),
+    Daemon("daemon"),
+    Transport("transport"),
+    Runtime("runtime"),
+    Discovery("discovery"),
+    Unknown("", true),
 }
+
+internal object ErrorClassSerializer : WireEnumSerializer<ErrorClass>("ErrorClass", ErrorClass.entries, ErrorClass.Unknown)
 
 /** Error body of a response; the set of `code` values is open. */
 @Serializable

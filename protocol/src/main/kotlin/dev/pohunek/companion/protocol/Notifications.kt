@@ -3,26 +3,15 @@ package dev.pohunek.companion.protocol
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-@Serializable
-enum class NotificationKind {
-    @SerialName("agent_blocked")
-    AgentBlocked,
-
-    @SerialName("approval_required")
-    ApprovalRequired,
-
-    @SerialName("turn_completed")
-    TurnCompleted,
-
-    @SerialName("session_finished")
-    SessionFinished,
-
-    @SerialName("error")
-    Error,
-
-    @SerialName("system")
-    System,
-
+@Serializable(with = NotificationKindSerializer::class)
+enum class NotificationKind(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    AgentBlocked("agent_blocked"),
+    ApprovalRequired("approval_required"),
+    TurnCompleted("turn_completed"),
+    SessionFinished("session_finished"),
+    Error("error"),
+    System("system"),
+    Unknown("", true),
     ;
 
     /** Whether a record of this kind means an agent waits for the owner. */
@@ -34,28 +23,25 @@ enum class NotificationKind {
     }
 }
 
-@Serializable
-enum class NotificationStatus {
-    @SerialName("unread")
-    Unread,
+internal object NotificationKindSerializer :
+    WireEnumSerializer<NotificationKind>("NotificationKind", NotificationKind.entries, NotificationKind.Unknown)
 
-    @SerialName("read")
-    Read,
-
-    @SerialName("acknowledged")
-    Acknowledged,
-
-    @SerialName("archived")
-    Archived,
-
-    @SerialName("deleted")
-    Deleted,
-
+@Serializable(with = NotificationStatusSerializer::class)
+enum class NotificationStatus(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Unread("unread"),
+    Read("read"),
+    Acknowledged("acknowledged"),
+    Archived("archived"),
+    Deleted("deleted"),
+    Unknown("", true),
     ;
 
     /** Unread and read records are open; the owner has not dealt with them yet. */
     val isOpen: Boolean get() = this == Unread || this == Read
 }
+
+internal object NotificationStatusSerializer :
+    WireEnumSerializer<NotificationStatus>("NotificationStatus", NotificationStatus.entries, NotificationStatus.Unknown)
 
 /**
  * The fields of a notification record that owner state reads. `title` and `body` are untrusted text that nothing here needs, so they are

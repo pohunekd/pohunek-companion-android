@@ -150,6 +150,10 @@ a Pohunek release changes the protocol version, and the toolchain image and
 - Events: a `subscribe` line is decoded into a sealed `DaemonEvent`; an event
   name the app does not model decodes to `Unknown` and is ignored, so a daemon
   that adds events never breaks the stream.
+- Enums: a daemon enum value the app does not model decodes to the enum's
+  `Unknown` member, so a newer daemon cannot fail the message (a whole
+  `session.list`, a snapshot event) that carries it. `Unknown` is never sent and
+  never read as a known state: it is not idle, not ended, not attachable-refused.
 
 ## App data and configuration
 

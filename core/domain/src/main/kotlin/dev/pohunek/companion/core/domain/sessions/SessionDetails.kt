@@ -58,7 +58,7 @@ private fun identityFields(info: SessionInfo, hostLabel: String, hostRoute: Host
 
 private fun agentFields(session: OwnerSession) = fields {
     val info = session.info
-    val state = SessionState.serializer().descriptor.getElementName(info.state.ordinal)
+    val state = if (info.state.isUnknown) UNKNOWN_STATE_TEXT else info.state.wire
     val detail = runtimeDetail(info)
     add("agent", "Agent", sanitizeText(info.agent))
     add("state", "State", if (detail == null) state else "$state ($detail)")
@@ -96,6 +96,9 @@ private fun workFields(info: SessionInfo) = fields {
 
 /** The value of the details line for a session whose group is kept only on this phone. */
 const val GROUP_NOT_SHARED_TEXT = "only on this phone"
+
+/** Shown for a session state this client does not model. */
+const val UNKNOWN_STATE_TEXT = "unknown"
 
 /** Drops control and bidi-format characters but keeps every space, which is significant in paths. */
 fun plainText(value: String): String = value.filterNot { it.isISOControl() || isFormatChar(it) }
