@@ -47,6 +47,16 @@ class LastSessionsCodecTest {
     }
 
     @Test
+    fun `a session with an unmodelled value is left out instead of failing the write`() {
+        val unmodelled = session("s-2", OwnerState.NeedsOwner).let { it.copy(info = it.info.copy(state = SessionState.Unknown)) }
+        val known = session("s-1", OwnerState.Working)
+
+        val decoded = LastSessionsCodec.decode(LastSessionsCodec.encode(mapOf("h" to listOf(known, unmodelled))))
+
+        assertEquals(mapOf("h" to listOf(known)), decoded)
+    }
+
+    @Test
     fun `text that is not a file of this version, or holds an unknown value, is unreadable`() {
         val valid = LastSessionsCodec.encode(mapOf("h" to listOf(session("s-1", OwnerState.Working))))
 
