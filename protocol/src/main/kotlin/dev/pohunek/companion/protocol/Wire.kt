@@ -3,7 +3,7 @@ package dev.pohunek.companion.protocol
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/** Wire contract of the pinned Pohunek tag v0.41.0 (docs/public-api.md, "Compatibility Model" and "Transports"). */
+/** Wire contract of the pinned Pohunek tag v0.42.0 (docs/public-api.md, "Compatibility Model" and "Transports"). */
 object Wire {
     /** The only protocol version this client speaks; there are no adapters for older protocols. */
     const val PROTOCOL_VERSION: Int = 5

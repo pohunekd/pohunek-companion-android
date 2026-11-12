@@ -2,8 +2,8 @@
 
 `sdk/ts/protocol/fixtures` of Pohunek `v0.41.0` has no fixture for `session_*`
 events or for runtime-bearing `session.list` entries, so these files were
-captured from the isolated `pohunekd` 0.41.0 (protocol 5) that `scripts/ui-agent` runs (same
-tag as `POHUNEK_VERSION` in `container/Containerfile`). Working directories of the fixed sessions are rewritten to
+captured from the isolated `pohunekd` 0.41.0 (protocol 5) that `scripts/ui-agent` runs (the
+protocol 5 daemon of the toolchain image at the time; later tags kept the captured shapes). Working directories of the fixed sessions are rewritten to
 `/work/...` and sessions created for the capture run in `/tmp`; ids, names, and timestamps are the synthetic ones of the run.
 
 - `version-mismatch-protocol-4-response.json` is the one file that is not protocol 5: the `daemon/version_mismatch`
