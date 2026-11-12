@@ -18,7 +18,8 @@ enum class AttachRefusal {
         fun forSession(external: Boolean?, state: SessionState): AttachRefusal? = when {
             external == true -> External
             else -> when (state) {
-                SessionState.Running -> null
+                // An unmodelled state is left to the daemon, which refuses an attach it cannot serve.
+                SessionState.Running, SessionState.Unknown -> null
                 SessionState.Starting -> Starting
                 SessionState.Stopped, SessionState.Done, SessionState.Failed -> Ended
             }

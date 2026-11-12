@@ -3,7 +3,7 @@ package dev.pohunek.companion.protocol
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/** Wire contract of the pinned Pohunek tag v0.41.0 (docs/public-api.md, "Compatibility Model" and "Transports"). */
+/** Wire contract of the pinned Pohunek tag v0.42.0 (docs/public-api.md, "Compatibility Model" and "Transports"). */
 object Wire {
     /** The only protocol version this client speaks; there are no adapters for older protocols. */
     const val PROTOCOL_VERSION: Int = 5
@@ -14,7 +14,7 @@ object Wire {
     /** The range every request of this client advertises. */
     val CLIENT_RANGE: ProtocolVersionRange = ProtocolVersionRange(PROTOCOL_VERSION, PROTOCOL_VERSION)
 
-    /** Results ignore unknown fields; enum values stay closed, so an unknown one is a decode error. */
+    /** Results ignore unknown fields; an enum value the client does not model decodes to the enum's `Unknown` member (see [WireEnumSerializer]). */
     val json: Json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false

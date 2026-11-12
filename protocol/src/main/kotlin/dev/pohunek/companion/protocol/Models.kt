@@ -3,89 +3,63 @@ package dev.pohunek.companion.protocol
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-@Serializable
-enum class SessionState {
-    @SerialName("starting")
-    Starting,
-
-    @SerialName("running")
-    Running,
-
-    @SerialName("stopped")
-    Stopped,
-
-    @SerialName("done")
-    Done,
-
-    @SerialName("failed")
-    Failed,
+@Serializable(with = SessionStateSerializer::class)
+enum class SessionState(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Starting("starting"),
+    Running("running"),
+    Stopped("stopped"),
+    Done("done"),
+    Failed("failed"),
+    Unknown("", true),
 }
 
-@Serializable
-enum class StateSource {
-    @SerialName("osc_title")
-    OscTitle,
+internal object SessionStateSerializer : WireEnumSerializer<SessionState>("SessionState", SessionState.entries, SessionState.Unknown)
 
-    @SerialName("osc_progress")
-    OscProgress,
-
-    @SerialName("screen")
-    Screen,
-
-    @SerialName("process")
-    Process,
-
-    @SerialName("report")
-    Report,
+@Serializable(with = StateSourceSerializer::class)
+enum class StateSource(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    OscTitle("osc_title"),
+    OscProgress("osc_progress"),
+    Screen("screen"),
+    Process("process"),
+    Report("report"),
+    Unknown("", true),
 }
 
-@Serializable
-enum class AgentActivity {
-    @SerialName("working")
-    Working,
+internal object StateSourceSerializer : WireEnumSerializer<StateSource>("StateSource", StateSource.entries, StateSource.Unknown)
 
-    @SerialName("blocked")
-    Blocked,
-
-    @SerialName("idle")
-    Idle,
+@Serializable(with = AgentActivitySerializer::class)
+enum class AgentActivity(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Working("working"),
+    Blocked("blocked"),
+    Idle("idle"),
+    Unknown("", true),
 }
 
-@Serializable
-enum class CwdSource {
-    @SerialName("launch")
-    Launch,
+internal object AgentActivitySerializer : WireEnumSerializer<AgentActivity>("AgentActivity", AgentActivity.entries, AgentActivity.Unknown)
 
-    @SerialName("procwatch")
-    Procwatch,
-
-    @SerialName("osc7")
-    Osc7,
+@Serializable(with = CwdSourceSerializer::class)
+enum class CwdSource(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Launch("launch"),
+    Procwatch("procwatch"),
+    Osc7("osc7"),
+    Unknown("", true),
 }
 
-@Serializable
-enum class RuntimeState {
-    @SerialName("starting")
-    Starting,
+internal object CwdSourceSerializer : WireEnumSerializer<CwdSource>("CwdSource", CwdSource.entries, CwdSource.Unknown)
 
-    @SerialName("live")
-    Live,
-
-    @SerialName("reconnecting")
-    Reconnecting,
-
-    @SerialName("terminal")
-    Terminal,
-
-    @SerialName("lost")
-    Lost,
-
-    @SerialName("conflict")
-    Conflict,
-
-    @SerialName("incompatible")
-    Incompatible,
+@Serializable(with = RuntimeStateSerializer::class)
+enum class RuntimeState(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Starting("starting"),
+    Live("live"),
+    Reconnecting("reconnecting"),
+    Terminal("terminal"),
+    Lost("lost"),
+    Conflict("conflict"),
+    Incompatible("incompatible"),
+    Unknown("", true),
 }
+
+internal object RuntimeStateSerializer : WireEnumSerializer<RuntimeState>("RuntimeState", RuntimeState.entries, RuntimeState.Unknown)
 
 /** Durable runtime of a worker-backed session; `runtime_generation` is a decimal string on the wire. */
 @Serializable
@@ -163,9 +137,9 @@ data class SessionInfo(
 @Serializable
 data class SessionFilter(val key: String, val value: String) {
     companion object {
-        fun state(state: SessionState) = SessionFilter("state", SessionState.serializer().descriptor.getElementName(state.ordinal))
+        fun state(state: SessionState) = SessionFilter("state", state.requireWire())
 
-        fun activity(activity: AgentActivity) = SessionFilter("activity", AgentActivity.serializer().descriptor.getElementName(activity.ordinal))
+        fun activity(activity: AgentActivity) = SessionFilter("activity", activity.requireWire())
 
         fun agent(agent: String) = SessionFilter("agent", agent)
 

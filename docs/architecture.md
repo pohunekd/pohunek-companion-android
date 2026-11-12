@@ -35,7 +35,7 @@ Open folder, iOS (out of scope for now).
 ## Protocol boundary
 
 The app speaks the Pohunek public protocol only, pinned to one Pohunek tag:
-`v0.41.0` today. The desktop companion is on its own schedule and does not set
+`v0.42.0` today. The desktop companion is on its own schedule and does not set
 the tag. The app follows the oldest release whose protocol window it speaks, so
 a host that upgrades to that release or newer keeps working; the pin moves when
 a Pohunek release changes the protocol version, and the toolchain image and
@@ -43,7 +43,7 @@ a Pohunek release changes the protocol version, and the toolchain image and
 
 - Transport: newline-delimited JSON over TCP on the overlay.
 - Version: the request envelope advertises `v:{5,5}`, the single-version window
-  of Pohunek 0.41. There are no adapters for older protocols; a
+  of Pohunek 0.42. There are no adapters for older protocols; a
   `daemon/version_mismatch` answer is shown clearly.
 - State: seed with `session.list` and `notification.list`, then keep current
   with one `subscribe` connection. Re-seed on every reconnect and
@@ -150,6 +150,10 @@ a Pohunek release changes the protocol version, and the toolchain image and
 - Events: a `subscribe` line is decoded into a sealed `DaemonEvent`; an event
   name the app does not model decodes to `Unknown` and is ignored, so a daemon
   that adds events never breaks the stream.
+- Enums: a daemon enum value the app does not model decodes to the enum's
+  `Unknown` member, so a newer daemon cannot fail the message (a whole
+  `session.list`, a snapshot event) that carries it. `Unknown` is never sent and
+  never read as a known state: it is not idle, not ended, not attachable-refused.
 
 ## App data and configuration
 
@@ -312,7 +316,7 @@ updates its entry.
   `live.rs`, `needs_you.rs`, `filter.rs`, `layout.rs`, `discovery.rs`,
   `view.rs`, `sort_key.rs`.
 - **Pohunek wire fixtures** (MIT): `sdk/ts/protocol/fixtures` at the pinned tag
-  `v0.41.0`.
+  `v0.42.0`.
 
 ## Development environment
 

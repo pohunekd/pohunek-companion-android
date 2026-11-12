@@ -74,14 +74,23 @@ class ObservationEventsTest {
     @Test
     fun `a payload of the wrong shape decodes to Malformed`() {
         for (line in listOf(
-            """{"v":5,"event":"agent_state","session_id":"s","activity":"sleeping","source":"screen"}""",
             """{"v":5,"event":"subagent_state","session_id":"s"}""",
             """{"v":5,"event":"notification_created"}""",
-            """{"v":5,"event":"notification_created","record":{"id":"n","kind":"agent_blocked","status":"vanished","created_at":"t"}}""",
             """{"v":5,"event":"notification_deleted","notification_id":7}""",
         )) {
             assertTrue(line, EventDecoder.decode(line) is DaemonEvent.Malformed)
         }
+    }
+
+    @Test
+    fun `an unmodelled enum value in an observation keeps the event and is not an open attention record`() {
+        val state = EventDecoder.decode("""{"v":5,"event":"agent_state","session_id":"s","activity":"sleeping","source":"screen"}""")
+        assertEquals(AgentActivity.Unknown, (state as DaemonEvent.AgentState).update.activity)
+        val record = EventDecoder.decode(
+            """{"v":5,"event":"notification_created","record":{"id":"n","kind":"agent_blocked","status":"vanished","created_at":"t"}}""",
+        )
+        assertEquals(NotificationStatus.Unknown, (record as DaemonEvent.NotificationCreated).record.status)
+        assertTrue(!record.record.status.isOpen)
     }
 
     @Test
