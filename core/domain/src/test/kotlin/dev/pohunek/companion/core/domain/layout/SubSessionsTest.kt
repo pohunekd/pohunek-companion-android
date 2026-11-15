@@ -91,6 +91,18 @@ class SubSessionsTest {
     }
 
     @Test
+    fun `the roll-up counts waiting descendants at any depth and not the session itself or a withheld one`() {
+        val tree = tree("g" to null, "p" to "g", "a" to "p", "b" to "p", "c" to "a", "x" to null)
+        // "b" waits but is isolated by a flagged ancestor, so it is not in the waiting set.
+        val waiting = setOf(key("g"), key("a"), key("c"), key("x"))
+        assertEquals(2, tree.countDescendantsIn(key("g"), waiting))
+        assertEquals(2, tree.countDescendantsIn(key("p"), waiting))
+        assertEquals(1, tree.countDescendantsIn(key("a"), waiting))
+        assertEquals(0, tree.countDescendantsIn(key("b"), waiting))
+        assertEquals(0, tree.countDescendantsIn(key("x"), waiting))
+    }
+
+    @Test
     fun `counting the Needs you rows gives counts and no fold control`() {
         val tree = tree("p" to null, "a" to "p")
         val rows = countSubSessions(listOf(Placed(key("p"), TreePosition())), tree, setOf(key("a")), Placed::key) { row, position -> row.copy(tree = position) }

@@ -15,6 +15,8 @@ data class TreePosition(
     val expanded: Boolean = false,
     /** Sub-sessions are folded, so the row's control expands and collapses them. */
     val folding: Boolean = false,
+    /** Descendants at any depth that need the owner and are not isolated; the row's roll-up mark. */
+    val waitingSubSessions: Int = 0,
 )
 
 /** The parent of every session that has one, over the sessions of all hosts. */
@@ -27,6 +29,20 @@ class SubSessionTree private constructor(
 
     /** The direct sub-sessions of [key], in the order of the sessions [build] saw. */
     fun children(key: SessionKey): List<SessionKey> = children[key].orEmpty()
+
+    /** How many descendants of [key], at any depth, are among [waiting]. */
+    fun countDescendantsIn(key: SessionKey, waiting: Set<SessionKey>): Int {
+        val seen = hashSetOf(key)
+        val pending = ArrayDeque(children(key))
+        var count = 0
+        while (pending.isNotEmpty()) {
+            val next = pending.removeFirst()
+            if (!seen.add(next)) continue
+            if (next in waiting) count++
+            pending.addAll(children(next))
+        }
+        return count
+    }
 
     /** True when at least one session folds under another. */
     val isEmpty: Boolean get() = parents.isEmpty()
