@@ -798,6 +798,28 @@ create_attention_tree() {
   create_tree_session plain-worker "$project" claude blocked "$plain"
 }
 
+# `start --showcase --profiles`: three synthetic profiles with a label and an audience (owner, agent, hidden) and one idle session from
+# the labelled owner profile. Needs a Pohunek that reports `audience` and `agent_display_name` (v0.43.0 or newer).
+create_audience_profiles() {
+  local agents="$iso/config/pohunek/agents" name audience label
+  for name in reviewer spawned-worker internal-probe; do
+    case $name in
+      reviewer) audience=owner label="PR reviewer" ;;
+      spawned-worker) audience=agent label="Spawned worker" ;;
+      *) audience=hidden label="Internal probe" ;;
+    esac
+    cat >"$agents/$name.toml" <<EOF2
+base = "shell"
+manifest = "showcase"
+program = "$iso/bin/showcase-agent"
+args = []
+display_name = "$label"
+audience = "$audience"
+EOF2
+  done
+  create_tree_session labelled-session pohunek-companion reviewer idle ""
+}
+
 # Starts the second host on the protocol-4 daemon of the legacy toolchain directory: no projects and no sessions,
 # because it only has to be there and refuse this app's protocol.
 start_legacy_host2() {
@@ -1582,8 +1604,8 @@ pohunek_cli() {
 
 # Boots the device and starts the daemon and bridge; run in the background by
 # scripts/ui-agent, which polls the status file.
-up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2 [ATTENTION_TREE]]
-  local extra="${1:-0}" showcase="${2:-0}" legacy="${3:-0}" tree="${4:-0}"
+up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2 [ATTENTION_TREE [PROFILES]]]
+  local extra="${1:-0}" showcase="${2:-0}" legacy="${3:-0}" tree="${4:-0}" profiles="${5:-0}"
   rm -f "$up_status"
   exec >"$run_dir/up.log" 2>&1
   trap 'rc=$?; if [ "$rc" -eq 0 ]; then echo ok >"$up_status"; else echo "failed: $(tail -n 5 "$run_dir/up.log" | tr "\n" " ")" >"$up_status"; fi' EXIT
@@ -1592,6 +1614,7 @@ up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2 [ATTENTION_TREE]]
   if [ "$DAEMON" = isolated ]; then
     start_daemon "$extra" "$showcase"
     [ "$tree" -eq 0 ] || create_attention_tree
+    [ "$profiles" -eq 0 ] || create_audience_profiles
     start_bridge
     if [ "$showcase" -eq 1 ]; then
       if [ "$legacy" -eq 1 ]; then

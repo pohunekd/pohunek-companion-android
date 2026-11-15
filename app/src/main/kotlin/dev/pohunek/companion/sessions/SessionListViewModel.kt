@@ -77,6 +77,7 @@ import dev.pohunek.companion.core.domain.sessions.removalNotice
 import dev.pohunek.companion.core.domain.sessions.resumeOffer
 import dev.pohunek.companion.core.domain.sessions.runtimeDetail
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
+import dev.pohunek.companion.core.domain.sessions.sessionAgentLabel
 import dev.pohunek.companion.core.domain.sessions.sessionDetails
 import dev.pohunek.companion.core.domain.sessions.sessionDisplayName
 import dev.pohunek.companion.core.domain.sessions.sessionProjectLabel
@@ -744,7 +745,7 @@ private fun HostedSession.toRow(badgeMaxChars: Int, notShared: Set<SessionKey>):
         route = route,
         sessionId = info.id,
         title = sessionDisplayName(info),
-        agent = sanitizeText(info.agent),
+        agent = sessionAgentLabel(info),
         ownerState = session.ownerState,
         listState = session.listState,
         project = sessionProjectLabel(info),

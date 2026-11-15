@@ -6,6 +6,7 @@ import dev.pohunek.companion.core.domain.layout.GROUP_METADATA_KEY
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.protocol.AgentRuntime
 import dev.pohunek.companion.protocol.HostRoute
+import dev.pohunek.companion.protocol.ProfileAudience
 import dev.pohunek.companion.protocol.ProjectInfo
 import dev.pohunek.companion.protocol.ProtocolClientException
 import dev.pohunek.companion.protocol.ProtocolError
@@ -15,8 +16,11 @@ import dev.pohunek.companion.protocol.SessionNewResult
 /** A project of the chosen host; [label] is cleaned for display and search, [id] is what `session.new` takes. */
 data class ProjectChoice(val id: String, val label: String)
 
-/** An agent the host reports; [unlaunchable] is the reason it cannot start now, or null when it can. */
-data class AgentChoice(val name: String, val unlaunchable: String?) {
+/**
+ * An agent the host reports; [unlaunchable] is the reason it cannot start now, or null when it can. [name] is what `session.new`
+ * takes, [label] the cleaned profile label or name shown to the owner. [shown] is false for a profile whose audience is not the owner's.
+ */
+data class AgentChoice(val name: String, val unlaunchable: String?, val label: String = sanitizeText(name), val shown: Boolean = true) {
     val launchable: Boolean get() = unlaunchable == null
 }
 
@@ -33,15 +37,29 @@ data class NewSessionChoices(
     val hasLaunchableAgent: Boolean get() = agents.any { it.launchable }
 
     fun launchable(name: String): Boolean = agents.any { it.name == name && it.launchable }
+
+    /** Whether some agent is hidden from the default picker, so the owner has something to reveal. */
+    val hasHiddenAgents: Boolean get() = agents.any { !it.shown }
+
+    /** The agents the picker lists: the owner's, or all of them when [showAll]; the agent in [selected] is always listed. */
+    fun visibleAgents(showAll: Boolean, selected: String?): List<AgentChoice> = agents.filter { showAll || it.shown || it.name == selected }
 }
 
 fun projectChoices(projects: List<ProjectInfo>): List<ProjectChoice> = projects.map { ProjectChoice(it.id, sanitizeText(it.label)) }
 
 /** Every reported agent, launchable ones first; each group keeps the daemon's order. */
 fun agentChoices(runtimes: List<AgentRuntime>): List<AgentChoice> {
-    val (launchable, blocked) = runtimes.map { AgentChoice(it.agent, unlaunchableReason(it)) }.partition { it.launchable }
+    val (launchable, blocked) = runtimes.map(::agentChoice).partition { it.launchable }
     return launchable + blocked
 }
+
+/** A runtime without an audience belongs to the owner; an audience this client does not know is revealed only by "Show all". */
+private fun agentChoice(runtime: AgentRuntime) = AgentChoice(
+    name = runtime.agent,
+    unlaunchable = unlaunchableReason(runtime),
+    label = runtime.displayName?.let(::sanitizeText)?.ifEmpty { null } ?: sanitizeText(runtime.agent),
+    shown = runtime.audience == null || runtime.audience == ProfileAudience.Owner,
+)
 
 /** Launchable means present on the host and not reported as an unsupported version; an absent `supported` means no version policy. */
 private fun unlaunchableReason(runtime: AgentRuntime): String? = when {
@@ -170,11 +188,12 @@ private fun worktreeBlocker(form: NewSessionForm, choices: NewSessionChoices): C
 
 /**
  * The form after the choices of its host arrived: the project stays when the host has it, else none is selected; the agent stays
- * when launchable, else the first launchable one is selected (none when the host has none).
+ * when launchable, else the first launchable one is selected, preferring one the picker lists by default (none when the host has none).
  */
 fun settleSelection(form: NewSessionForm, choices: NewSessionChoices): NewSessionForm = form.copy(
     project = form.project?.takeIf { id -> choices.projects.any { it.id == id } },
-    agent = form.agent?.takeIf(choices::launchable) ?: choices.agents.firstOrNull { it.launchable }?.name,
+    agent = form.agent?.takeIf(choices::launchable)
+        ?: (choices.agents.firstOrNull { it.launchable && it.shown } ?: choices.agents.firstOrNull { it.launchable })?.name,
 )
 
 /**

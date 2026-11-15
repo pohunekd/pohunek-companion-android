@@ -100,6 +100,8 @@ data class SessionInfo(
     @SerialName("capability_refusals") val capabilityRefusals: CapabilityRefusals? = null,
     val name: String? = null,
     val agent: String,
+    /** The label of the session's profile, read live on `session.list` and `session.inspect`; absent for a bare runtime or an unlabelled profile. */
+    @SerialName("agent_display_name") val agentDisplayName: String? = null,
     @SerialName("agent_base") val agentBase: String,
     val cwd: String,
     @SerialName("cwd_source") val cwdSource: CwdSource? = null,

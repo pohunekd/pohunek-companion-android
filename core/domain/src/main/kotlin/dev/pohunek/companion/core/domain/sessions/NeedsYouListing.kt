@@ -67,6 +67,9 @@ internal val needsOwnerOrder: Comparator<HostedSession> =
 /** The session's sanitized name, or its id when it has none. */
 fun sessionDisplayName(info: SessionInfo): String = info.name?.let(::sanitizeText)?.ifEmpty { null } ?: info.id
 
+/** The session's sanitized profile label, or its sanitized agent name when the profile has no label. */
+fun sessionAgentLabel(info: SessionInfo): String = info.agentDisplayName?.let(::sanitizeText)?.ifEmpty { null } ?: sanitizeText(info.agent)
+
 /**
  * `<state>: <loss_reason>` for a `conflict` or `incompatible` runtime, just the state without a reason, and null for any other runtime.
  * The reason is daemon-supplied text, so control and bidi-format characters are removed and whitespace is collapsed.

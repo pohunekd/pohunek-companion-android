@@ -41,7 +41,6 @@ import dev.pohunek.companion.R
 import dev.pohunek.companion.core.domain.newsession.AgentChoice
 import dev.pohunek.companion.core.domain.newsession.CreateBlocker
 import dev.pohunek.companion.core.domain.newsession.LaunchBlocker
-import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.protocol.HostRoute
@@ -244,7 +243,8 @@ private fun LazyListScope.projectSection(state: NewSessionState, onEvent: (NewSe
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AgentChips(state: NewSessionState, onEvent: (NewSessionEvent) -> Unit) {
-    val agents = state.choices?.agents ?: return
+    val choices = state.choices ?: return
+    val agents = choices.visibleAgents(state.showAllAgents, state.form.agent)
     Column(Modifier.padding(horizontal = PohunekTheme.spacing.gutter), verticalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.xs)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.sm)) {
             agents.forEach { agent ->
@@ -252,14 +252,19 @@ private fun AgentChips(state: NewSessionState, onEvent: (NewSessionEvent) -> Uni
                     selected = agent.name == state.form.agent,
                     onClick = { onEvent(NewSessionEvent.SelectAgent(agent.name)) },
                     enabled = agent.launchable && !state.activity.inFlight,
-                    label = { Text(sanitizeText(agent.name)) },
+                    label = { Text(agent.label) },
                     modifier = Modifier.testTag("NewSession.agent"),
                 )
             }
         }
+        if (choices.hasHiddenAgents) {
+            TextButton(onClick = { onEvent(NewSessionEvent.ToggleShowAllAgents) }, modifier = Modifier.testTag("NewSession.showAllAgents")) {
+                Text(stringResource(if (state.showAllAgents) R.string.new_session_agents_show_owner else R.string.new_session_agents_show_all))
+            }
+        }
         agents.filterNot(AgentChoice::launchable).forEach { agent ->
             Text(
-                stringResource(R.string.new_session_agent_unavailable, sanitizeText(agent.name), agent.unlaunchable.orEmpty()),
+                stringResource(R.string.new_session_agent_unavailable, agent.label, agent.unlaunchable.orEmpty()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.testTag("NewSession.agentNote"),

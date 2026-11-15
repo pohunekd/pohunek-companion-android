@@ -238,8 +238,8 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
      * (`session_created`) and otherwise ignored.
      */
     private fun replaceSnapshot(eventInfo: SessionInfo, insertIfAbsent: Boolean, now: ComparableTimeMark): EventOutcome {
-        val info = withKnownLabel(eventInfo)
-        val stored = sessions[key(info.id)]
+        val stored = sessions[key(eventInfo.id)]
+        val info = withKnownLabels(eventInfo, stored?.info)
         return when {
             stored == null && !insertIfAbsent -> EventOutcome.Ignored(IgnoreReason.UnknownSession)
             stored == null -> applying { sessions[key(info.id)] = TrackedSession(info, baseline = null, idleSince = null).also { it.refreshIdle(now) } }
@@ -254,10 +254,15 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
         }
     }
 
-    /** Events omit the project label, so a snapshot from one gets the label a seed gave its project. */
-    private fun withKnownLabel(info: SessionInfo): SessionInfo {
-        val label = info.projectId?.let(projectLabels::get)
-        return if (info.projectLabel == null && label != null) info.copy(projectLabel = label) else info
+    /**
+     * Events omit the project label and the profile label, so a snapshot from one gets the label a seed gave its project and the
+     * profile label the stored snapshot of the same agent carries.
+     */
+    private fun withKnownLabels(info: SessionInfo, stored: SessionInfo?): SessionInfo {
+        val projectLabel = info.projectLabel ?: info.projectId?.let(projectLabels::get)
+        val agentLabel = info.agentDisplayName ?: stored?.agentDisplayName?.takeIf { stored.agent == info.agent }
+        if (projectLabel == info.projectLabel && agentLabel == info.agentDisplayName) return info
+        return info.copy(projectLabel = projectLabel, agentDisplayName = agentLabel)
     }
 
     private fun ownerSession(tracked: TrackedSession, waiting: Map<String, OffsetDateTime?>): OwnerSession {

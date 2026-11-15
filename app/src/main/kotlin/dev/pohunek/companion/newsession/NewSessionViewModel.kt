@@ -73,6 +73,7 @@ class NewSessionViewModel(
             is NewSessionEvent.SelectTemplate -> if (!busy) templates.select(event.name)
             is NewSessionEvent.FormEdit -> edit(event::applyTo)
             NewSessionEvent.ToggleAdvanced -> updateState { it.copy(advancedOpen = !it.advancedOpen) }
+            NewSessionEvent.ToggleShowAllAgents -> updateState { it.copy(showAllAgents = !it.showAllAgents) }
             is NewSessionEvent.EditProjectQuery -> updateState { it.copy(projectQuery = event.text) }
             is NewSessionEvent.SetAttachAfterCreate -> updateState { it.copy(attachAfterCreate = event.attach) }
             NewSessionEvent.Create -> create()
