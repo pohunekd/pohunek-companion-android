@@ -1,0 +1,8 @@
+Added
+- Attach can run from the session row (#149)
+Changed
+- Breaking: Sessions show the live state reported by the daemon. (#151)
+Fixed
+- Reconnect keeps the selected session. (#152)
+Security
+- Session tokens are rotated on every reattach. (#152)

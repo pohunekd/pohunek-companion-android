@@ -58,6 +58,8 @@ if (releaseSigned && !file(signing.getValue(signingKeystoreFile).orEmpty()).isFi
 // -PreleaseTag=vX.Y.Z[-pre.N] derives the published version; without it a local build keeps the values below.
 //   versionName = X.Y.Z[-pre.N]
 //   versionCode = X * 10_000_000 + Y * 100_000 + Z * 1_000 + (N for -pre.N, else 999)
+// scripts/changelog computes the same code for the store changelog file name; keep both formulas in step.
+// scripts/changelog (version_code) computes the same code for the store changelog file name; keep both in step.
 // so every pre-release of a version sorts below the version itself and any higher version sorts above both.
 // Y and Z must be below 100, N from 1 to 998 and X at most 209, which keeps the code under Android's 2_100_000_000.
 val releaseTagPattern = Regex("""v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-pre\.([1-9]\d*))?""")

@@ -31,6 +31,11 @@ same() {
   fi
 }
 
+store_dir=fastlane/metadata/android/en-US/changelogs
+
+# code_of VERSION: the versionCode as the tool computes it.
+code_of() { "$tool" version-code "$1"; }
+
 # new_repo NAME FIXTURE [REPOSITORY]: a copy of the fixture input with a workflow
 # file naming REPOSITORY (default example/app), so that fold links to it without a flag.
 new_repo() {
@@ -50,6 +55,9 @@ fold_and_compare() {
     return
   fi
   same "$dir/CHANGELOG.md" "$expected/CHANGELOG.md" "fold $version: CHANGELOG.md"
+  if [ -f "$expected/$(code_of "$version").txt" ]; then
+    same "$dir/$store_dir/$(code_of "$version").txt" "$expected/$(code_of "$version").txt" "fold $version: store changelog"
+  fi
   if compgen -G "$dir/changelog.d/*.md" >/dev/null; then
     fail "fold $version left fragments in changelog.d"
   else
@@ -144,6 +152,52 @@ for case in "$fixtures"/invalid/*/; do
     fail "check rejected the invalid case $name without a message"
   fi
 done
+
+# The versionCode formula is pinned to releaseVersionCode in app/build.gradle.kts.
+for pair in 0.1.0-pre.11=100011 0.1.0=100999 1.2.3-pre.4=10203004 2.0.0=20000999; do
+  if [ "$(code_of "${pair%%=*}")" = "${pair##*=}" ]; then pass; else fail "versionCode of ${pair%%=*} is not ${pair##*=}"; fi
+done
+for bad in 0.100.0 0.1.100 0.1.0-pre.999 210.0.0; do
+  if "$tool" version-code "$bad" >/dev/null 2>&1; then fail "version-code accepted $bad"; else pass; fi
+done
+
+# An out-of-range version makes fold fail before anything is written.
+range_repo="$(new_repo range single)"
+if (cd "$range_repo" && "$tool" fold 0.100.0 --date 2026-10-24) >/dev/null 2>&1 \
+  || ! cmp -s "$range_repo/CHANGELOG.md" "$fixtures/single/input/CHANGELOG.md" \
+  || ! compgen -G "$range_repo/changelog.d/*.md" >/dev/null \
+  || [ -e "$range_repo/fastlane" ]; then
+  fail "fold wrote files for an out-of-range versionCode"
+else
+  pass
+fi
+
+# A section over the store limit is cut at an entry boundary and ends with the release pointer.
+long="$(new_repo long single)"
+rm -f "$long"/changelog.d/*.md
+for n in 1 2 3 4 5 6 7 8; do
+  printf -- '---\nkind: added\n---\nEntry number %s %s\n' "$n" "$(printf 'word%.0s ' {1..12})" > "$long/changelog.d/$n-entry.md"
+done
+(cd "$long" && "$tool" fold 0.37.0 --date 2026-10-24)
+longfile="$long/$store_dir/3700999.txt"
+if [ "$(wc -m < "$longfile")" -le 500 ] \
+  && [ "$(tail -n 1 "$longfile")" = "Full changelog: https://github.com/example/app/releases/tag/v0.37.0" ] \
+  && [ "$(tail -n 2 "$longfile" | head -n 1 | cut -c1-2)" = "- " ] \
+  && [ "$(grep -c '^- Entry' "$longfile")" -lt 8 ] && grep -q '^- Entry number 1 ' "$longfile" \
+  && (cd "$long" && "$tool" store-check 0.37.0 >/dev/null); then
+  pass
+else
+  fail "the over-long store changelog is not cut at an entry boundary within 500 characters"
+  cat "$longfile"
+fi
+
+# store-check fails on a tree without the file.
+rm "$longfile"
+if (cd "$long" && "$tool" store-check 0.37.0) >/dev/null 2>&1; then
+  fail "store-check passed without the store changelog file"
+else
+  pass
+fi
 
 # An invalid fragment aborts fold before anything is written.
 broken="$(new_repo broken single)"
