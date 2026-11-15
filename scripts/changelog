@@ -5,13 +5,21 @@
 #   scripts/changelog check
 #   scripts/changelog fold <version> [--date YYYY-MM-DD] [--repository OWNER/NAME]
 #   scripts/changelog notes <version>
+#   scripts/changelog store-check <version>
+#   scripts/changelog version-code <version>
 #
 # check   validates every fragment in changelog.d/.
 # fold    validates the fragments, writes the version section into CHANGELOG.md
 #         and deletes the fragments. Nothing is written when one is invalid.
 #         The entry links point at the `repository` of .github/agent-workflow.json;
 #         --repository overrides it and exists for the fixture runner only.
+#         It also writes the plain-text store changelog
+#         fastlane/metadata/android/en-US/changelogs/<versionCode>.txt (at most 500
+#         characters, cut at an entry boundary) for F-Droid and IzzyOnDroid.
 # notes   prints the marker block of a version section for the release body.
+# version-code  prints the Android versionCode of the version.
+# store-check  fails unless the store changelog file of the version's versionCode
+#         exists, is not empty and is at most 500 characters.
 set -euo pipefail
 export LC_ALL=C
 
@@ -24,6 +32,8 @@ fragments_dir=changelog.d
 workflow_file=.github/agent-workflow.json
 marker_start='<!-- pohunek-changelog:start -->'
 marker_end='<!-- pohunek-changelog:end -->'
+store_changelog_dir=fastlane/metadata/android/en-US/changelogs
+store_changelog_max=500
 
 die() { printf 'changelog: %s\n' "$*" >&2; exit 1; }
 
@@ -219,6 +229,74 @@ check_version() {
   [[ $1 =~ $version_pattern ]] || die "version '$1' is not X.Y.Z or X.Y.Z-pre.N"
 }
 
+# Prints the Android versionCode of a version. The formula and its range limits
+# mirror releaseVersionCode in app/build.gradle.kts, and the test case in
+# scripts/test-changelog pins both.
+version_code() {
+  local version=$1 major minor patch pre code
+  [[ $version =~ $version_pattern ]] || die "version '$version' is not X.Y.Z or X.Y.Z-pre.N"
+  major=${BASH_REMATCH[1]} minor=${BASH_REMATCH[2]} patch=${BASH_REMATCH[3]}
+  pre=${BASH_REMATCH[4]#-pre.}
+  if [ "$minor" -ge 100 ] || [ "$patch" -ge 100 ] || { [ -n "$pre" ] && [ "$pre" -ge 999 ]; }; then
+    die "version '$version' is outside the versionCode range (minor and patch below 100, pre number 1-998)"
+  fi
+  code=$((major * 10000000 + minor * 100000 + patch * 1000 + ${pre:-999}))
+  [ "$code" -le 2100000000 ] || die "version '$version' is outside the versionCode range"
+  printf '%s\n' "$code"
+}
+
+# Prints the plain-text store changelog of the collected fragments: kind headings
+# and "- entry (#N)" lines. When the text exceeds the limit it is cut after the
+# last entry that fits, and a final line points to the GitHub release. The limit is
+# counted in bytes, which is never less than the characters F-Droid counts.
+render_store_changelog() {
+  local repo=$1 version=$2 kind entry rank number slug text bold
+  local pointer="Full changelog: https://github.com/$repo/releases/tag/v$version"
+  local -a entries=() units=()
+  local i heading_pending out candidate
+
+  if [ "${#fragments[@]}" -eq 0 ]; then
+    printf 'No user-facing changes.\n'
+    return
+  fi
+  for kind in "${kinds[@]}"; do
+    mapfile -t entries < <(printf '%s\n' "${fragments[@]}" \
+      | awk -F '\t' -v kind="$kind" '$1 == kind' \
+      | sort -t $'\t' -k2,2n -k3,3n -k4,4)
+    [ "${#entries[@]}" -gt 0 ] || continue
+    heading_pending=${kind^}
+    for entry in "${entries[@]}"; do
+      IFS=$'\t' read -r _ rank number slug text <<< "$entry"
+      bold=
+      [ "$rank" -eq 0 ] && bold='Breaking: '
+      text=$(printf '%s' "$text" | sed -E 's/\[([^]]*)\]\([^)]*\)/\1/g; s/\*\*//g; s/`//g')
+      units+=("${heading_pending:+$heading_pending$'\n'}- $bold$text (#$number)")
+      heading_pending=
+    done
+  done
+
+  # The longest prefix of whole units that fits; a cut leaves room for the pointer line.
+  for ((i = ${#units[@]}; i >= 0; i--)); do
+    out=$(printf '%s\n' "${units[@]:0:i}")
+    out=${out%$'\n'}
+    if [ "$i" -eq "${#units[@]}" ]; then
+      [ "${#out}" -le "$store_changelog_max" ] && break
+    else
+      candidate=${out:+$out$'\n'}$pointer
+      if [ "${#candidate}" -le "$store_changelog_max" ]; then
+        out=$candidate
+        break
+      fi
+    fi
+  done
+  printf '%s\n' "$out"
+}
+
+# Prints the store changelog path of the version, relative to the repository root.
+store_changelog_path() {
+  printf '%s/%s.txt\n' "$store_changelog_dir" "$(version_code "$1")"
+}
+
 # Removes trailing empty lines of the array named $1.
 trim_trailing_blank() {
   local -n arr=$1
@@ -235,7 +313,7 @@ cmd_check() {
 }
 
 cmd_fold() {
-  local version=${1-} day repo_arg= repo tmp i line path
+  local version=${1-} day repo_arg= repo tmp i line path store_path
   local -a cl_lines=() section=() block=() out=()
   [ -n "$version" ] || die "fold needs a version"
   shift
@@ -258,6 +336,7 @@ cmd_fold() {
     die "--date must be a valid YYYY-MM-DD date, got '$day'"
   fi
   repo="$(resolve_repository "$repo_arg")"
+  store_path="$(store_changelog_path "$version")"
   [ -f "$changelog" ] || die "$changelog is missing; it is committed by hand before the first fold"
   mapfile -t cl_lines < "$changelog"
   [ "${cl_lines[0]-}" = "# Changelog" ] || die "$changelog must start with '# Changelog'"
@@ -290,6 +369,8 @@ cmd_fold() {
   printf '%s\n' "${out[@]}" > "$tmp"
   chmod --reference="$changelog" "$tmp"
   mv "$tmp" "$changelog"
+  mkdir -p "$store_changelog_dir"
+  render_store_changelog "$repo" "$version" > "$store_path"
   for path in "${fragment_paths[@]}"; do
     rm -- "$path"
   done
@@ -322,9 +403,24 @@ cmd_notes() {
   printf '%s\n' "$marker_start" "${content[@]}" "$marker_end"
 }
 
+cmd_store_check() {
+  local version=${1-} path len
+  [ -n "$version" ] || die "store-check needs a version"
+  [ "$#" -eq 1 ] || die "store-check takes one version"
+  check_version "$version"
+  path="$(store_changelog_path "$version")"
+  [ -f "$path" ] && [ ! -L "$path" ] || die "$path is missing; scripts/changelog fold writes it"
+  len="$(wc -m < "$path")"
+  [ "$len" -gt 0 ] && [ "$(tr -d '[:space:]' < "$path" | wc -c)" -gt 0 ] || die "$path is empty"
+  [ "$len" -le "$store_changelog_max" ] || die "$path has $len characters, the limit is $store_changelog_max"
+  printf 'changelog: %s ok\n' "$path"
+}
+
 case ${1-} in
   check) shift; cmd_check "$@" ;;
   fold) shift; cmd_fold "$@" ;;
   notes) shift; cmd_notes "$@" ;;
-  *) die "usage: scripts/changelog check | fold <version> [--date YYYY-MM-DD] [--repository OWNER/NAME] | notes <version>" ;;
+  store-check) shift; cmd_store_check "$@" ;;
+  version-code) shift; [ "$#" -eq 1 ] || die "version-code takes one version"; version_code "$1" ;;
+  *) die "usage: scripts/changelog check | fold <version> [--date YYYY-MM-DD] [--repository OWNER/NAME] | notes <version> | store-check <version> | version-code <version>" ;;
 esac

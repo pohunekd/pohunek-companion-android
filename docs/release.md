@@ -77,15 +77,19 @@ Run these yourself; no agent runs them or sees the values.
    git fetch origin
    git switch -c release-0.1.0-pre.4 origin/main
    scripts/changelog fold 0.1.0-pre.4          # --date YYYY-MM-DD; defaults to today (UTC)
-   git add CHANGELOG.md changelog.d
+   git add CHANGELOG.md changelog.d fastlane
    git commit -m "Release 0.1.0-pre.4"
    git push -u origin release-0.1.0-pre.4
    gh pr create --title "Release 0.1.0-pre.4" --label no-changelog --fill
    ```
 
    The fold validates every fragment and writes nothing when one is invalid. It
-   adds the version section above the previous ones and deletes the folded
-   fragments. A wrong entry is corrected in its own pull request before the
+   adds the version section above the previous ones, deletes the folded
+   fragments and writes the store changelog
+   `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (a plain-text
+   digest of at most 500 characters, cut at an entry boundary with a pointer to
+   the GitHub release; the versionCode is `scripts/changelog version-code <version>`).
+   A wrong entry is corrected in its own pull request before the
    release is prepared; the release pull request only folds. It goes through the
    normal merge bar, and its `ci` run is the one that matters for the tag.
 3. Tag the merge commit of the release pull request, once `main` is green on it:
@@ -94,7 +98,9 @@ Run these yourself; no agent runs them or sees the values.
    a missing file or a wrong `sha256` fails it; an `appTree` that differs from the
    tag's `app/src/main` only warns, naming the changed paths), the changelog and
    the secrets. It fails before building when the tagged `CHANGELOG.md` has no
-   section for the version, or when `changelog.d/` still holds a fragment. Then it
+   section for the version, when the store changelog file of the tag's versionCode
+   is missing (`scripts/changelog store-check <version>`), or when `changelog.d/`
+   still holds a fragment. Then it
    builds, verifies the signature (v2 or newer, one signer) and the version, and
    creates the release with the APK, its checksum, the certificate SHA-256, the
    commit and the notes. A run that fails before the publish job leaves no release;
