@@ -2,12 +2,23 @@
 # Build libghostty-vt for Android from source and stage it under the output
 # directory of config/libghostty-vt.toml.
 #
-# Usage: scripts/build-libghostty-vt [--verify]
-#   (no flag)  build both ABIs from a fresh checkout and empty Zig caches
-#   --verify   check the staged output against its manifest and the config
+# Usage: scripts/build-libghostty-vt [--fetch | --offline | --verify]
+#                                    [--no-container] [--ghostty-src DIR]
+#   (no flag)         fetch, then build both ABIs from empty Zig caches
+#   --fetch           only the fetch phase: the ghostty source at the pinned
+#                     commit and every Zig package, into fetch_dir of the config
+#   --offline         only the build phase, from fetch_dir; the container it runs
+#                     in has no network
+#   --verify          check the staged output against its manifest and the config
+#   --no-container    build on this host with the installed Zig and NDK instead of
+#                     re-executing through scripts/dev (also set by
+#                     LIBGHOSTTY_VT_NO_CONTAINER=1)
+#   --ghostty-src DIR take the ghostty source from DIR, whose HEAD must be the
+#                     pinned commit, instead of fetching it (fetch phase only)
 #
-# A build runs in the toolchain container; outside it the script re-executes
-# itself through scripts/dev.
+# Without --no-container a fetch or build runs in the toolchain container
+# through scripts/dev. fetch_dir is under the worktree, so a build phase started
+# in a fresh `podman run --network=none` finds what an earlier fetch left.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -15,18 +26,44 @@ config="$root/config/libghostty-vt.toml"
 
 die() { echo "build-libghostty-vt: $*" >&2; exit 1; }
 
-mode=build
-case "${1:-}" in
-  "") ;;
-  --verify) mode=verify ;;
-  *) die "usage: scripts/build-libghostty-vt [--verify]" ;;
-esac
-[ "$#" -le 1 ] || die "usage: scripts/build-libghostty-vt [--verify]"
+usage="usage: scripts/build-libghostty-vt [--fetch | --offline | --verify] [--no-container] [--ghostty-src DIR]"
+mode=all
+no_container="${LIBGHOSTTY_VT_NO_CONTAINER:-}"
+ghostty_src=""
+passthrough=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --fetch|--offline|--verify)
+      [ "$mode" = all ] || die "$usage"
+      mode="${1#--}"; passthrough+=("$1"); shift ;;
+    --no-container) no_container=1; shift ;;
+    --ghostty-src)
+      [ "$#" -ge 2 ] || die "$usage"
+      [ -d "$2" ] || die "--ghostty-src: $2 is not a directory"
+      ghostty_src="$(cd "$2" && pwd -P)"; shift 2 ;;
+    *) die "$usage" ;;
+  esac
+done
+[ -z "$ghostty_src" ] || [ "$mode" = all ] || [ "$mode" = fetch ] || die "--ghostty-src applies to the fetch phase only"
+case "$no_container" in ""|0|1) ;; *) die "LIBGHOSTTY_VT_NO_CONTAINER must be 0 or 1" ;; esac
 
 # /run/.containerenv exists inside every Podman container. --verify needs only
 # sha256sum, so it runs wherever it is called.
-if [ "$mode" = build ] && [ ! -e /run/.containerenv ]; then
-  exec "$root/scripts/dev" "$root/scripts/build-libghostty-vt" "$@"
+if [ "$mode" != verify ] && [ "$no_container" != 1 ] && [ ! -e /run/.containerenv ]; then
+  dev_flags=()
+  # The build phase runs in a container without a network.
+  [ "$mode" != offline ] || dev_flags+=(--no-network)
+  if [ -n "$ghostty_src" ]; then
+    # The container sees the worktree only; mount the source directory and, for
+    # a git worktree, the repository its .git file points to.
+    dev_flags+=(--ro-dir "$ghostty_src")
+    common="$(git -C "$ghostty_src" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    case "$common" in "$ghostty_src"/*|"") ;; *) dev_flags+=(--ro-dir "$common") ;; esac
+    exec "$root/scripts/dev" "${dev_flags[@]}" "$root/scripts/build-libghostty-vt" \
+      ${passthrough[@]+"${passthrough[@]}"} --ghostty-src "$ghostty_src"
+  fi
+  exec "$root/scripts/dev" ${dev_flags[@]+"${dev_flags[@]}"} "$root/scripts/build-libghostty-vt" \
+    ${passthrough[@]+"${passthrough[@]}"}
 fi
 
 # Required keys of the config; a missing or malformed value is an error.
@@ -45,11 +82,16 @@ ndk_version="$(config_value ndk_version)"
 optimize="$(config_value optimize)"
 simd="$(config_value simd)"
 output_dir="$(config_value output_dir)"
+fetch_rel="$(config_value fetch_dir)"
 [[ "$ghostty_commit" =~ ^[0-9a-f]{40}$ ]] || die "$config: ghostty_commit must be a full 40-digit commit id"
 [[ "$simd" =~ ^(true|false)$ ]] || die "$config: simd must be true or false"
 [[ "$output_dir" =~ ^vendor/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || die "$config: output_dir must be vendor/<name>"
 
+[[ "$fetch_rel" =~ ^build/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || die "$config: fetch_dir must be build/<name>"
+[ "$fetch_rel" != "$output_dir" ] || die "$config: fetch_dir and output_dir must differ"
+
 out="$root/$output_dir"
+fetch_dir="$root/$fetch_rel"
 # Source, caches and intermediates live at a fixed container-local path, so the
 # absolute paths that end up in the archives' debug info do not depend on where
 # the worktree is checked out.
@@ -87,9 +129,57 @@ verify() {
 
 if [ "$mode" = verify ]; then verify; exit 0; fi
 
-# The container image pins the toolchain; refuse to build with anything else.
+# The toolchain is pinned by the container image or the host's installation;
+# refuse to build with anything else.
 [ "$(zig version)" = "$zig_version" ] \
   || die "zig $(zig version) is installed, $config wants $zig_version"
+
+# Fetch phase: the only step that needs the network. Leaves the ghostty source at
+# exactly the pinned commit and a Zig global cache holding every package of
+# build.zig.zon.txt, each verified against the hash recorded in build.zig.zon.json.
+fetch_phase() {
+  local fsrc="$fetch_dir/src" cache="$fetch_dir/zig-global-cache" url id
+  if [ -n "$ghostty_src" ]; then
+    [ "$(git -C "$ghostty_src" rev-parse HEAD)" = "$ghostty_commit" ] \
+      || die "--ghostty-src: HEAD of $ghostty_src is not $ghostty_commit"
+  fi
+  rm -rf "$fetch_dir"
+  mkdir -p "$fetch_dir"
+  if [ -n "$ghostty_src" ]; then
+    git clone --quiet --no-local "$ghostty_src" "$fsrc"
+  else
+    git init --quiet "$fsrc"
+    git -C "$fsrc" fetch --quiet --depth 1 "$ghostty_repo" "$ghostty_commit"
+    git -C "$fsrc" checkout --quiet --detach FETCH_HEAD
+  fi
+  [ "$(git -C "$fsrc" rev-parse HEAD)" = "$ghostty_commit" ] \
+    || die "the ghostty source is not at $ghostty_commit"
+
+  # `zig build --fetch` skips transitive dependencies, so fetch the manifest
+  # ghostty maintains for packagers. zig prints the content hash of what it
+  # fetched; it has to be one the build asks for.
+  local zon_txt="$fsrc/build.zig.zon.txt" zon_json="$fsrc/build.zig.zon.json" count=0
+  [ -s "$zon_txt" ] && [ -s "$zon_json" ] || die "the ghostty source has no build.zig.zon.txt and build.zig.zon.json"
+  mkdir -p "$cache"
+  while IFS= read -r url; do
+    [ -n "$url" ] || continue
+    echo "build-libghostty-vt: fetching $url"
+    id="$(ZIG_GLOBAL_CACHE_DIR="$cache" zig fetch "$url")" || die "failed to fetch $url"
+    grep -qF "\"$id\"" "$zon_json" || die "$url has hash $id, which build.zig.zon.json does not list"
+    [ -d "$cache/p/$id" ] || die "zig did not cache $url as $id"
+    count=$((count + 1))
+  done < "$zon_txt"
+  [ "$count" -gt 0 ] || die "build.zig.zon.txt lists no packages"
+  echo "build-libghostty-vt: fetched the source and $count packages into $fetch_rel"
+}
+
+if [ "$mode" = fetch ] || [ "$mode" = all ]; then fetch_phase; fi
+[ "$mode" != fetch ] || exit 0
+
+# Build phase: reads only fetch_dir; no network is used.
+[ -d "$fetch_dir/src/.git" ] && [ -d "$fetch_dir/zig-global-cache/p" ] \
+  || die "no fetch output in $fetch_rel; run scripts/build-libghostty-vt --fetch first"
+
 ndk="${ANDROID_HOME:?ANDROID_HOME is not set}/ndk/$ndk_version"
 grep -qx "Pkg.Revision = $ndk_version" "$ndk/source.properties" 2>/dev/null \
   || die "NDK $ndk_version is not installed at $ndk"
@@ -124,16 +214,13 @@ normalize_archive() {
 rm -rf "$work"
 mkdir -p "$work"
 
-# Shallow checkout of exactly the pinned commit; the fetched object must hash to it.
+# The container-local copies sit at a fixed path, like the rest of the build
+# state. Zig finds each package in the global cache by its content hash.
 src="$work/src"
-rm -rf "$src"
-git init --quiet "$src"
-git -C "$src" fetch --quiet --depth 1 "$ghostty_repo" "$ghostty_commit"
-git -C "$src" checkout --quiet --detach FETCH_HEAD
+cp -a "$fetch_dir/src" "$src"
+cp -a "$fetch_dir/zig-global-cache" "$work/zig-global-cache"
 [ "$(git -C "$src" rev-parse HEAD)" = "$ghostty_commit" ] \
-  || die "fetched commit is not $ghostty_commit"
-
-# Zig verifies every package it downloads against the hash in build.zig.zon.
+  || die "the fetched source is not at $ghostty_commit"
 export ZIG_GLOBAL_CACHE_DIR="$work/zig-global-cache"
 export ZIG_LOCAL_CACHE_DIR="$work/zig-local-cache"
 

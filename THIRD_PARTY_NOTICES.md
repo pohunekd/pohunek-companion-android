@@ -70,9 +70,9 @@ the issue that bundles it (MIT; the package carries its license file).
 
 All entries of ghostty's `build.zig.zon` at the pinned commit, with the
 license found in the fetched package (Zig checks each download against the
-package hash in the manifest). `Fetched` marks packages the
-`scripts/build-libghostty-vt` run downloads because ghostty's build graph
-evaluates them; none except uucode ends up in the output.
+package hash in the manifest). `Fetched` marks packages the build graph
+evaluates; the fetch phase of `scripts/build-libghostty-vt` downloads every
+package of the manifest, and none except uucode ends up in the output.
 
 | Dependency | Version | License | Fetched | In the library |
 | --- | --- | --- | --- | --- |

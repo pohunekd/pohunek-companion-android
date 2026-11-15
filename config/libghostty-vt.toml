@@ -22,6 +22,10 @@ simd = "false"
 # manifest.
 output_dir = "vendor/libghostty-vt"
 
+# Output of the fetch phase (under build/, which Gradle tools and git skip): the ghostty source at the pinned commit
+# and the Zig package cache. The offline build phase reads only this directory.
+fetch_dir = "build/libghostty-vt-fetch"
+
 # Container-local directory for the source checkout, Zig caches and
 # intermediates, deleted at the start of every build.
 work_dir = "/tmp/libghostty-vt-build"

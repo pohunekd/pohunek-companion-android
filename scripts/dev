@@ -11,6 +11,7 @@
 #   --env NAME         pass the environment variable NAME from the caller into the
 #                      container (repeatable). Only the name is on the command
 #                      line, so a secret value never shows up in a process list.
+#   --no-network       run without any network (podman --network=none)
 #   --ro-dir DIR       mount the host directory DIR read-only at the same path
 #                      (repeatable)
 set -euo pipefail
@@ -29,6 +30,7 @@ detach=0
 android_home=0
 env_flags=()
 ro_flags=()
+net_flags=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --name)
@@ -48,13 +50,14 @@ while [ "$#" -gt 0 ]; do
       [ "$#" -ge 2 ] || die "--ro-dir needs a directory"
       [[ "$2" == /* ]] && [[ "$2" =~ ^[A-Za-z0-9_./-]+$ ]] && [ -d "$2" ] || die "--ro-dir needs an existing absolute directory path of [A-Za-z0-9_./-], got '$2'"
       ro_flags+=(--volume "$2:$2:ro"); shift 2 ;;
+    --no-network) net_flags=(--network=none); shift ;;
     --detach) detach=1; shift ;;
     --android-home) android_home=1; shift ;;
     --) shift; break ;;
     *) break ;;
   esac
 done
-[ "$#" -gt 0 ] || die "usage: scripts/dev [--name NAME] [--label KEY=VALUE] [--detach] [--android-home] [--env NAME] [--ro-dir DIR] [--] <command...>"
+[ "$#" -gt 0 ] || die "usage: scripts/dev [--name NAME] [--label KEY=VALUE] [--detach] [--android-home] [--env NAME] [--no-network] [--ro-dir DIR] [--] <command...>"
 command -v podman >/dev/null || die "podman is not installed"
 [ "$(podman info --format '{{.Host.Security.Rootless}}')" = "true" ] \
   || die "podman is not rootless; refusing to run the toolchain"
@@ -122,6 +125,6 @@ exec podman run --rm --init "${tty_flags[@]}" "${name_flags[@]}" "${labels[@]}" 
   --device /dev/kvm \
   --volume "$root:$root" "${git_mount[@]}" \
   --volume "$gradle_volume:/gradle-home" "${android_home_flags[@]}" \
-  "${env_flags[@]}" "${ro_flags[@]}" \
+  "${env_flags[@]}" "${ro_flags[@]}" "${net_flags[@]}" \
   --workdir "$workdir" \
   "$tag" "$@"
