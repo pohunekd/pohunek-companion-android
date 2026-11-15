@@ -43,6 +43,8 @@ class OwnerStateTest {
         workerInstance: String = "w-1",
         subagents: List<SubagentInfo> = emptyList(),
         background: SessionBackground? = null,
+        cursorEpoch: String? = null,
+        cursorRevision: Int? = null,
     ) = SessionInfo(
         id = id,
         capabilities = SessionCapabilities(resume = false, fork = false),
@@ -58,6 +60,8 @@ class OwnerStateTest {
         activity = activity,
         subagents = subagents,
         background = background,
+        activityEpoch = cursorEpoch,
+        activityRevision = cursorRevision?.let { DecimalWire(it.toULong()) },
         createdAt = "2026-01-01T09:00:00Z",
         updatedAt = "2026-01-01T10:00:00Z",
     )
@@ -277,6 +281,46 @@ class OwnerStateTest {
 
         store.applySeed(listOf(session(activity = AgentActivity.Idle, generation = "2")), emptyList())
         assertEquals(EventOutcome.Applied, store.applyEvent(agentState(AgentActivity.Working, revision = 1, runtime = runtime(2))))
+    }
+
+    @Test
+    fun `a seed cursor drops buffered events the snapshot includes and lets newer ones apply`() {
+        store.applySeed(listOf(session(activity = AgentActivity.Working, cursorEpoch = "e-1", cursorRevision = 5)), emptyList())
+
+        for (revision in listOf(4, 5)) {
+            assertEquals(EventOutcome.Ignored(IgnoreReason.StaleRevision), store.applyEvent(agentState(AgentActivity.Idle, revision)))
+            assertEquals(AgentActivity.Working, store.session("s-1")?.activity)
+        }
+        assertEquals(EventOutcome.Applied, store.applyEvent(agentState(AgentActivity.Idle, revision = 6)))
+        assertEquals(AgentActivity.Idle, store.session("s-1")?.activity)
+    }
+
+    @Test
+    fun `a seed cursor does not order events of another epoch or runtime`() {
+        store.applySeed(listOf(session(activity = AgentActivity.Working, cursorEpoch = "e-1", cursorRevision = 5)), emptyList())
+
+        assertEquals(EventOutcome.Applied, store.applyEvent(agentState(AgentActivity.Idle, revision = 1, epoch = "e-2")))
+    }
+
+    @Test
+    fun `a re-seed cursor older than the applied baseline keeps the baseline and a newer one replaces it`() {
+        store.applySeed(listOf(session(activity = AgentActivity.Working)), emptyList())
+        store.applyEvent(agentState(AgentActivity.Idle, revision = 5))
+
+        store.applySeed(listOf(session(activity = AgentActivity.Idle, cursorEpoch = "e-1", cursorRevision = 3)), emptyList())
+        assertEquals(EventOutcome.Ignored(IgnoreReason.StaleRevision), store.applyEvent(agentState(AgentActivity.Working, revision = 5)))
+
+        store.applySeed(listOf(session(activity = AgentActivity.Idle, cursorEpoch = "e-1", cursorRevision = 9)), emptyList())
+        assertEquals(EventOutcome.Ignored(IgnoreReason.StaleRevision), store.applyEvent(agentState(AgentActivity.Working, revision = 8)))
+    }
+
+    @Test
+    fun `a re-seed whose cursor only advanced with an applied event reports no change`() {
+        store.applySeed(listOf(session(activity = AgentActivity.Working, cursorEpoch = "e-1", cursorRevision = 5)), emptyList())
+        store.applyEvent(agentState(AgentActivity.Idle, revision = 6))
+
+        val change = store.applySeed(listOf(session(activity = AgentActivity.Idle, cursorEpoch = "e-1", cursorRevision = 6)), emptyList())
+        assertEquals(SeedChange(), change)
     }
 
     @Test

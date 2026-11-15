@@ -18,6 +18,29 @@ internal data class ActivityBaseline(val epoch: String?, val workerInstanceId: S
         epoch == other.epoch && workerInstanceId == other.workerInstanceId && generation == other.generation
 }
 
+/**
+ * The baseline a snapshot's activity cursor (`activity_epoch` and `activity_revision`, daemon v0.43.0 and later) establishes for the
+ * runtime the snapshot names; null when the snapshot lacks the cursor or a live-identifiable runtime.
+ */
+internal fun SessionInfo.cursorBaseline(): ActivityBaseline? {
+    val revision = activityRevision
+    val runtime = runtime
+    val workerInstanceId = runtime?.workerInstanceId
+    val generation = runtime?.let { DecimalWire.parse(it.runtimeGeneration) }
+    return if (revision != null && workerInstanceId != null && generation != null) {
+        ActivityBaseline(activityEpoch, workerInstanceId, generation, revision)
+    } else {
+        null
+    }
+}
+
+/** The baseline a re-seeded session starts from: the newer of the [kept] one and the snapshot's [cursor], which wins when it starts a new sequence. */
+internal fun seededBaseline(kept: ActivityBaseline?, cursor: ActivityBaseline?): ActivityBaseline? = when {
+    kept == null -> cursor
+    cursor != null && (!kept.sameSequence(cursor) || cursor.revision > kept.revision) -> cursor
+    else -> kept
+}
+
 /** A session snapshot with the observations that the snapshot itself does not carry: the activity baseline and the idle clock. */
 internal class TrackedSession(var info: SessionInfo, var baseline: ActivityBaseline?, var idleSince: ComparableTimeMark?) {
     /** Starts the idle clock when the condition becomes true, keeps it while it stays true, and clears it when it ends. */
