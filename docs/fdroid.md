@@ -78,13 +78,40 @@ Differences from the real buildserver, none of which the script can close:
 ## Update checking
 
 `fdroid checkupdates` cannot derive our `versionCode` from a tag: the gradle
-files hold it as an expression of `-PreleaseTag`, not a literal. The decision
-between manual bumps, a committed version file and an HTTP update check is #297;
-until it is made the recipe's `UpdateCheckMode: Tags` line is a placeholder.
+files hold it as an expression of `-PreleaseTag`, not a literal, so no `Tags`
+mode works. The recipe uses `UpdateCheckMode: HTTP` instead (decision on #297):
+
+- `UpdateCheckData` reads GitHub's latest-release JSON
+  (`.../releases/latest`, which omits pre-releases and drafts). The `fdroid-versionCode N`
+  line of the release notes gives the versionCode, `tag_name` (`vX.Y.Z`) the
+  versionName. fdroidserver accepts only `https` URLs there.
+- `release.yml` writes the `fdroid-versionCode N` line into the footer of every release
+  (`scripts/changelog version-code`); the tag stays the only source of the version
+  and the APK and its signing are not touched by it.
+- The check is an unauthenticated request to `api.github.com` (60 per hour per IP);
+  F-Droid's infrastructure shares that limit, so a failed run is retried by the next.
+- With `AutoUpdateMode: Version` the F-Droid bot then opens the version bump.
+  Pre-release tags never match, because the latest-release endpoint skips them.
+
+Proof so far: `fdroid checkupdates --allow-dirty dev.pohunek.companion` (fdroidserver
+2.4.5 in the pinned buildserver image) against a crafted release JSON of the
+published shape, served over local https, moved a recipe at `0.0.9`/`99999` to
+`0.1.0`/`100999`.
+
+Checklist for the first stable release (`v0.1.0`), because no stable release
+carries the line before it:
+
+1. `gh release view v0.1.0 --json body --jq .body` contains `fdroid-versionCode 100999`.
+2. `curl -s https://api.github.com/repos/pohunekd/pohunek-companion-android/releases/latest`
+   returns `v0.1.0` (not a pre-release).
+3. `fdroid checkupdates --allow-dirty dev.pohunek.companion` on the recipe with
+   `CurrentVersion` lowered reports `updating to version 0.1.0 (100999)`.
+4. If F-Droid's reviewers object to HTTP update checks, fall back to
+   `UpdateCheckMode: None` with manual `Builds` bumps per release.
 
 ## Owner-gated steps
 
 Workers never do these: the IzzyOnDroid request (#280), the fdroiddata merge
 request and the questions to F-Droid about Zig and the network (#281), and a
 self-hosted repository (#282). The merge request needs the real `v0.1.0` tag, its
-commit in the recipe, the author name and the update-mode decision (#297).
+commit in the recipe, and the author name.
