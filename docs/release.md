@@ -130,3 +130,14 @@ four set, `assembleRelease` produces an unsigned APK; with only some, it fails
 and names the missing ones. The debug key is never used for a release build.
 `scripts/dev --env NAME --ro-dir DIR` passes a variable and a read-only
 directory (the keystore) into the toolchain container.
+
+## Rebuilding a release
+
+A rebuilder without the release key (F-Droid, IzzyOnDroid verification) passes
+`-PreleaseTag=vX.Y.Z[-pre.N] -PunsignedRelease=true` and sets none of the four
+signing variables. `assembleRelease` then produces
+`app/build/outputs/apk/release/app-release-unsigned.apk` carrying the tag's
+`versionName` and `versionCode`. Without `-PunsignedRelease=true` a tagged build
+still fails unless it is signed; with it and any signing variable set, the build
+fails and names the conflict. `.github/workflows/release.yml` never passes the
+property, so a published release is always signed.

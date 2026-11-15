@@ -37,6 +37,15 @@ val signingVariables = listOf(
     "ANDROID_RELEASE_KEY_PASSWORD",
 )
 val signing = signingVariables.associateWith { providers.environmentVariable(it).orNull?.takeIf(String::isNotEmpty) }
+// -PunsignedRelease=true lets a tagged build go unsigned, for rebuilders that compare it with the published APK.
+// It is refused when any signing variable is set so an unsigned rebuild is never mixed up with a signed release.
+val unsignedRelease = providers.gradleProperty("unsignedRelease").orNull == "true"
+val configuredSigning = signing.filterValues { it != null }.keys
+if (unsignedRelease && configuredSigning.isNotEmpty()) {
+    throw GradleException(
+        "unsignedRelease conflicts with release signing; unset ${configuredSigning.joinToString()} or drop -PunsignedRelease",
+    )
+}
 val missingSigning = signing.filterValues { it == null }.keys
 if (missingSigning.isNotEmpty() && missingSigning.size < signingVariables.size) {
     throw GradleException("Release signing is partly configured; missing: ${missingSigning.joinToString()}")
@@ -69,7 +78,7 @@ val releaseVersionCode = releaseMatch?.run {
     }
     code.toInt()
 }
-if (releaseTag != null && !releaseSigned) {
+if (releaseTag != null && !releaseSigned && !unsignedRelease) {
     throw GradleException("A tagged release must be signed; set ${signingVariables.joinToString()}")
 }
 
