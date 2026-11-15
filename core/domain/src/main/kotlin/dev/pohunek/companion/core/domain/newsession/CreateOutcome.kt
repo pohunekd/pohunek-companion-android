@@ -48,6 +48,11 @@ private val DEFINITE_REFUSALS = setOf(
     "worker_socket_path_invalid",
     "session_input_not_ready",
     "version_mismatch",
+    "agent_option_unknown",
+    "agent_option_choice_unknown",
+    "agent_option_choice_unavailable",
+    "agent_options_not_declared",
+    "agent_options_locked",
 )
 
 /**
@@ -64,12 +69,21 @@ fun classifyCreateFailure(failure: ProtocolClientException): CreateOutcome = whe
 }
 
 private fun daemonOutcome(error: ProtocolError): CreateOutcome {
-    val message = refusalText(error.msg, error.recover)
+    val message = refusalText(error.msg, error.recover, error.code)
     return if (error.code in DEFINITE_REFUSALS) CreateOutcome.Refused(error.code, message) else CreateOutcome.RefusedMaybeCreated(error.code, message)
 }
 
-/** The daemon's message with its recovery hint in parentheses; both are untrusted text. */
-private fun refusalText(msg: String, recover: String?): String {
-    val hint = recover?.let(::sanitizeText)?.takeIf { it.isNotEmpty() }
+/** What the owner can do about a refused option selection, appended when the daemon sends no recovery hint of its own. */
+private val OPTION_REFUSAL_HINTS = mapOf(
+    "agent_option_unknown" to "the profile changed on the host; reopen the form to read it again",
+    "agent_option_choice_unknown" to "the profile changed on the host; reopen the form to read it again",
+    "agent_option_choice_unavailable" to "the host's runtime cannot run that choice; pick another one",
+    "agent_options_not_declared" to "the profile changed on the host; reopen the form to read it again",
+    "agent_options_locked" to "the profile fixes its options; start it with its defaults",
+)
+
+/** The daemon's message with its recovery hint in parentheses; both are untrusted text. A refused option selection without a hint gets ours. */
+private fun refusalText(msg: String, recover: String?, code: String): String {
+    val hint = recover?.let(::sanitizeText)?.takeIf { it.isNotEmpty() } ?: OPTION_REFUSAL_HINTS[code]
     return sanitizeText(msg) + (hint?.let { " ($it)" }.orEmpty())
 }

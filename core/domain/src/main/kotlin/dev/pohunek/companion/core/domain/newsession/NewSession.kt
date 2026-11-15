@@ -20,7 +20,14 @@ data class ProjectChoice(val id: String, val label: String)
  * An agent the host reports; [unlaunchable] is the reason it cannot start now, or null when it can. [name] is what `session.new`
  * takes, [label] the cleaned profile label or name shown to the owner. [shown] is false for a profile whose audience is not the owner's.
  */
-data class AgentChoice(val name: String, val unlaunchable: String?, val label: String = sanitizeText(name), val shown: Boolean = true) {
+data class AgentChoice(
+    val name: String,
+    val unlaunchable: String?,
+    val label: String = sanitizeText(name),
+    val shown: Boolean = true,
+    /** The options the profile declares; empty when the host does not accept `agent_options`. */
+    val options: List<ProfileOption> = emptyList(),
+) {
     val launchable: Boolean get() = unlaunchable == null
 }
 
@@ -34,6 +41,8 @@ data class NewSessionChoices(
     val gitAvailable: Boolean,
     val worktreeSupported: Boolean,
 ) {
+    fun optionsOf(agent: String?): List<ProfileOption> = agents.firstOrNull { it.name == agent }?.options.orEmpty()
+
     val hasLaunchableAgent: Boolean get() = agents.any { it.launchable }
 
     fun launchable(name: String): Boolean = agents.any { it.name == name && it.launchable }
@@ -48,17 +57,18 @@ data class NewSessionChoices(
 fun projectChoices(projects: List<ProjectInfo>): List<ProjectChoice> = projects.map { ProjectChoice(it.id, sanitizeText(it.label)) }
 
 /** Every reported agent, launchable ones first; each group keeps the daemon's order. */
-fun agentChoices(runtimes: List<AgentRuntime>): List<AgentChoice> {
-    val (launchable, blocked) = runtimes.map(::agentChoice).partition { it.launchable }
+fun agentChoices(runtimes: List<AgentRuntime>, optionsSupported: Boolean = false): List<AgentChoice> {
+    val (launchable, blocked) = runtimes.map { agentChoice(it, optionsSupported) }.partition { it.launchable }
     return launchable + blocked
 }
 
 /** A runtime without an audience belongs to the owner; an audience this client does not know is revealed only by "Show all". */
-private fun agentChoice(runtime: AgentRuntime) = AgentChoice(
+private fun agentChoice(runtime: AgentRuntime, optionsSupported: Boolean) = AgentChoice(
     name = runtime.agent,
     unlaunchable = unlaunchableReason(runtime),
     label = runtime.displayName?.let(::sanitizeText)?.ifEmpty { null } ?: sanitizeText(runtime.agent),
     shown = runtime.audience == null || runtime.audience == ProfileAudience.Owner,
+    options = if (optionsSupported) runtime.options.map(::profileOption) else emptyList(),
 )
 
 /** Launchable means present on the host and not reported as an unsupported version; an absent `supported` means no version policy. */
@@ -86,6 +96,8 @@ data class NewSessionForm(
     val branch: String = "",
     /** Base branch of a Blank session's worktree; unused while a template is chosen. */
     val baseBranch: String = "",
+    /** The choices picked by hand, option id to choice id; an option not named takes the profile's default. Reset when the agent changes. */
+    val agentOptions: Map<String, String> = emptyMap(),
 )
 
 /** What the form is doing besides collecting input. */
@@ -124,6 +136,9 @@ sealed interface CreateBlocker {
     data object NoAgent : CreateBlocker
 
     data class AgentNotLaunchable(val agent: String) : CreateBlocker
+
+    /** An option of the agent would launch with a choice the host cannot run now; [option] is its cleaned label. */
+    data class OptionChoiceUnavailable(val option: String, val reason: String) : CreateBlocker
 }
 
 /** Why the launch recipe, a template or a branch, cannot be used yet or on this host. */
@@ -170,6 +185,7 @@ private fun selectionBlocker(form: NewSessionForm, choices: NewSessionChoices, r
     !choices.hasLaunchableAgent -> CreateBlocker.NoLaunchableAgent
     form.agent.isNullOrEmpty() -> CreateBlocker.NoAgent
     !choices.launchable(form.agent) -> CreateBlocker.AgentNotLaunchable(form.agent)
+    unavailableOption(form, choices) != null -> unavailableOption(form, choices)
     form.templateLoading -> LaunchBlocker.TemplateLoading
     else -> worktreeBlocker(form, choices)
 }
@@ -189,21 +205,28 @@ private fun worktreeBlocker(form: NewSessionForm, choices: NewSessionChoices): C
 /**
  * The form after the choices of its host arrived: the project stays when the host has it, else none is selected; the agent stays
  * when launchable, else the first launchable one is selected, preferring one the picker lists by default (none when the host has none).
+ * Picked option choices stay only with the agent they were picked for.
  */
-fun settleSelection(form: NewSessionForm, choices: NewSessionChoices): NewSessionForm = form.copy(
-    project = form.project?.takeIf { id -> choices.projects.any { it.id == id } },
-    agent = form.agent?.takeIf(choices::launchable)
-        ?: (choices.agents.firstOrNull { it.launchable && it.shown } ?: choices.agents.firstOrNull { it.launchable })?.name,
-)
+fun settleSelection(form: NewSessionForm, choices: NewSessionChoices): NewSessionForm {
+    val agent = form.agent?.takeIf(choices::launchable)
+        ?: (choices.agents.firstOrNull { it.launchable && it.shown } ?: choices.agents.firstOrNull { it.launchable })?.name
+    return form.copy(
+        project = form.project?.takeIf { id -> choices.projects.any { it.id == id } },
+        agent = agent,
+        agentOptions = if (agent == form.agent) form.agentOptions else emptyMap(),
+    )
+}
 
 /**
  * The request for a form that passed [createBlocker]; name, prompt, branch and base branch are trimmed and sent only when not blank.
- * A non-null [groupName] is written as the session's `companion.group`, so the session is created in that group.
+ * A non-null [groupName] is written as the session's `companion.group`, so the session is created in that group. The `agent_options`
+ * carry only the picks that differ from the defaults, and only for options [choices] reports (it holds none for a host without support).
  */
-fun sessionNewParams(form: NewSessionForm, cols: Int, rows: Int, groupName: String? = null): SessionNewParams? {
+fun sessionNewParams(form: NewSessionForm, cols: Int, rows: Int, groupName: String? = null, choices: NewSessionChoices? = null): SessionNewParams? {
     val project = form.project ?: return null
     val agent = form.agent ?: return null
     val (branch, baseBranch) = branchOverrides(form)
     val metadata = groupName?.let { mapOf(GROUP_METADATA_KEY to it) }
-    return SessionNewParams(agent, cols, rows, project, form.name.trimmedOrNull(), form.prompt.trimmedOrNull(), branch, baseBranch, metadata)
+    val agentOptions = agentOptionDiff(form, choices)
+    return SessionNewParams(agent, cols, rows, project, form.name.trimmedOrNull(), form.prompt.trimmedOrNull(), branch, baseBranch, metadata, agentOptions)
 }

@@ -7,6 +7,7 @@ import dev.pohunek.companion.core.domain.newsession.NewSessionForm
 import dev.pohunek.companion.core.domain.newsession.ProjectChoice
 import dev.pohunek.companion.core.domain.newsession.TemplateError
 import dev.pohunek.companion.core.domain.newsession.createBlocker
+import dev.pohunek.companion.core.domain.newsession.selectAgentOption
 import dev.pohunek.companion.protocol.HostRoute
 
 /** A host the form can start a session on. */
@@ -72,7 +73,7 @@ data class NewSessionState(
 sealed interface NewSessionEvent {
     /** An edit of the form's own fields, ignored while a create is in flight. */
     sealed interface FormEdit : NewSessionEvent {
-        fun applyTo(form: NewSessionForm): NewSessionForm
+        fun applyTo(form: NewSessionForm, choices: NewSessionChoices?): NewSessionForm
     }
 
     data class SelectHost(val route: HostRoute) : NewSessionEvent
@@ -83,7 +84,16 @@ sealed interface NewSessionEvent {
     data class SelectProject(val id: String) : NewSessionEvent
 
     data class SelectAgent(val name: String) : FormEdit {
-        override fun applyTo(form: NewSessionForm) = form.copy(agent = name)
+        override fun applyTo(
+            form: NewSessionForm,
+            choices: NewSessionChoices?,
+        ) = if (name == form.agent) form else form.copy(agent = name, agentOptions = emptyMap())
+    }
+
+    /** Picks [choiceId] for the option [optionId] of the selected agent; a choice the host cannot run is ignored. */
+    data class SelectAgentOption(val optionId: String, val choiceId: String) : FormEdit {
+        override fun applyTo(form: NewSessionForm, choices: NewSessionChoices?) =
+            if (choices == null) form else selectAgentOption(form, choices, optionId, choiceId)
     }
 
     data class EditProjectQuery(val text: String) : NewSessionEvent
@@ -92,15 +102,15 @@ sealed interface NewSessionEvent {
     data class SelectTemplate(val name: String?) : NewSessionEvent
 
     data class EditName(val text: String) : FormEdit {
-        override fun applyTo(form: NewSessionForm) = form.copy(name = text)
+        override fun applyTo(form: NewSessionForm, choices: NewSessionChoices?) = form.copy(name = text)
     }
 
     data class EditBranch(val text: String) : FormEdit {
-        override fun applyTo(form: NewSessionForm) = form.copy(branch = text)
+        override fun applyTo(form: NewSessionForm, choices: NewSessionChoices?) = form.copy(branch = text)
     }
 
     data class EditBaseBranch(val text: String) : FormEdit {
-        override fun applyTo(form: NewSessionForm) = form.copy(baseBranch = text)
+        override fun applyTo(form: NewSessionForm, choices: NewSessionChoices?) = form.copy(baseBranch = text)
     }
 
     data object ToggleAdvanced : NewSessionEvent
@@ -109,7 +119,7 @@ sealed interface NewSessionEvent {
     data object ToggleShowAllAgents : NewSessionEvent
 
     data class EditPrompt(val text: String) : FormEdit {
-        override fun applyTo(form: NewSessionForm) = form.copy(prompt = text)
+        override fun applyTo(form: NewSessionForm, choices: NewSessionChoices?) = form.copy(prompt = text)
     }
 
     data class SetAttachAfterCreate(val attach: Boolean) : NewSessionEvent

@@ -62,12 +62,17 @@ private fun agentFields(session: OwnerSession) = fields {
     val detail = runtimeDetail(info)
     add("agent", "Agent", sessionAgentLabel(info))
     add("agent_profile", "Profile", sanitizeText(info.agent).takeIf { info.agentDisplayName != null && it != sessionAgentLabel(info) })
+    add("agent_options", "Options", agentOptionsText(info))
     add("state", "State", if (detail == null) state else "$state ($detail)")
     add("waiting_since", "Waiting since", session.waitingSince?.let(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format))
     add("resume", "Resume", resumeText(resumeOffer(info)))
     add("native_session_id", "Native session id", info.nativeSessionId?.let(::sanitizeText))
     add("native_session_path", "Native session path", info.nativeSessionPath?.let(::plainText))
 }
+
+/** The choices the session launched with as `option=choice` pairs in option-id order; the wire carries ids only, so these are ids. */
+private fun agentOptionsText(info: SessionInfo): String? =
+    info.agentOptions?.entries?.sortedBy { it.key }?.joinToString(", ") { "${sanitizeText(it.key)}=${sanitizeText(it.value)}" }
 
 private fun resumeText(offer: ResumeOffer): String? = when (offer) {
     ResumeOffer.NotApplicable -> null

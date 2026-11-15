@@ -135,8 +135,8 @@ scripts/ui-agent pohunek ARGS...
   synthetic `POHUNEK_DAEMON_ID`), to check that Needs you skips the isolated worker; it
   needs a Pohunek that reports `session_attention_isolation_supported` (v0.43.0 or newer).
   `--profiles` (with `--showcase`) adds to the first host the profiles `reviewer` (label "PR reviewer", audience `owner`),
-  `spawned-worker` (`agent`) and `internal-probe` (`hidden`) and an idle `labelled-session` from `reviewer`, to check the New
-  session picker's labels and "Show all agents"; it needs a Pohunek that reports `audience` (v0.43.0 or newer).
+  `spawned-worker` (`agent`) and `internal-probe` (`hidden`), an idle `labelled-session` from `reviewer` and the profile `tuned` (label "Tuned agent", options `mode` and `depth`, the `mode` choice `next` unavailable), to check the New
+  session picker's labels, "Show all agents" and option pickers; it needs a Pohunek that reports `audience` (v0.43.0 or newer).
   `--sub-sessions` (with `--showcase`) adds to the first host `fold-manager` (idle) with two
   children, `fold-worker-idle` and `fold-worker-blocked`, and `fold-grandchild` under
   `fold-worker-idle` (the same origin-pair mechanism), to check the sub-session fold.

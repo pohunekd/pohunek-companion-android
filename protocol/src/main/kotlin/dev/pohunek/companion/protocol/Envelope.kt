@@ -53,7 +53,10 @@ object Requests {
     fun hostInspectFlags(id: String): Request =
         Request(Wire.CLIENT_RANGE, id, "host.inspect", buildJsonObject { put("skip_runtime_probes", true) })
 
-    /** `name`, `input`, `branch`, `base_branch` and `metadata` are omitted when null; `project` is the daemon's own id, so no path crosses the wire. */
+    /**
+     * `name`, `input`, `branch`, `base_branch`, `metadata` and `agent_options` are omitted when null; `project` is the daemon's own id,
+     * so no path crosses the wire.
+     */
     fun sessionNew(id: String, params: SessionNewParams): Request {
         val body = buildJsonObject {
             put("agent", params.agent)
@@ -65,6 +68,9 @@ object Requests {
             if (params.branch != null) put("branch", params.branch)
             if (params.baseBranch != null) put("base_branch", params.baseBranch)
             if (params.metadata != null) put("metadata", buildJsonObject { params.metadata.forEach { (key, value) -> put(key, value) } })
+            if (!params.agentOptions.isNullOrEmpty()) {
+                put("agent_options", buildJsonObject { params.agentOptions.forEach { (key, value) -> put(key, value) } })
+            }
         }
         return Request(Wire.CLIENT_RANGE, id, "session.new", body)
     }

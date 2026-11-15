@@ -102,6 +102,8 @@ data class SessionInfo(
     val agent: String,
     /** The label of the session's profile, read live on `session.list` and `session.inspect`; absent for a bare runtime or an unlabelled profile. */
     @SerialName("agent_display_name") val agentDisplayName: String? = null,
+    /** The choice each option of the session's profile launched with, defaults included; absent for a bare runtime and a profile without options. */
+    @SerialName("agent_options") val agentOptions: Map<String, String>? = null,
     @SerialName("agent_base") val agentBase: String,
     val cwd: String,
     @SerialName("cwd_source") val cwdSource: CwdSource? = null,

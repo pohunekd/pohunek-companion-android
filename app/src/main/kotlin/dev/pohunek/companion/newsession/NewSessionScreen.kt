@@ -130,6 +130,7 @@ private fun FormBody(state: NewSessionState, onEvent: (NewSessionEvent) -> Unit,
         item { TemplateSection(state, onEvent) }
         item { SectionTitle(stringResource(R.string.new_session_agent)) }
         item { AgentChips(state, onEvent) }
+        agentOptionSections(state, onEvent)
         item {
             OutlinedTextField(
                 value = state.form.name,
@@ -170,7 +171,7 @@ private fun FormBody(state: NewSessionState, onEvent: (NewSessionEvent) -> Unit,
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.titleSmall,
