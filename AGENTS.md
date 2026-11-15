@@ -67,6 +67,7 @@ scripts/dev ./gradlew :app:assembleDebug   # any command in the toolchain contai
 scripts/build-libghostty-vt                # libghostty-vt.a for arm64-v8a and x86_64 into vendor/libghostty-vt/ (--verify checks it)
 scripts/build-libghostty-vt --fetch        # source and Zig packages into build/libghostty-vt-fetch/; then --offline builds without network (--no-container: host Zig and NDK, --ghostty-src DIR: existing checkout)
 scripts/rebuild-release <tag>              # rebuilds a release tag unsigned and compares it with the published APK (apksigcopier); exit 0 only if identical
+scripts/fdroid-build <tag>                   # builds fdroid/metadata/ with fdroidserver in F-Droid's buildserver image and compares it with the published APK (docs/fdroid.md); --commit SHA tries another commit
 scripts/gates                              # Spotless, detekt, lint, unit tests, assembleDebug, check-fastlane: the set CI runs
 scripts/ui-agent start                     # emulator + app + isolated daemon; then screenshot, tree, click, type, key, screen, stop (see verification.md)
 scripts/check-screenshots                  # docs/screenshots matches its manifest (the release workflow runs it)

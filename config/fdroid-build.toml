@@ -1,0 +1,24 @@
+# Settings read by scripts/fdroid-build. Flat `key = value` lines only.
+
+# The recipe under test and the application id it describes.
+recipe = "fdroid/metadata/dev.pohunek.companion.yml"
+app_id = "dev.pohunek.companion"
+
+# fdroidserver's buildserver image, pinned by digest. It carries the Debian
+# release, JDK, Android SDK base and gradlew-fdroid of F-Droid's buildserver
+# but not fdroidserver itself, which the script installs at fdroidserver_version.
+image = "registry.gitlab.com/fdroid/fdroidserver@sha256:1ea8bef1820bff06c2974e31b4fc4c79c364cd24231b86e71fa4b926797e0dac"
+fdroidserver_version = "2.4.5"
+
+# gradlew-fdroid of the image: fdroidserver looks for it next to its Python
+# package, and a pip install does not ship it.
+gradlew_fdroid = "/home/vagrant/gradlew-fdroid/gradlew-fdroid"
+
+# fdroiddata's list of valid categories, which `fdroid lint` needs in config/categories.yml.
+# Read from the GitHub mirror of fdroiddata at a fixed commit and checked against its sha256.
+categories_url = "https://raw.githubusercontent.com/f-droid/fdroiddata/1decd36e9a2cb94874d620ac4ff026940f2d8076/config/categories.yml"
+categories_sha256 = "0c65415f443fdda52b9740f255095114a0b6cf75bf8576f33f5a8723d1aef675"
+
+# Host directory holding the fdroiddata-like tree, outside
+# every worktree. One run at a time (the script locks it).
+work_dir = "/tmp/pohunek-fdroid-build"

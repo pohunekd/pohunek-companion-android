@@ -1,0 +1,62 @@
+# Builds the F-Droid recipe (fdroid/metadata/) with fdroidserver in F-Droid's
+# buildserver image and compares the result with the published APK
+# (scripts/fdroid-build). Weekly on the newest release, or by hand for a given
+# tag or, to try the recipe before a tag carries what it needs, a given commit.
+# Not a required check; read-only token, no secrets.
+name: fdroid
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to rebuild (default: the newest release)"
+        required: false
+        type: string
+      commit:
+        description: "Build this full commit id under the tag's version; differences from the published APK are then expected and do not fail the run"
+        required: false
+        type: string
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fdroid
+  cancel-in-progress: false
+
+jobs:
+  fdroid:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve the tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="${INPUT_TAG:-$(gh release list --limit 1 --json tagName --jq '.[0].tagName')}"
+          [ -n "$tag" ] || { echo "no release found" >&2; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Build the recipe
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          INPUT_COMMIT: ${{ inputs.commit }}
+        run: |
+          args=("$TAG")
+          [ -z "$INPUT_COMMIT" ] || args+=(--commit "$INPUT_COMMIT")
+          status=0
+          scripts/fdroid-build "${args[@]}" || status=$?
+          # 1 = built but differs from the published APK, tolerated only for --commit.
+          if [ "$status" -eq 1 ] && [ -n "$INPUT_COMMIT" ]; then
+            echo "::notice::built $INPUT_COMMIT under $TAG; it differs from the published APK, as expected"
+            exit 0
+          fi
+          exit "$status"

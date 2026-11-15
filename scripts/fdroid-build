@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# Build the F-Droid recipe of this repository with fdroidserver in F-Droid's
+# buildserver image and compare the result with the published APK.
+#
+# Usage: scripts/fdroid-build <tag> [--commit SHA]      (vX.Y.Z or vX.Y.Z-pre.N)
+#
+# Steps, in a Podman container of the pinned image (no secrets, no signing key):
+# fdroid readmeta, fdroid rewritemeta (the recipe must not change), fdroid lint;
+# then the recipe's version, versionCode, commit and release tag are pointed at
+# <tag>, its `sudo` commands run as on the buildserver (`fdroid build --on-server`)
+# and `fdroid build` builds the unsigned APK. Because the recipe has `Binaries:`,
+# fdroid downloads the APK of the GitHub release of <tag> and compares the build with
+# it apart from the signature, the way F-Droid does (apksigcopier, as in
+# scripts/rebuild-release); on a mismatch it prints the differing files.
+#
+# --commit SHA builds that GitHub commit under <tag>'s version instead of the tag's
+# own commit, to try the recipe before a tag carries what it needs. The comparison
+# still runs but differences are expected.
+#
+# Exit codes: 0 identical apart from the signature, 1 the APKs differ,
+# 2 the script, the download or the build failed.
+# Settings: config/fdroid-build.toml and cpus and memory of config/dev.toml.
+# Deviations from the F-Droid buildserver: this container has a network during
+# the whole build, the real buildserver may not; fdroidserver is installed from
+# PyPI at a pinned version, not from git.
+set -eEuo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+config="$root/config/fdroid-build.toml"
+dev_config="$root/config/dev.toml"
+
+die() { echo "fdroid-build: $*" >&2; exit 2; }
+trap 'echo "fdroid-build: command failed at line $LINENO" >&2; exit 2' ERR
+
+usage="usage: scripts/fdroid-build <tag> [--commit SHA]"
+[ "$#" -ge 1 ] || die "$usage"
+tag="$1"; shift
+commit_override=""
+if [ "$#" -gt 0 ]; then
+  [ "$#" -eq 2 ] && [ "$1" = "--commit" ] || die "$usage"
+  commit_override="$2"
+  [[ "$commit_override" =~ ^[0-9a-f]{40}$ ]] || die "--commit needs a full 40-digit commit id"
+fi
+[[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-pre\.([1-9][0-9]*))?$ ]] \
+  || die "tag '$tag' is not vX.Y.Z or vX.Y.Z-pre.N"
+major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}"; pre_number="${BASH_REMATCH[5]:-0}"; pre="${BASH_REMATCH[5]:-999}"
+version="${tag#v}"
+# The formula of app/build.gradle.kts; the recipe's versionCode must be the same number.
+[ "$minor" -lt 100 ] && [ "$patch" -lt 100 ] && [ "$pre_number" -lt 999 ] || die "$tag is outside the versionCode range"
+version_code=$(( major * 10000000 + minor * 100000 + patch * 1000 + pre ))
+
+toml_value() {
+  local file="$1" key="$2" value
+  [ -r "$file" ] || die "missing $file"
+  value="$(sed -n -E "s/^${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*\$/\\1/p" "$file" | head -n 1)"
+  value="${value#\"}"; value="${value%\"}"
+  [ -n "$value" ] || die "$file: missing required key '$key'"
+  printf '%s' "$value"
+}
+cfg() { toml_value "$config" "$1"; }
+recipe="$root/$(cfg recipe)"
+app_id="$(cfg app_id)"
+image="$(cfg image)"
+fdroidserver_version="$(cfg fdroidserver_version)"
+gradlew_fdroid="$(cfg gradlew_fdroid)"
+categories_url="$(cfg categories_url)"
+categories_sha256="$(cfg categories_sha256)"
+work="$(cfg work_dir)"
+cpus="$(toml_value "$dev_config" cpus)"
+memory="$(toml_value "$dev_config" memory)"
+[[ "$work" =~ ^/tmp/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || die "$config: work_dir must be /tmp/<name>"
+[ -f "$recipe" ] || die "missing recipe $recipe"
+
+for tool in podman git curl; do command -v "$tool" >/dev/null || die "$tool is not installed"; done
+
+source_url="$(sed -n -E 's/^Repo:[[:space:]]*(.+)$/\1/p' "$recipe" | head -n 1)"
+[ -n "$source_url" ] || die "$recipe has no Repo"
+if [ -n "$commit_override" ]; then
+  commit="$commit_override"
+else
+  # An annotated tag is listed twice; the peeled entry (^{}) is the commit.
+  commit="$(git ls-remote "$source_url" "refs/tags/$tag^{}" "refs/tags/$tag" | sort -k2 | tail -n 1 | cut -f1)"
+  [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die "cannot resolve $tag in $source_url"
+fi
+
+lock="$work.lock"
+exec 9>"$lock"
+flock -n 9 || die "another fdroid-build is running"
+rm -rf "$work"
+mkdir -p "$work/fdroiddata/metadata" "$work/fdroiddata/config"
+
+curl -fsSL --retry 3 -o "$work/fdroiddata/config/categories.yml" "$categories_url" \
+  || die "cannot download the fdroiddata category list"
+echo "$categories_sha256  $work/fdroiddata/config/categories.yml" | sha256sum --check --strict --quiet \
+  || die "the fdroiddata category list does not match categories_sha256"
+# The icon files of the categories are not part of the download and lint does not need them.
+sed -i -E '/^  icon: category_[a-z_]+\.png$/d' "$work/fdroiddata/config/categories.yml"
+cp "$recipe" "$work/fdroiddata/metadata/$app_id.yml"
+# fdroidserver refuses a config.yml that others can read.
+printf 'sdk_path: /opt/android-sdk\n' > "$work/fdroiddata/config.yml"
+chmod 600 "$work/fdroiddata/config.yml"
+
+echo "fdroid-build: $tag is commit $commit; image $image"
+status=0
+podman run --rm --cpus "$cpus" --memory "$memory" --memory-swap "$memory" \
+  -v "$work/fdroiddata:/fdroiddata" \
+  -e "TAG=$tag" -e "VERSION=$version" -e "VERSION_CODE=$version_code" -e "COMMIT=$commit" \
+  -e "APP_ID=$app_id" -e "FDROIDSERVER_VERSION=$fdroidserver_version" -e "GRADLEW_FDROID=$gradlew_fdroid" \
+  -e "SOURCE_URL=$source_url" \
+  "$image" bash -c '
+set -Eeuo pipefail
+fail() { echo "fdroid-build: $*" >&2; exit 2; }
+trap "echo \"fdroid-build: command failed at line \$LINENO\" >&2; exit 2" ERR
+
+echo "fdroid-build: installing fdroidserver $FDROIDSERVER_VERSION"
+apt-get update -qq >/dev/null
+apt-get install -y -qq fdroidserver python3-pip >/dev/null
+pip install -q --root-user-action=ignore --break-system-packages "fdroidserver==$FDROIDSERVER_VERSION"
+[ "$(fdroid --version)" = "$FDROIDSERVER_VERSION" ] || fail "fdroid is not version $FDROIDSERVER_VERSION"
+dist="$(python3 -c "import fdroidserver, os; print(os.path.dirname(os.path.dirname(fdroidserver.__file__)))")"
+ln -sfn "$GRADLEW_FDROID" "$dist/gradlew-fdroid"
+
+cd /fdroiddata
+recipe="metadata/$APP_ID.yml"
+cp "$recipe" /tmp/recipe.orig
+echo "fdroid-build: fdroid readmeta"
+fdroid readmeta
+echo "fdroid-build: fdroid rewritemeta"
+fdroid rewritemeta "$APP_ID"
+diff -u /tmp/recipe.orig "$recipe" || fail "fdroid rewritemeta changes the recipe; commit its output"
+echo "fdroid-build: fdroid lint"
+fdroid lint "$APP_ID"
+
+# Point the single Builds entry at the tag.
+subst() {
+  [ "$(grep -c -E -- "$1" "$recipe")" -eq 1 ] || fail "recipe: expected exactly one line matching $1"
+  sed -i -E "s|$1|$2|" "$recipe"
+}
+subst "^  - versionName: .*$" "  - versionName: $VERSION"
+subst "^    versionCode: .*$" "    versionCode: $VERSION_CODE"
+subst "^    commit: .*$" "    commit: $COMMIT"
+subst "^      - releaseTag=.*$" "      - releaseTag=$TAG"
+echo "fdroid-build: Builds entry for $TAG:"
+sed -n "/^Builds:/,/^$/p" "$recipe"
+
+# Stand in for the buildserver provisioning: the recipe names the NDK it needs.
+ndk="$(sed -n -E "s/^    ndk: (.+)$/\1/p" "$recipe")"
+[ -n "$ndk" ] || fail "the recipe has no ndk"
+sdkmanager --install "ndk;$ndk" >/dev/null
+
+# fdroid build expects the source cloned already; it checks out the commit itself.
+git clone --quiet "$SOURCE_URL" "build/$APP_ID"
+echo "fdroid-build: fdroid build"
+if fdroid build --on-server -v -l "$APP_ID" 2>&1 | tee /tmp/build.log; then
+  apk="unsigned/${APP_ID}_$VERSION_CODE.apk"
+  [ -f "$apk" ] || fail "no $apk after the build"
+  sha256sum "$apk"
+  echo "fdroid-build: $TAG is identical to the published APK apart from the signature"
+  exit 0
+fi
+if grep -q "compared built binary to supplied reference binary but failed" /tmp/build.log; then
+  echo "fdroid-build: $TAG DIFFERS from the published APK; the differing files are listed above (diff -r of the unpacked APKs)"
+  exit 1
+fi
+fail "fdroid build failed"
+' || status=$?
+case "$status" in
+  0) echo "fdroid-build: done, identical" ;;
+  1) echo "fdroid-build: done, differs" ;;
+  *) echo "fdroid-build: failed ($status)"; status=2 ;;
+esac
+exit "$status"
