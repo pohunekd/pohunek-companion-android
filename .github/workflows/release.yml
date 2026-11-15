@@ -41,6 +41,7 @@ jobs:
     outputs:
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
+      version_code: ${{ steps.tag.outputs.version_code }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,6 +70,7 @@ jobs:
             exit 1
           fi
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "version_code=$(scripts/changelog version-code "${TAG#v}")" >> "$GITHUB_OUTPUT"
           case "$TAG" in *-pre.*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
 
       # The site reads docs/screenshots at the tag; a tag without a valid set must not be built.
@@ -283,6 +285,7 @@ jobs:
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      VERSION_CODE: ${{ needs.prepare.outputs.version_code }}
       CERT_SHA256: ${{ needs.build.outputs.cert_sha256 }}
       TAG: ${{ github.ref_name }}
       GH_TOKEN: ${{ github.token }}
@@ -313,13 +316,12 @@ jobs:
           flags=(--draft --verify-tag --title "$TAG")
           [ "$PRERELEASE" = true ] && flags+=(--prerelease)
           # The notes are data from prepare: the changelog marker block, then the footer.
-          # F-Droid's `fdroid checkupdates` reads the `versionCode N` line of the latest release (fdroid/metadata/).
-          code="$(scripts/changelog version-code "$VERSION")"
+          # F-Droid's `fdroid checkupdates` reads this `versionCode N` line of the latest release (fdroid/metadata/).
           footer="Signed APK \`pohunek-companion-${VERSION}.apk\` built from commit ${GITHUB_SHA}.
 
           Signing certificate SHA-256: \`${CERT_SHA256}\`
 
-versionCode ${code}
+          versionCode ${VERSION_CODE}
 
           Verify the download with \`sha256sum -c pohunek-companion-${VERSION}.apk.sha256\` and the signer with \`apksigner verify --print-certs\`; see docs/release.md."
           { cat "$RUNNER_TEMP/changelog/notes.md"; echo; printf '%s\n' "$footer"; } > "$RUNNER_TEMP/release-notes.md"
