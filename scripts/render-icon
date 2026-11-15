@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Renders the 512x512 store icon fastlane/metadata/android/en-US/images/icon.png
+# from the adaptive launcher icon: the background colour (@color/launcher_background)
+# plus the paths of drawable/ic_launcher_foreground.xml, cropped to the central 72x72
+# of the 108x108 canvas, the area a launcher shows unmasked. The launcher icon is
+# vector-only, so index tools cannot extract a PNG from the APK.
+#
+#   scripts/render-icon            # rewrite icon.png
+#   scripts/render-icon --check    # fail when icon.png differs from a fresh render
+#
+# Needs rsvg-convert (librsvg), which the toolchain container does not ship, so run
+# it on the host. The PNG bytes depend on the librsvg version; --check compares
+# decoded pixels with ImageMagick's compare when it is installed and bytes otherwise.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+res="$root/app/src/main/res"
+out="$root/fastlane/metadata/android/en-US/images/icon.png"
+size=512
+crop="18 18 72 72"
+
+fail() { echo "::error::render-icon: $*"; exit 1; }
+command -v rsvg-convert >/dev/null || fail "rsvg-convert is not installed"
+[ $# -le 1 ] && { [ $# -eq 0 ] || [ "$1" = "--check" ]; } || fail "usage: scripts/render-icon [--check]"
+
+background="$(sed -n 's|.*<color name="launcher_background">\(#[0-9A-Fa-f]\{6\}\)</color>.*|\1|p' "$res/values/colors.xml")"
+[ -n "$background" ] || fail "launcher_background not found in values/colors.xml"
+
+# Each <path> of the foreground becomes an SVG path; pathData syntax is shared.
+paths="$(tr '\n' ' ' <"$res/drawable/ic_launcher_foreground.xml" |
+  sed 's|<path|\n<path|g' | grep '^<path' |
+  sed -E 's|.*android:fillColor="(#[0-9A-Fa-f]{6})".*android:pathData="([^"]+)".*|<path fill="\1" d="\2"/>|')"
+[ -n "$paths" ] || fail "no <path> found in drawable/ic_launcher_foreground.xml"
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+cat >"$work/icon.svg" <<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="$size" height="$size" viewBox="$crop">
+<rect x="0" y="0" width="108" height="108" fill="$background"/>
+$paths
+</svg>
+SVG
+rsvg-convert --width "$size" --height "$size" "$work/icon.svg" -o "$work/icon.png"
+
+if [ "${1:-}" = "--check" ]; then
+  [ -f "$out" ] || fail "$out is missing"
+  if command -v compare >/dev/null; then
+    [ "$(compare -metric AE "$work/icon.png" "$out" null: 2>&1 | cut -d" " -f1 || true)" = 0 ] || fail "icon.png differs from a fresh render"
+  else
+    cmp -s "$work/icon.png" "$out" || fail "icon.png differs from a fresh render"
+  fi
+  echo "render-icon: icon.png matches a fresh render"
+else
+  mkdir -p "$(dirname "$out")"
+  cp "$work/icon.png" "$out"
+  echo "render-icon: wrote $out"
+fi
