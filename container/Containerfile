@@ -103,11 +103,11 @@ RUN SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; \
         && ! compgen -G "$ANDROID_HOME/emulator-*" >/dev/null; } \
       || { echo "sdkmanager replaced or duplicated the pinned emulator ${EMULATOR_BUILD_ID}" >&2; exit 1; }
 
-# Pohunek release v0.42.0 (musl builds are static; sha256 published on the
+# Pohunek release v0.43.0 (musl builds are static; sha256 published on the
 # zajca/pohunek GitHub release).
-ARG POHUNEK_VERSION=0.42.0
-ARG POHUNEK_CLI_SHA256=dbfa9997ad4039e6a8b3342f3b3a24142a66696516d533d97c8c342ed750d959
-ARG POHUNEK_DAEMON_SHA256=39380dc1d7663beace6b0db09ec7febe050520242640b4e5c4041bdb2f8d9072
+ARG POHUNEK_VERSION=0.43.0
+ARG POHUNEK_CLI_SHA256=28238f6b768a17f94ff8c66d411da2ea4a72f5b753d9a88b3a0fc2475c2a3f0c
+ARG POHUNEK_DAEMON_SHA256=f558fb931f075632f0fa6b15c16ae6209d9b3d13eea23706bb6ae930c7313621
 RUN base="https://github.com/zajca/pohunek/releases/download/v${POHUNEK_VERSION}"; \
     cli="pohunek-cli-${POHUNEK_VERSION}-x86_64-unknown-linux-musl"; \
     dmn="pohunek-daemon-${POHUNEK_VERSION}-x86_64-unknown-linux-musl"; \

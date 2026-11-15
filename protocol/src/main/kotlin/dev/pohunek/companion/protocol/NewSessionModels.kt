@@ -36,6 +36,15 @@ data class HostCapabilities(
 )
 
 /**
+ * The feature flags of `host.inspect` the app reads without the runtime inventory. A daemon that predates a flag omits it, which means
+ * the capability is absent.
+ */
+@Serializable
+data class HostFeatureFlags(
+    @SerialName("session_attention_isolation_supported") val sessionAttentionIsolationSupported: Boolean = false,
+)
+
+/**
  * One entry of `project.actions`. [provider] stays a string so that a kind a newer daemon adds does not break the list; a template is
  * an action whose provider is [PROVIDER_NONE]. Only the fields the app uses are decoded.
  */

@@ -69,7 +69,7 @@ runtime directory or real daemon, never run the toolchain on the host outside
 `scripts/dev`, and never point an emulator at the owner's daemon.
 
 ```bash
-scripts/ui-agent start [--sessions N] [--showcase [--legacy-host2]] [--device phone] [--owner-daemon]
+scripts/ui-agent start [--sessions N] [--showcase [--legacy-host2] [--attention-tree]] [--device phone] [--owner-daemon]
 scripts/ui-agent install | restart | stop | status
 scripts/ui-agent screenshot OUT.png | tree | find TAG | click TAG [N]
 scripts/ui-agent type TEXT [--enter] | key esc|ctrl-c|tab|up|down|left|right|enter
@@ -127,7 +127,13 @@ scripts/ui-agent pohunek ARGS...
   (protocol 4)" on the Hosts screen and the session list while the first host works;
   `status` marks it `release=legacy-0.35.2`. `host2-upgrade` replaces that host with the
   current release and its showcase sessions, leaving the first host alone, so the app
-  connects to it without user action. `type` cannot
+  connects to it without user action. `--attention-tree` (with `--showcase`) adds to the
+  first host two idle manager sessions, `isolating-manager` with the metadata
+  `pohunek.attention.children=isolate` and `plain-manager` without it, and a blocked
+  worker spawned by each (created with the manager's `POHUNEK_SESSION_ID` and a fixed
+  synthetic `POHUNEK_DAEMON_ID`), to check that Needs you skips the isolated worker; it
+  needs a Pohunek that reports `session_attention_isolation_supported` (v0.43.0 or newer).
+  `type` cannot
   enter a literal `%s` (`input text` turns it into a space).
 - **Install and restart.** `install` builds the debug APK and installs it; it
   then compares the SHA-256 of the installed `base.apk` with the built file and

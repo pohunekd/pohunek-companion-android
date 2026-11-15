@@ -53,7 +53,7 @@ fun partitionNeedsYou(hosts: List<HostSessions>): NeedsYouListing {
         val label = hostDisplayLabel(entry.host)
         entry.sessions.map { HostedSession(entry.host.route, label, entry.link, it) }
     }
-    val (needing, rest) = all.partition { it.reachable && it.session.ownerState == OwnerState.NeedsOwner }
+    val (needing, rest) = all.partition { it.reachable && it.session.needsOwner }
     return NeedsYouListing(needing.sortedWith(needsOwnerOrder), rest)
 }
 

@@ -98,6 +98,9 @@ class PohunekConnection private constructor(
 
     suspend fun inspectHost(): HostCapabilities = call { Requests.hostInspect(it) }.decodeResult(HostCapabilities.serializer())
 
+    /** Reads the host's feature flags with `skip_runtime_probes`, which resolves and probes no agent program. */
+    suspend fun inspectHostFlags(): HostFeatureFlags = call { Requests.hostInspectFlags(it) }.decodeResult(HostFeatureFlags.serializer())
+
     /** Starts a session. The request has no idempotency key, so a caller must never send it twice for one launch. */
     suspend fun newSession(params: SessionNewParams): SessionNewResult = call { Requests.sessionNew(it, params) }.decodeSessionNewResult()
 

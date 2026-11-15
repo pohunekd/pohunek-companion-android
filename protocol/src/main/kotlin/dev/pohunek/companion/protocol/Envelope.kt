@@ -49,6 +49,10 @@ object Requests {
 
     fun hostInspect(id: String): Request = Request(Wire.CLIENT_RANGE, id, "host.inspect", JsonNull)
 
+    /** `host.inspect` that answers the feature flags only and probes no agent program. */
+    fun hostInspectFlags(id: String): Request =
+        Request(Wire.CLIENT_RANGE, id, "host.inspect", buildJsonObject { put("skip_runtime_probes", true) })
+
     /** `name`, `input`, `branch`, `base_branch` and `metadata` are omitted when null; `project` is the daemon's own id, so no path crosses the wire. */
     fun sessionNew(id: String, params: SessionNewParams): Request {
         val body = buildJsonObject {
