@@ -14,6 +14,7 @@ import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.RecentProjects
 import dev.pohunek.companion.core.domain.layout.RowFacts
 import dev.pohunek.companion.core.domain.layout.StateSelection
+import dev.pohunek.companion.core.domain.layout.TreePosition
 import dev.pohunek.companion.core.domain.layout.WorkItem
 import dev.pohunek.companion.core.domain.sessions.HostLink
 import dev.pohunek.companion.core.domain.sessions.OwnerState
@@ -59,6 +60,10 @@ data class SessionRow(
     val resume: ResumeOffer,
     /** True when the group of this session is kept only on this phone: it is external, or the daemon cannot hold the key for it. */
     val notShared: Boolean,
+    /** The id of the session on the same host that spawned this one, or null. */
+    val spawnedBy: String? = null,
+    /** Where the row sits in the sub-session fold; set when the lists are shown. */
+    val tree: TreePosition = TreePosition(),
 ) {
     val reachable: Boolean get() = link.reachable
 
@@ -156,6 +161,12 @@ data class SessionListState(
     /** [needsYou] and [groups] after the state selection, project, host and search; the unfiltered lists stay the source of every row action. */
     val shownNeedsYou: List<SessionRow> = emptyList(),
     val shownGroups: List<GroupSection<SessionRow>> = emptyList(),
+    /** The view folds sub-sessions under the session that spawned them; the choice is kept with the view's filter. */
+    val foldSubSessions: Boolean = true,
+    /** True when some session was spawned by another one in the list, so the fold has something to do. */
+    val hasSubSessions: Boolean = false,
+    /** The sessions whose sub-sessions are shown under them; kept in memory only. */
+    val expandedSubSessions: Set<SessionKey> = emptySet(),
     /** True when the filter hides every session of a list that has some. */
     val noMatch: Boolean = false,
     /** Why the layout file is not, or not fully, saved; the list is shown regardless. */
@@ -331,6 +342,12 @@ sealed interface SessionListEvent {
 
     /** Taps a host of the shown view (null: All hosts): selects it, or shows every host when it is already selected. */
     data class TapHost(val key: String?) : FilterEvent
+
+    /** Shows or hides the sub-sessions under the session [ref]; kept in memory only, not saved with the layout. */
+    data class ToggleSubSessions(val ref: RowRef) : LayoutEvent
+
+    /** Folds sub-sessions under their parent in the shown view, or shows every session in its own place; saved with the view's filter. */
+    data class SetSubSessionFold(val fold: Boolean) : LayoutEvent
 
     /** Shows [view]; the choice is saved with the layout. */
     data class SelectView(val view: LayoutView) : LayoutEvent

@@ -256,13 +256,17 @@ private fun NewGroupButton(onEvent: (SessionListEvent) -> Unit) {
 
 @Composable
 private fun RowWithDivider(row: SessionRow, onEvent: (SessionListEvent) -> Unit, draggable: Boolean = false, lifted: Boolean = false) {
-    SessionRowItem(
-        row,
-        onClick = { onEvent(SessionListEvent.OpenSession(row.ref)) },
-        onMore = { onEvent(SessionListEvent.OpenActions(row.ref)) },
-        draggable = draggable,
-        lifted = lifted,
-    )
+    val indent = PohunekTheme.subSessionIndent * row.tree.depth
+    Column(Modifier.padding(start = indent)) {
+        SessionRowItem(
+            row,
+            onClick = { onEvent(SessionListEvent.OpenSession(row.ref)) },
+            onMore = { onEvent(SessionListEvent.OpenActions(row.ref)) },
+            draggable = draggable,
+            lifted = lifted,
+        )
+        if (row.tree.subSessions > 0) SubSessionsControl(row.tree) { onEvent(SessionListEvent.ToggleSubSessions(row.ref)) }
+    }
     HorizontalDivider()
 }
 

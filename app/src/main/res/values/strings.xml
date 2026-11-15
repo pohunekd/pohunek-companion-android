@@ -61,6 +61,17 @@
     <string name="group_expanded">Expanded</string>
     <string name="group_expand">Expand group</string>
     <string name="group_collapse">Collapse group</string>
+    <plurals name="sub_sessions_count">
+        <item quantity="one">%d sub-session</item>
+        <item quantity="other">%d sub-sessions</item>
+    </plurals>
+    <string name="sub_sessions_expand">Show sub-sessions</string>
+    <string name="sub_sessions_collapse">Hide sub-sessions</string>
+    <string name="sub_sessions_expanded">Shown</string>
+    <string name="sub_sessions_collapsed">Hidden</string>
+    <string name="sub_sessions_toggle">Sub-sessions</string>
+    <string name="sub_sessions_toggle_on">Sub-sessions are folded under their parent. Show every session in its own place.</string>
+    <string name="sub_sessions_toggle_off">Every session is shown in its own place. Fold sub-sessions under their parent.</string>
     <string name="group_more">Group actions</string>
     <string name="group_action_rename">Rename...</string>
     <string name="group_action_delete">Delete</string>

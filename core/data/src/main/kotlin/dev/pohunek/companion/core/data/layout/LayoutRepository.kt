@@ -180,7 +180,8 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
         change { layout ->
             val view = layout.view
             log.info("layout.filters_cleared", listOf(LogField.state(view.id)))
-            layout.withFilter(view, StoredFilter())
+            // The fold is a display choice, not a filter that narrows the list, so Clear keeps it.
+            layout.withFilter(view, StoredFilter(unfolded = layout.filter(view).unfolded))
         }
     }
 
@@ -191,6 +192,15 @@ class LayoutRepository(private val store: LayoutStore, private val log: AppLog) 
             val next = layout.project(view).tapped(chip)
             log.info("layout.project_changed", listOf(LogField.state(view.id), LogField.number("selected", if (next == ProjectSelection.All) 0 else 1)))
             layout.withProject(view, next)
+        }
+    }
+
+    /** Stores whether the selected view folds sub-sessions under the session that spawned them. */
+    suspend fun setFold(fold: Boolean) {
+        change { layout ->
+            val view = layout.view
+            log.info("layout.fold_changed", listOf(LogField.state(view.id), LogField.number("selected", if (fold) 1 else 0)))
+            layout.withFold(view, fold)
         }
     }
 

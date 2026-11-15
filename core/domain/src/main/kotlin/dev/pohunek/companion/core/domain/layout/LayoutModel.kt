@@ -61,6 +61,8 @@ data class StoredFilter(
     val noProject: Boolean = false,
     /** Key of the selected host; null selects every host. */
     val host: String? = null,
+    /** Every session shows in its own place instead of folded under the session that spawned it. */
+    val unfolded: Boolean = false,
 )
 
 /**

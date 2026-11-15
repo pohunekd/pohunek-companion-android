@@ -40,9 +40,13 @@ import dev.pohunek.companion.core.domain.layout.LayoutView
 import dev.pohunek.companion.core.domain.layout.ProjectSelection
 import dev.pohunek.companion.core.domain.layout.SessionFilter
 import dev.pohunek.companion.core.domain.layout.StateSelection
+import dev.pohunek.companion.core.domain.layout.SubSessionTree
+import dev.pohunek.companion.core.domain.layout.TreePosition
 import dev.pohunek.companion.core.domain.layout.WorkItem
 import dev.pohunek.companion.core.domain.layout.checkGroupName
+import dev.pohunek.companion.core.domain.layout.countSubSessions
 import dev.pohunek.companion.core.domain.layout.differsFromDefault
+import dev.pohunek.companion.core.domain.layout.foldSections
 import dev.pohunek.companion.core.domain.layout.groupFact
 import dev.pohunek.companion.core.domain.layout.groupStepDown
 import dev.pohunek.companion.core.domain.layout.groupStepUp
@@ -264,6 +268,8 @@ class SessionListViewModel(
     private fun onLayoutEvent(event: SessionListEvent.LayoutEvent) {
         when (event) {
             is SessionListEvent.SetSectionCollapsed -> viewModelScope.launch { layouts.setCollapsed(event.id, event.collapsed) }
+            is SessionListEvent.ToggleSubSessions -> updateState { it.withSubSessionsToggled(event.ref.layoutKey) }
+            is SessionListEvent.SetSubSessionFold -> viewModelScope.launch { layouts.setFold(event.fold) }
             is SessionListEvent.SelectView -> viewModelScope.launch { layouts.selectView(event.view) }
             is SessionListEvent.FilterEvent -> onFilterEvent(event)
             is SessionListEvent.GroupEvent -> onGroupEvent(event)
@@ -655,6 +661,7 @@ private fun listed(
         // The list waits for the layout, so that it never shows once flat and then arranged.
         rows = if (awaiting || available == null) null else others,
         view = view,
+        foldSubSessions = available.foldsSubSessions(view),
         states = available?.layout?.states(view) ?: StateSelection.DEFAULT,
         filtersChanged = available?.layout?.filter(view)?.differsFromDefault == true,
         stateChips = stateChips((listing.needsYou + listing.others).mapTo(HashSet()) { it.session.listState }),
@@ -680,13 +687,18 @@ private fun SessionListState.filtered(): SessionListState {
     val filter = SessionFilter(query, states, project, host)
     val needs = filter.filterRows(needsYou, SessionRow::filterFacts)
     val sections = filter.filterSections(groups, SessionRow::filterFacts)
+    val tree = SubSessionTree.build((needsYou + rows.orEmpty()).map { it.layoutKey to it.spawnedBy })
+    // A search lists every match in its own place.
+    val fold = foldSubSessions && query.isBlank()
+    val shownKeys = (needs + sections.filterNot { it.collapsed }.flatMap { it.rows }).mapTo(HashSet(), SessionRow::layoutKey)
     val listed = needsYou.isNotEmpty() || rows.orEmpty().isNotEmpty()
     return copy(
         stateCounts = filter.countByState((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         projectPool = filter.narrowedIgnoringProject((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         hostPool = filter.narrowedIgnoringHost((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
-        shownNeedsYou = needs,
-        shownGroups = sections,
+        hasSubSessions = !tree.isEmpty,
+        shownNeedsYou = countSubSessions(needs, tree, shownKeys, SessionRow::layoutKey, SessionRow::withTree),
+        shownGroups = foldSections(sections, tree, expandedSubSessions, fold, SessionRow::layoutKey, SessionRow::withTree),
         noMatch = filter.isActive && listed && needs.isEmpty() && sections.all { it.rows.isEmpty() },
     )
 }
@@ -736,6 +748,13 @@ private fun HostConnection.expectsList(): Boolean = this !is HostConnection.Reco
 private fun HostedSession.groupNotShared(notShared: Set<SessionKey>): Boolean =
     session.info.external == true || SessionKey(route.toString(), session.info.id) in notShared
 
+private fun LayoutState.Available?.foldsSubSessions(view: LayoutView): Boolean = this?.layout?.folds(view) ?: true
+
+private fun SessionListState.withSubSessionsToggled(key: SessionKey): SessionListState =
+    copy(expandedSubSessions = if (key in expandedSubSessions) expandedSubSessions - key else expandedSubSessions + key).filtered()
+
+private fun SessionRow.withTree(position: TreePosition): SessionRow = copy(tree = position)
+
 private fun HostedSession.toRow(badgeMaxChars: Int, notShared: Set<SessionKey>): SessionRow {
     val info = session.info
     val facts = workFacts(info.metadata.orEmpty())
@@ -762,5 +781,6 @@ private fun HostedSession.toRow(badgeMaxChars: Int, notShared: Set<SessionKey>):
         canRemove = reachable && offersRemove(info),
         resume = resumeOffer(info),
         notShared = groupNotShared(notShared),
+        spawnedBy = info.spawnedBy?.sessionId,
     )
 }

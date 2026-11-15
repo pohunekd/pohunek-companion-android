@@ -101,6 +101,9 @@ object PohunekTheme {
     val chevronSize: Dp = 16.dp
     val chevronStroke: Dp = 2.dp
 
+    /** How far each level of sub-sessions is indented. */
+    val subSessionIndent: Dp = 24.dp
+
     /** Widest a host chip on a session row grows before its label is cut. */
     val hostChipMaxWidth: Dp = 120.dp
 

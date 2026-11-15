@@ -245,6 +245,15 @@ a Pohunek release changes the protocol version, and the toolchain image and
   list as well; they are stored per view in the same `filters` entry (`project_label`, `no_project`, `host`), a tap on the
   selected chip clears it, and a selected project or host that has gone keeps its chip and filters as empty. Like a query,
   they expand the sections that match.
+- **Sub-sessions fold** (ported from desktop `sub_sessions.rs`, `:core:domain` `SubSessions.kt`): a session's parent is the
+  session on the same host that its `spawned_by.session_id` names, and only that (no `work.role=manager` fallback; the list-only
+  `children` count is not read because it goes stale after events). An orphan whose spawner is not listed is a root; a `spawned_by`
+  cycle makes each of its sessions a root. The fold runs on the lists as they are shown, after the Needs-you lift and the filter:
+  a session in Needs you stays there and is not repeated under its parent, a session whose parent is not shown (lifted, or hidden
+  by the state selection) stays in its own place, and a non-empty query turns the fold off so every match shows. A parent row shows
+  `N sub-sessions` and, while folding, that line expands or collapses its workers in place, indented by depth; the expanded set is in
+  memory only. The `Sub-sessions` chip of the filter bar (present while some session has a parent) turns folding off and on per
+  view; it is stored as `unfolded` in the view's `filters` entry, folding is the default, and Clear filters keeps it.
 - **Hosts** are a list of `(route, optional label)` in `hosts.json`; a route is
   listed once, so the same daemon under two spellings of its address (such as
   `127.0.0.1:PORT` and `localhost:PORT`) counts as two hosts. One live loop

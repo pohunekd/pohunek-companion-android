@@ -2,9 +2,11 @@ package dev.pohunek.companion.sessions
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -27,11 +29,18 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
 /**
  * A filter chip of the bottom bar with a dropdown arrow, narrower than a Material filter chip so the bar fits search and three chips at
- * 411 dp. [labelMaxWidth] cuts the label at a fixed width for user-supplied values; the label also gives way when the chip's
- * [modifier] constrains its width.
+ * 411 dp. [dropdown] false drops the arrow of a chip that toggles instead of opening a list. [labelMaxWidth] cuts the label at a fixed
+ * width for user-supplied values; the label also gives way when the chip's [modifier] constrains its width.
  */
 @Composable
-internal fun BarChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier, labelMaxWidth: Dp? = null) {
+internal fun BarChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    labelMaxWidth: Dp? = null,
+    dropdown: Boolean = true,
+) {
     val colors = MaterialTheme.colorScheme
     Surface(
         selected = selected,
@@ -53,7 +62,11 @@ internal fun BarChip(selected: Boolean, onClick: () -> Unit, label: String, modi
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false).then(if (labelMaxWidth == null) Modifier else Modifier.widthIn(max = labelMaxWidth)),
             )
-            Icon(painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null, modifier = Modifier.size(PohunekTheme.filterBarChipIconSize))
+            if (dropdown) {
+                Icon(painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null, modifier = Modifier.size(PohunekTheme.filterBarChipIconSize))
+            } else {
+                Spacer(Modifier.width(PohunekTheme.filterBarChipPadding))
+            }
         }
     }
 }
