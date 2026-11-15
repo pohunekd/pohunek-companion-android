@@ -89,6 +89,21 @@ class NewSessionWireTest {
     }
 
     @Test
+    fun `a runtime decodes its label and audience and an unmodelled audience is Unknown`() {
+        val json = Wire.json.parseToJsonElement(
+            """{"runtimes":[
+              {"agent":"bare","available":true},
+              {"agent":"reviewer","available":true,"display_name":"PR reviewer","audience":"agent"},
+              {"agent":"future","available":true,"audience":"somebody-new"}],
+              "git_available":true,"worktree_supported":true}""",
+        )
+        val runtimes = json.decodeResult(HostCapabilities.serializer()).runtimes
+        assertNull(runtimes[0].audience)
+        assertEquals("PR reviewer" to ProfileAudience.Agent, runtimes[1].displayName to runtimes[1].audience)
+        assertEquals(ProfileAudience.Unknown, runtimes[2].audience)
+    }
+
+    @Test
     fun `session new result is the session plus applied_input`() {
         val result = decode("session-new-response").decodeSessionNewResult()
         assertEquals("fixture-three", result.session.name)

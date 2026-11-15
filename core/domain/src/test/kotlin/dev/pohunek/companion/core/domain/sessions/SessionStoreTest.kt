@@ -22,11 +22,14 @@ class SessionStoreTest {
         name: String? = null,
         projectId: String? = null,
         projectLabel: String? = null,
+        agent: String = "shell",
+        agentDisplayName: String? = null,
     ) = SessionInfo(
         id = id,
         capabilities = SessionCapabilities(resume = false, fork = false),
         name = name,
-        agent = "shell",
+        agent = agent,
+        agentDisplayName = agentDisplayName,
         agentBase = "shell",
         cwd = "/work",
         pid = 1,
@@ -41,6 +44,19 @@ class SessionStoreTest {
     )
 
     private fun names() = store.sessions().values.map { it.name }
+
+    @Test
+    fun `an event keeps the stored profile label of the same agent and a live label wins`() {
+        store.applySeed(listOf(session("s-1", agent = "reviewer", agentDisplayName = "PR reviewer")), emptyList())
+        store.applyEvent(DaemonEvent.SessionUpdated(session("s-1", "2026-01-01T10:00:05Z", agent = "reviewer")))
+        assertEquals("PR reviewer", store.session("s-1")?.agentDisplayName)
+
+        store.applyEvent(DaemonEvent.SessionUpdated(session("s-1", "2026-01-01T10:00:06Z", agent = "reviewer", agentDisplayName = "Reviewer 2")))
+        assertEquals("Reviewer 2", store.session("s-1")?.agentDisplayName)
+
+        store.applyEvent(DaemonEvent.SessionUpdated(session("s-1", "2026-01-01T10:00:07Z", agent = "other")))
+        assertNull(store.session("s-1")?.agentDisplayName)
+    }
 
     @Test
     fun `seed then create update and remove`() {
