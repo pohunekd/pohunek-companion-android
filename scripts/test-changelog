@@ -161,6 +161,17 @@ for bad in 0.100.0 0.1.100 0.1.0-pre.999 210.0.0; do
   if "$tool" version-code "$bad" >/dev/null 2>&1; then fail "version-code accepted $bad"; else pass; fi
 done
 
+# An out-of-range version makes fold fail before anything is written.
+range_repo="$(new_repo range single)"
+if (cd "$range_repo" && "$tool" fold 0.100.0 --date 2026-10-24) >/dev/null 2>&1 \
+  || ! cmp -s "$range_repo/CHANGELOG.md" "$fixtures/single/input/CHANGELOG.md" \
+  || ! compgen -G "$range_repo/changelog.d/*.md" >/dev/null \
+  || [ -e "$range_repo/fastlane" ]; then
+  fail "fold wrote files for an out-of-range versionCode"
+else
+  pass
+fi
+
 # A section over the store limit is cut at an entry boundary and ends with the release pointer.
 long="$(new_repo long single)"
 rm -f "$long"/changelog.d/*.md

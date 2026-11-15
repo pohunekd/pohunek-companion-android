@@ -294,7 +294,9 @@ render_store_changelog() {
 
 # Prints the store changelog path of the version, relative to the repository root.
 store_changelog_path() {
-  printf '%s/%s.txt\n' "$store_changelog_dir" "$(version_code "$1")"
+  local code
+  code="$(version_code "$1")" || exit 1
+  printf '%s/%s.txt\n' "$store_changelog_dir" "$code"
 }
 
 # Removes trailing empty lines of the array named $1.
