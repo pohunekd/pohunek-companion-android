@@ -3,6 +3,12 @@
 User-facing changes of Pohunek Companion Android, newest version first. Each
 section is folded from the fragments in `changelog.d/` when its release is prepared.
 
+## 0.1.0-pre.12 - 2026-11-15
+
+### Added
+
+- The app now works with Pohunek v0.43.0 hosts. A session below a parent that isolates attention (`pohunek.attention.children=isolate`) no longer appears in Needs you or its counts, even while it waits for its manager; its own row still shows its state. ([#261](https://github.com/pohunekd/pohunek-companion-android/issues/261))
+
 ## 0.1.0-pre.11 - 2026-11-12
 
 ### Changed
