@@ -9,6 +9,9 @@
 #   build    the only job in the `release` environment and the only one that sees
 #            the signing secrets; its token is read-only. Uploads the APK and its
 #            checksum as a workflow artifact, nothing else.
+#   reproducible  holds no secret and has a read-only token. Rebuilds the tag unsigned in a
+#            fresh checkout at another path and refuses the release when the rebuild
+#            differs from the signed APK of `build` apart from the signature.
 #   publish  the only job with `contents: write`; it holds no secret and runs no
 #            repository code. It places the notes from prepare in front of the
 #            footer text and creates the release.
@@ -237,8 +240,42 @@ jobs:
         if: ${{ always() }}
         run: rm -rf "$RUNNER_TEMP/signing"
 
-  publish:
+  reproducible:
     needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # scripts/dev passes /dev/kvm through; hosted runners ship it but restrict access.
+      - name: Allow access to /dev/kvm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-apk
+          path: ${{ runner.temp }}/release
+
+      # The script clones the tag into its own directory, builds libghostty-vt without any
+      # cache and assembles the unsigned release; a difference lists the differing entries.
+      - name: Rebuild the tag and compare it with the signed APK
+        run: |
+          set -euo pipefail
+          scripts/rebuild-release --commit "$GITHUB_SHA" \
+            --apk "$RUNNER_TEMP/release/pohunek-companion-${VERSION}.apk" "$TAG"
+
+  publish:
+    needs: [prepare, build, reproducible]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
