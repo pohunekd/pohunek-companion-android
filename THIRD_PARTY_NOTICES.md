@@ -29,7 +29,9 @@ entry. The decisions behind this list are in
     to read the visible grid without touching the selection, and the selection
     formatting is factored into a helper shared with `nativeSelectionText`
   - `CMakeLists.txt`: library name and the libghostty-vt paths (the staged
-    `vendor/libghostty-vt/`) adapted; the 16 KB page-size link option is kept.
+    `vendor/libghostty-vt/`) adapted; the 16 KB page-size link option is kept, and the
+    build-id note and the checkout and build paths are removed from the output
+    (`--build-id=none`, `-ffile-prefix-map`).
 - Not copied: the Expo glue (`ExpoLibghosttyModule.kt`, `ExpoLibghosttyView.kt`),
   the Gradle build file, the unit tests, and the Nerd Fonts symbols font
   (`GhosttyTerminalView` falls back to the system fonts when the asset is absent).

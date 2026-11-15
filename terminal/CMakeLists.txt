@@ -21,9 +21,15 @@ add_library(pohunekterminal SHARED src/main/cpp/ghostty_jni.cpp)
 target_include_directories(pohunekterminal PRIVATE ${GHOSTTY_VT_DIR}/include)
 # Static linking: keep GHOSTTY_API a no-op (see ghostty/vt/types.h).
 target_compile_definitions(pohunekterminal PRIVATE GHOSTTY_STATIC)
-target_compile_options(pohunekterminal PRIVATE -Wall -fvisibility=hidden)
+# Neither the checkout path nor the CMake build directory may reach the object file, so a rebuild
+# from any checkout location produces the same library.
+target_compile_options(pohunekterminal PRIVATE -Wall -fvisibility=hidden
+  -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.
+  -ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=.)
 # Android 15+ devices require 16 KB page alignment.
 target_link_options(pohunekterminal PRIVATE -Wl,-z,max-page-size=16384)
+# Omit the GNU build-id note so the library carries no content-derived identifier.
+target_link_options(pohunekterminal PRIVATE -Wl,--build-id=none)
 
 if(ANDROID_ABI STREQUAL "x86_64")
   # Zig emits general-dynamic TLS on x86_64, which needs __tls_get_addr;
