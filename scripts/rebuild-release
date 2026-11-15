@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# Rebuild a release tag from source the way an independent rebuilder would and
+# compare the result with the published APK apart from the signature.
+#
+# Usage: scripts/rebuild-release <tag>      (vX.Y.Z or vX.Y.Z-pre.N)
+#
+# Steps: download the tag's APK and .sha256 from the GitHub release and check the
+# checksum; run apksigcopier on the published APK against itself as a control
+# (proves the tool can handle its signature); clone the tag into a fresh directory
+# outside every worktree; build libghostty-vt; run :app:assembleRelease unsigned;
+# apksigcopier compare. On a mismatch the differing ZIP entries are listed.
+#
+# Exit codes: 0 identical apart from the signature, 1 the APKs differ,
+# 2 the script, the download, the build or the control failed.
+# Settings: config/rebuild-release.toml. The toolchain runs in the container.
+set -eEuo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+config="$root/config/rebuild-release.toml"
+
+die() { echo "rebuild-release: $*" >&2; exit 2; }
+# Any unguarded command that fails is an error of the script (2), never a "differs" (1).
+trap 'echo "rebuild-release: command failed at line $LINENO" >&2; exit 2' ERR
+
+[ "$#" -eq 1 ] || die "usage: scripts/rebuild-release <tag>"
+tag="$1"
+[[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-pre\.[1-9][0-9]*)?$ ]] \
+  || die "tag '$tag' is not vX.Y.Z or vX.Y.Z-pre.N"
+version="${tag#v}"
+
+config_value() {
+  local key="$1" value
+  [ -r "$config" ] || die "missing $config"
+  value="$(sed -n -E "s/^${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*\$/\\1/p" "$config" | head -n 1)"
+  value="${value#\"}"; value="${value%\"}"
+  [ -n "$value" ] || die "$config: missing required key '$key'"
+  printf '%s' "$value"
+}
+release_repo="$(config_value release_repo)"
+source_url="$(config_value source_url)"
+work="$(config_value work_dir)"
+unsigned_apk="$(config_value unsigned_apk)"
+apksigner="$(config_value apksigner)"
+[[ "$work" =~ ^/tmp/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || die "$config: work_dir must be /tmp/<name>"
+[ "$work" != "$root" ] && [[ "$root/" != "$work/"* ]] || die "work_dir must not contain the worktree"
+
+command -v gh >/dev/null || die "gh is not installed"
+command -v git >/dev/null || die "git is not installed"
+
+lock="$work.lock"
+exec 9>"$lock"
+flock -n 9 || die "another rebuild-release is running"
+
+rm -rf "$work"
+mkdir -p "$work/download"
+# Run a command in the container, in a directory under $work. Only that directory
+# is mounted, so the untrusted build (in_dir "$src") cannot reach the downloaded APK.
+in_dir() { local dir="$1"; shift; "$root/scripts/dev" --rw-dir "$dir" bash -c 'cd "$1" && shift && exec "$@"' bash "$dir" "$@"; }
+
+published="$work/download/pohunek-companion-$version.apk"
+
+echo "rebuild-release: downloading $tag from $release_repo"
+gh release download "$tag" -R "$release_repo" -D "$work/download" \
+  -p "pohunek-companion-$version.apk" -p "pohunek-companion-$version.apk.sha256" \
+  || die "cannot download the release assets of $tag"
+(cd "$work/download" && sha256sum --check --strict --quiet "pohunek-companion-$version.apk.sha256") \
+  || die "the published APK does not match its .sha256"
+echo "rebuild-release: published APK matches its checksum"
+
+# Control: apksigcopier must be able to extract this signature and re-verify it
+# (apksigner verify runs inside compare). With the published APK as both sides
+# the comparison is trivially equal, so a failure is a tool or signature problem,
+# not a build difference.
+echo "rebuild-release: control, apksigcopier on the published APK itself"
+if ! in_dir "$work/download" apksigcopier compare --verify-cmd "$apksigner verify" "$published" --unsigned "$published"; then
+  die "control failed: apksigcopier cannot handle the signature of $tag (see the error above)"
+fi
+echo "rebuild-release: control passed"
+
+src="$work/src"
+echo "rebuild-release: cloning $tag into $src"
+git clone --quiet --no-checkout "$source_url" "$src"
+git -C "$src" checkout --quiet --detach "refs/tags/$tag"
+commit="$(git -C "$src" rev-parse HEAD)"
+echo "rebuild-release: $tag is commit $commit"
+
+# A tag from before the -PunsignedRelease opt-in refuses an unsigned tagged
+# build. The one guard line is relaxed in the clone so such a tag can still be
+# rebuilt; nothing else of the source changes.
+gradle_file="$src/app/build.gradle.kts"
+if ! grep -q 'unsignedRelease' "$gradle_file"; then
+  guard='if (releaseTag != null \&\& !releaseSigned) {'
+  [ "$(grep -c -F 'if (releaseTag != null && !releaseSigned) {' "$gradle_file")" -eq 1 ] \
+    || die "$tag has no unsignedRelease opt-in and its tag guard is not the expected line"
+  sed -i "s/$guard/if (releaseTag != null \&\& !releaseSigned \&\& false) {/" "$gradle_file"
+  echo "rebuild-release: NOTE $tag predates -PunsignedRelease; its tag guard was disabled in the clone"
+fi
+
+echo "rebuild-release: building libghostty-vt"
+in_dir "$src" scripts/build-libghostty-vt || die "libghostty-vt build failed"
+echo "rebuild-release: assembling the unsigned release"
+in_dir "$src" ./gradlew --no-daemon :app:assembleRelease "-PreleaseTag=$tag" -PunsignedRelease=true \
+  || die "assembleRelease failed"
+rebuilt="$src/$unsigned_apk"
+[ -f "$rebuilt" ] || die "no APK at $unsigned_apk"
+cp "$rebuilt" "$work/rebuilt.apk"
+(cd "$work/download" && sha256sum --check --strict --quiet "pohunek-companion-$version.apk.sha256") \
+  || die "the published APK changed during the build"
+echo "rebuild-release: rebuilt sha256 $(sha256sum "$work/rebuilt.apk" | cut -d' ' -f1)"
+
+echo "rebuild-release: comparing with the published APK"
+if in_dir "$work" apksigcopier compare --verify-cmd "$apksigner verify" "$published" --unsigned "$work/rebuilt.apk"; then
+  echo "rebuild-release: $tag is identical apart from the signature"
+  exit 0
+fi
+
+echo "rebuild-release: $tag DIFFERS from the published APK (or apksigcopier could not compare them; see its message above)"
+echo "rebuild-release: differing ZIP entries (published vs rebuilt, sha256 of the content):"
+in_dir "$work" python3 -I - "$published" "$work/rebuilt.apk" <<'PY' || true
+import hashlib, sys, zipfile
+
+def entries(path):
+    with zipfile.ZipFile(path) as z:
+        return {i.filename: hashlib.sha256(z.read(i)).hexdigest() for i in z.infolist() if not i.is_dir()}
+
+published, rebuilt = (entries(p) for p in sys.argv[1:3])
+rows = []
+for name in sorted(set(published) | set(rebuilt)):
+    a, b = published.get(name), rebuilt.get(name)
+    if a != b:
+        kind = "only in rebuilt" if a is None else "only in published" if b is None else "content differs"
+        rows.append((name, kind, a or "-", b or "-"))
+for name, kind, a, b in rows:
+    print(f"  {name}: {kind}\n    published {a}\n    rebuilt   {b}")
+if not rows:
+    print("  none: every entry has the same content, the difference is outside the entries")
+    print("  (ZIP layout, entry order or the APK Signing Block, for example its DEPENDENCY_INFO block)")
+PY
+exit 1

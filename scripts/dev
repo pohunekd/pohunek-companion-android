@@ -14,6 +14,8 @@
 #   --no-network       run without any network (podman --network=none)
 #   --ro-dir DIR       mount the host directory DIR read-only at the same path
 #                      (repeatable)
+#   --rw-dir DIR       mount the host directory DIR read-write at the same path
+#                      (repeatable)
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -31,6 +33,7 @@ android_home=0
 env_flags=()
 ro_flags=()
 net_flags=()
+rw_flags=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --name)
@@ -51,13 +54,17 @@ while [ "$#" -gt 0 ]; do
       [[ "$2" == /* ]] && [[ "$2" =~ ^[A-Za-z0-9_./-]+$ ]] && [ -d "$2" ] || die "--ro-dir needs an existing absolute directory path of [A-Za-z0-9_./-], got '$2'"
       ro_flags+=(--volume "$2:$2:ro"); shift 2 ;;
     --no-network) net_flags=(--network=none); shift ;;
+    --rw-dir)
+      [ "$#" -ge 2 ] || die "--rw-dir needs a directory"
+      [[ "$2" == /* ]] && [[ "$2" =~ ^[A-Za-z0-9_./-]+$ ]] && [ -d "$2" ] || die "--rw-dir needs an existing absolute directory path of [A-Za-z0-9_./-], got '$2'"
+      rw_flags+=(--volume "$2:$2"); shift 2 ;;
     --detach) detach=1; shift ;;
     --android-home) android_home=1; shift ;;
     --) shift; break ;;
     *) break ;;
   esac
 done
-[ "$#" -gt 0 ] || die "usage: scripts/dev [--name NAME] [--label KEY=VALUE] [--detach] [--android-home] [--env NAME] [--no-network] [--ro-dir DIR] [--] <command...>"
+[ "$#" -gt 0 ] || die "usage: scripts/dev [--name NAME] [--label KEY=VALUE] [--detach] [--android-home] [--env NAME] [--no-network] [--ro-dir DIR] [--rw-dir DIR] [--] <command...>"
 command -v podman >/dev/null || die "podman is not installed"
 [ "$(podman info --format '{{.Host.Security.Rootless}}')" = "true" ] \
   || die "podman is not rootless; refusing to run the toolchain"
@@ -109,8 +116,8 @@ workdir="$root"
 case "$(pwd -P)" in "$root"|"$root"/*) workdir="$(pwd -P)" ;; esac
 
 # Only the worktree, the Gradle volume (and the Android home volume on request),
-# /dev/kvm, and the variables and read-only directories named with --env and
-# --ro-dir enter the container. No other host environment, home directory, or
+# /dev/kvm, and the variables and read-only directories named with --env,
+# --ro-dir and --rw-dir enter the container. No other host environment, home directory, or
 # Pohunek runtime directory is passed.
 # A regular clone's .git directory is mounted read-only so a build cannot plant
 # hooks or config that the host's git would later run; a worktree's .git file
@@ -125,6 +132,6 @@ exec podman run --rm --init "${tty_flags[@]}" "${name_flags[@]}" "${labels[@]}" 
   --device /dev/kvm \
   --volume "$root:$root" "${git_mount[@]}" \
   --volume "$gradle_volume:/gradle-home" "${android_home_flags[@]}" \
-  "${env_flags[@]}" "${ro_flags[@]}" "${net_flags[@]}" \
+  "${env_flags[@]}" "${ro_flags[@]}" "${rw_flags[@]}" "${net_flags[@]}" \
   --workdir "$workdir" \
   "$tag" "$@"

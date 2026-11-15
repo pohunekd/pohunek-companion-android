@@ -15,7 +15,7 @@ SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 # repository of the digest-pinned Debian release.
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      bash ca-certificates curl git jq make procps socat unzip xz-utils zip \
+      bash ca-certificates curl git jq make procps python3 python3-click socat unzip xz-utils zip \
       libasound2 libbz2-1.0 libdbus-1-3 libexpat1 libgbm1 libgl1 libnss3 \
       libpng16-16 libpulse0 libice6 libsm6 libtinfo6 libx11-6 libx11-xcb1 \
       libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 \
@@ -102,6 +102,17 @@ RUN SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; \
     { grep -qx "Pkg.BuildId=${EMULATOR_BUILD_ID}" "$ANDROID_HOME/emulator/source.properties" \
         && ! compgen -G "$ANDROID_HOME/emulator-*" >/dev/null; } \
       || { echo "sdkmanager replaced or duplicated the pinned emulator ${EMULATOR_BUILD_ID}" >&2; exit 1; }
+
+# apksigcopier (compares a rebuilt APK with a published one apart from the
+# signature), from the sha256 published on PyPI. It is a pure-Python wheel
+# whose only dependency, click, comes from Debian above.
+ARG APKSIGCOPIER_VERSION=1.1.1
+ARG APKSIGCOPIER_SHA256=0834bb7d6f3607bb0994cf8cd2e26b8f0c9d481e13b75872e0fa9cec052e519b
+RUN curl -fsSL --retry 5 -o /tmp/apksigcopier.whl "https://files.pythonhosted.org/packages/py3/a/apksigcopier/apksigcopier-${APKSIGCOPIER_VERSION}-py3-none-any.whl"; \
+    echo "${APKSIGCOPIER_SHA256}  /tmp/apksigcopier.whl" | sha256sum -c -; \
+    mkdir -p /opt/apksigcopier; unzip -q /tmp/apksigcopier.whl -d /opt/apksigcopier; rm /tmp/apksigcopier.whl; chmod -R a+rX /opt/apksigcopier; \
+    printf '#!/bin/sh\nPYTHONPATH=/opt/apksigcopier exec python3 -P -c "import sys; from apksigcopier import main; sys.exit(main())" "$@"\n' > /usr/local/bin/apksigcopier; \
+    chmod 755 /usr/local/bin/apksigcopier
 
 # Pohunek release v0.43.0 (musl builds are static; sha256 published on the
 # zajca/pohunek GitHub release).
