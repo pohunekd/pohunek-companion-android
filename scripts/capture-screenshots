@@ -445,7 +445,7 @@ mv "$work/manifest.json" "$manifest_file"
 # (zero-padded, because F-Droid sorts the file names as text).
 store_dir="$root/fastlane/metadata/android/en-US/images/phoneScreenshots"
 mkdir -p "$store_dir"
-find "$store_dir" -maxdepth 1 -type f -name '*.png' -delete
+find "$store_dir" -maxdepth 1 \( -type f -o -type l \) -name '*.png' -delete
 n=0
 for id in "${ids[@]}"; do
   n=$((n + 1))

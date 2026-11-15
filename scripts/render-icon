@@ -28,7 +28,7 @@ background="$(sed -n 's|.*<color name="launcher_background">\(#[0-9A-Fa-f]\{6\}\
 
 # Each <path> of the foreground becomes an SVG path; pathData syntax is shared.
 paths="$(tr '\n' ' ' <"$res/drawable/ic_launcher_foreground.xml" |
-  sed 's|<path|\n<path|g' | grep '^<path' |
+  sed 's|<path|\n<path|g' | { grep '^<path' || true; } |
   sed -E 's|.*android:fillColor="(#[0-9A-Fa-f]{6})".*android:pathData="([^"]+)".*|<path fill="\1" d="\2"/>|')"
 [ -n "$paths" ] || fail "no <path> found in drawable/ic_launcher_foreground.xml"
 

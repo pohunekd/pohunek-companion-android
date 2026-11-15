@@ -48,11 +48,16 @@ text_length() {
   [ "$len" -le "$max" ] || { err "$1 has $len characters, the limit is $max"; return 1; }
 }
 
+# At most one newline, and only as the last byte.
+one_line() {
+  [ "$(wc -l <"$dir/$1")" -eq "$(tail -c 1 "$dir/$1" | wc -l)" ]
+}
+
 if text_length title.txt "$max_title"; then
-  [ "$(wc -l <"$dir/title.txt")" -le 1 ] || err "title.txt must be one line"
+  one_line title.txt || err "title.txt must be one line"
 fi
 if text_length short_description.txt "$max_short"; then
-  [ "$(wc -l <"$dir/short_description.txt")" -le 1 ] || err "short_description.txt must be one line"
+  one_line short_description.txt || err "short_description.txt must be one line"
   case "$(tr -d '\n' <"$dir/short_description.txt")" in
     *.) err "short_description.txt must not end with a period" ;;
   esac
