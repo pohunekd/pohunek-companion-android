@@ -690,13 +690,14 @@ private fun SessionListState.filtered(): SessionListState {
     val tree = SubSessionTree.build((needsYou + rows.orEmpty()).map { it.layoutKey to it.spawnedBy })
     // A search lists every match in its own place.
     val fold = foldSubSessions && query.isBlank()
+    val shownKeys = (needs + sections.filterNot { it.collapsed }.flatMap { it.rows }).mapTo(HashSet(), SessionRow::layoutKey)
     val listed = needsYou.isNotEmpty() || rows.orEmpty().isNotEmpty()
     return copy(
         stateCounts = filter.countByState((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         projectPool = filter.narrowedIgnoringProject((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         hostPool = filter.narrowedIgnoringHost((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         hasSubSessions = !tree.isEmpty,
-        shownNeedsYou = countSubSessions(needs, tree, SessionRow::layoutKey, SessionRow::withTree),
+        shownNeedsYou = countSubSessions(needs, tree, shownKeys, SessionRow::layoutKey, SessionRow::withTree),
         shownGroups = foldSections(sections, tree, expandedSubSessions, fold, SessionRow::layoutKey, SessionRow::withTree),
         noMatch = filter.isActive && listed && needs.isEmpty() && sections.all { it.rows.isEmpty() },
     )

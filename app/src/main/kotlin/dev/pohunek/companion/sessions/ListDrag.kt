@@ -265,7 +265,7 @@ private fun DropMark(indicator: DropIndicator) {
 internal fun dragItems(sections: List<GroupSection<SessionRow>>): Map<String, DragItem> = buildMap {
     for (section in sections) {
         put(groupItemKey(section.id), DragItem.Header(section.id, section.name))
-        if (!section.collapsed) section.rows.forEach { put(it.listKey, DragItem.Row(it.ref, section.id, it.title)) }
+        if (!section.collapsed) section.rows.filter { it.tree.depth == 0 }.forEach { put(it.listKey, DragItem.Row(it.ref, section.id, it.title)) }
     }
 }
 
@@ -275,7 +275,10 @@ internal fun Modifier.draggedLook(lifted: Boolean): Modifier = if (lifted) alpha
 /** Which of "Move up" and "Move down" the sheet of a session or a group offers. */
 internal data class StepOffer(val up: Boolean, val down: Boolean)
 
-/** The steps of [row] over its neighbours in the shown groups; null where the list is not draggable or the row is not in a group (Needs you). */
+/**
+ * The steps of [row] over its neighbours in the shown groups; null where the list is not draggable or the row is not a step target
+ * (Needs you, a folded sub-session).
+ */
 internal fun SessionListState.stepOffer(row: SessionRow): StepOffer? {
     if (!view.isEditable) return null
     val shown = shownGroups.keyed()
@@ -289,9 +292,9 @@ internal fun SessionListState.groupStepOffer(id: String): StepOffer {
     return StepOffer(groupStepUp(ids, id) != null, groupStepDown(ids, id) != null)
 }
 
-/** The sections with their rows as layout keys, which is what the step functions work on. */
+/** The sections with their rows as layout keys, which is what the step functions work on; a folded sub-session is not a step target. */
 internal fun List<GroupSection<SessionRow>>.keyed(): List<GroupSection<SessionKey>> =
-    map { GroupSection(it.id, it.name, it.collapsed, it.rows.map(SessionRow::layoutKey)) }
+    map { GroupSection(it.id, it.name, it.collapsed, it.rows.filter { row -> row.tree.depth == 0 }.map(SessionRow::layoutKey)) }
 
 /** The event that applies a drop. */
 internal fun DragTarget.event(): SessionListEvent = when (this) {

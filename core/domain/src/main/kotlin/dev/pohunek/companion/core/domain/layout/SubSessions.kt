@@ -93,13 +93,13 @@ fun <R> foldSections(
     // Rows of a collapsed section are not drawn, so they can neither host nor receive a folded sub-session.
     for (row in sections.filterNot { it.collapsed }.flatMap { it.rows }) placed.putIfAbsent(keyOf(row), row)
     val order = placed.keys.withIndex().associate { it.value to it.index }
-    fun plain(row: R) = withPosition(row, TreePosition(subSessions = tree.children(keyOf(row)).size))
+    fun plain(row: R) = withPosition(row, TreePosition(subSessions = tree.children(keyOf(row)).count { it in placed }))
 
     fun push(row: R, depth: Int, out: MutableList<R>, visited: MutableSet<SessionKey>) {
         val key = keyOf(row)
         if (!visited.add(key)) return
         val open = key in expanded
-        out += withPosition(row, TreePosition(depth, tree.children(key).size, open, folding = true))
+        out += withPosition(row, TreePosition(depth, tree.children(key).count { it in placed }, open, folding = true))
         if (!open) return
         tree.children(key).filter { it in placed }.sortedBy { order.getValue(it) }.forEach { child ->
             push(placed.getValue(child), depth + 1, out, visited)
@@ -117,6 +117,11 @@ fun <R> foldSections(
     }
 }
 
-/** The Needs you rows with their sub-session counts and no fold or expand control. */
-fun <R> countSubSessions(needsYou: List<R>, tree: SubSessionTree, keyOf: (R) -> SessionKey, withPosition: (R, TreePosition) -> R): List<R> =
-    needsYou.map { withPosition(it, TreePosition(subSessions = tree.children(keyOf(it)).size)) }
+/** The Needs you rows with the count of their sub-sessions among the [shown] keys, and no fold or expand control. */
+fun <R> countSubSessions(
+    needsYou: List<R>,
+    tree: SubSessionTree,
+    shown: Set<SessionKey>,
+    keyOf: (R) -> SessionKey,
+    withPosition: (R, TreePosition) -> R,
+): List<R> = needsYou.map { withPosition(it, TreePosition(subSessions = tree.children(keyOf(it)).count { child -> child in shown })) }

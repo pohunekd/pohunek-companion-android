@@ -93,7 +93,7 @@ class SubSessionsTest {
     @Test
     fun `counting the Needs you rows gives counts and no fold control`() {
         val tree = tree("p" to null, "a" to "p")
-        val rows = countSubSessions(listOf(Placed(key("p"), TreePosition())), tree, Placed::key) { row, position -> row.copy(tree = position) }
+        val rows = countSubSessions(listOf(Placed(key("p"), TreePosition())), tree, setOf(key("a")), Placed::key) { row, position -> row.copy(tree = position) }
         assertEquals(TreePosition(subSessions = 1, folding = false), rows.single().tree)
     }
 
@@ -106,5 +106,15 @@ class SubSessionsTest {
         )
         val folded = foldSections(sections, tree, setOf(key("p")), true, Placed::key) { row, position -> row.copy(tree = position) }
         assertEquals(listOf(listOf("p"), listOf("a")), folded.map { s -> s.rows.map { it.key.sessionId } })
+    }
+
+    @Test
+    fun `the count only includes sub-sessions that are shown`() {
+        val tree = tree("p" to null, "a" to "p", "b" to "p")
+        // b is filtered out (for example an Ended worker), so only a can be expanded.
+        val result = fold(listOf(listOf("p", "a")), tree)
+        assertEquals(1, result.single().first().second.subSessions)
+        val onlyHidden = fold(listOf(listOf("p")), tree)
+        assertEquals(0, onlyHidden.single().single().second.subSessions)
     }
 }
