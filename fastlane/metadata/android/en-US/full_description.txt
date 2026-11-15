@@ -1,0 +1,21 @@
+Pohunek Companion is an Android app for people who run their own Pohunek hosts. It shows the agent sessions of every host you add, with live state, and opens a full-screen terminal attached to any running session.
+
+<b>What it does</b>
+<ul>
+<li>Lists the sessions of all your hosts in one place, with the ones that need you at the top.</li>
+<li>Groups them by state or into your own groups, and narrows the list by search, state, project or host.</li>
+<li>Opens a terminal attached to a running session, with an accessory key bar for Esc, Tab, Ctrl, Alt and the arrows.</li>
+<li>Starts a session on a host from a project template, and renames, moves, stops or removes sessions.</li>
+<li>Shows the identity, agent and location of a session, each field with a Copy button.</li>
+</ul>
+
+<b>What you need</b>
+This app is only a client. It needs your own Pohunek daemon on each host (the app currently supports Pohunek 0.43), and it reaches the hosts over a NetBird overlay network. The official NetBird client is distributed through Google Play only. JetBird (dev.bg.jetbird, GPL-3.0, available on F-Droid) is a free software NetBird client you can use instead.
+
+<b>Privacy</b>
+The app connects only to Pohunek hosts: the ones you add, and the ones your hosts report as reachable on the overlay, which it follows automatically. It sends nothing anywhere else. It has no analytics, no tracking and no advertising, and it depends on no Google Play services.
+
+<b>Pre-release builds</b>
+Versions marked pre-release are testing builds. Expect rough edges.
+
+Source code and issue tracker: https://github.com/pohunekd/pohunek-companion-android

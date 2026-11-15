@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Captures the public screenshot set into docs/screenshots/ from a ui-agent
 # isolated run with the showcase data: <id>.png per entry of shots.json and
-# manifest.json (schema 1), the file pohunek.dev reads at a release tag.
+# manifest.json (schema 1), the file pohunek.dev reads at a release tag, and refreshes the
+# numbered copies in fastlane/metadata/android/en-US/images/phoneScreenshots/.
 #
 #   scripts/capture-screenshots
 #
@@ -440,4 +441,14 @@ for stale in "$out_dir"/*.png; do
 done
 for id in "${ids[@]}"; do mv "$work/$id.png" "$out_dir/$id.png"; done
 mv "$work/manifest.json" "$manifest_file"
-echo "capture-screenshots: wrote ${#ids[@]} shots and manifest.json to docs/screenshots (appTree $app_tree)"
+# The store listing carries the same images as regular copies, numbered in shots.json order
+# (zero-padded, because F-Droid sorts the file names as text).
+store_dir="$root/fastlane/metadata/android/en-US/images/phoneScreenshots"
+mkdir -p "$store_dir"
+find "$store_dir" -maxdepth 1 \( -type f -o -type l \) -name '*.png' -delete
+n=0
+for id in "${ids[@]}"; do
+  n=$((n + 1))
+  cp "$out_dir/$id.png" "$store_dir/$(printf '%02d' "$n").png"
+done
+echo "capture-screenshots: wrote ${#ids[@]} shots and manifest.json to docs/screenshots (appTree $app_tree) and the copies to the fastlane listing"

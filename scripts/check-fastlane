@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# Checks the F-Droid / IzzyOnDroid store listing in fastlane/metadata/android/en-US:
+# title.txt (at most 50 characters), short_description.txt (at most 80, one line, no
+# trailing period), full_description.txt (at most 4000, not empty), images/icon.png
+# (a 512x512 PNG), and images/phoneScreenshots/NN.png: byte-identical copies of the
+# docs/screenshots images in shots.json order, numbered 01, 02, ... (F-Droid sorts the
+# names as text), real files rather than symlinks, with nothing else beside them.
+# Optional images/featureGraphic.png, when present, must be a 1024x500 PNG.
+# Fails with a message naming the problem; scripts/gates runs it.
+#
+#   scripts/check-fastlane
+#
+# scripts/render-icon rewrites icon.png (host only); scripts/capture-screenshots
+# refreshes the screenshot copies.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+dir="$root/fastlane/metadata/android/en-US"
+shots="$root/docs/screenshots/shots.json"
+
+max_title=50
+max_short=80
+max_full=4000
+icon_size="512x512"
+feature_size="1024x500"
+
+problems=0
+err() { echo "::error::check-fastlane: $*"; problems=1; }
+fail() { err "$@"; exit 1; }
+
+command -v jq >/dev/null || fail "jq is not installed"
+
+# Width x height from the IHDR chunk of a PNG, or empty when the file is not one.
+png_size() {
+  [ "$(head -c 8 "$1" | od -An -tx1 | tr -d ' \n')" = "89504e470d0a1a0a" ] || return 0
+  printf '%dx%d' "0x$(dd if="$1" bs=1 skip=16 count=4 2>/dev/null | od -An -tx1 | tr -d ' \n')" \
+    "0x$(dd if="$1" bs=1 skip=20 count=4 2>/dev/null | od -An -tx1 | tr -d ' \n')"
+}
+
+# Text file: present, the length within bounds, and the content rules of the caller.
+text_length() {
+  local f="$dir/$1" max="$2" len
+  if [ ! -f "$f" ] || [ -L "$f" ]; then err "$1 is missing or not a regular file"; return 1; fi
+  len="$(wc -m <"$f")"
+  # A single trailing newline is not part of the text.
+  [ "$(tail -c 1 "$f" | od -An -tx1 | tr -d ' ')" = "0a" ] && len=$((len - 1))
+  [ "$len" -gt 0 ] || { err "$1 is empty"; return 1; }
+  [ "$len" -le "$max" ] || { err "$1 has $len characters, the limit is $max"; return 1; }
+}
+
+# At most one newline, and only as the last byte.
+one_line() {
+  [ "$(wc -l <"$dir/$1")" -eq "$(tail -c 1 "$dir/$1" | wc -l)" ]
+}
+
+if text_length title.txt "$max_title"; then
+  one_line title.txt || err "title.txt must be one line"
+fi
+if text_length short_description.txt "$max_short"; then
+  one_line short_description.txt || err "short_description.txt must be one line"
+  case "$(tr -d '\n' <"$dir/short_description.txt")" in
+    *.) err "short_description.txt must not end with a period" ;;
+  esac
+fi
+text_length full_description.txt "$max_full" || true
+
+icon="$dir/images/icon.png"
+if [ ! -f "$icon" ] || [ -L "$icon" ]; then
+  err "images/icon.png is missing or not a regular file"
+else
+  [ "$(png_size "$icon")" = "$icon_size" ] || err "images/icon.png must be a $icon_size PNG"
+fi
+
+feature="$dir/images/featureGraphic.png"
+if [ -e "$feature" ] || [ -L "$feature" ]; then
+  { [ -f "$feature" ] && [ ! -L "$feature" ] && [ "$(png_size "$feature")" = "$feature_size" ]; } ||
+    err "images/featureGraphic.png must be a regular $feature_size PNG"
+fi
+
+store="$dir/images/phoneScreenshots"
+jq -e 'type == "array" and length > 0' "$shots" >/dev/null 2>&1 || fail "docs/screenshots/shots.json is missing or empty"
+n=0
+expected=()
+while IFS= read -r id; do
+  n=$((n + 1))
+  name="$(printf '%02d' "$n").png"
+  expected+=("$name")
+  copy="$store/$name"
+  source="$root/docs/screenshots/$id.png"
+  if [ ! -f "$copy" ] || [ -L "$copy" ]; then
+    err "images/phoneScreenshots/$name must be a regular file, the copy of docs/screenshots/$id.png"
+  elif [ ! -f "$source" ]; then
+    err "docs/screenshots/$id.png is missing"
+  elif ! cmp -s "$copy" "$source"; then
+    err "images/phoneScreenshots/$name differs from docs/screenshots/$id.png; run scripts/capture-screenshots or copy it again"
+  fi
+done < <(jq -r '.[].id' "$shots")
+
+if [ -d "$store" ]; then
+  while IFS= read -r found; do
+    printf '%s\n' "${expected[@]}" | grep -qxF -- "$found" ||
+      err "images/phoneScreenshots/$found is not one of the ${#expected[@]} numbered copies of the docs/screenshots set"
+  done < <(find "$store" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
+fi
+
+[ "$problems" -eq 0 ] || exit 1
+echo "check-fastlane: listing text within limits, icon ${icon_size}, ${#expected[@]} screenshot copies match docs/screenshots"

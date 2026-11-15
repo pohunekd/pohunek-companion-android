@@ -2,7 +2,7 @@
 name: gates
 description: >-
   Run the pohunek-companion-android gate set (Spotless, detekt, Android lint,
-  unit tests, assembleDebug) locally and report each gate's real result. Use
+  unit tests, assembleDebug, check-fastlane) locally and report each gate's real result. Use
   before any commit, push, or claim that a change builds or is done.
 ---
 
@@ -11,7 +11,7 @@ description: >-
 Run `scripts/gates` from the repository root (or the worktree root); do not
 substitute an ad hoc command and call it the gate set. It runs through
 `scripts/dev` (the toolchain container) and executes, in order: Spotless
-(ktlint) check, detekt, Android lint, unit tests, and `assembleDebug`. It
+(ktlint) check, detekt, Android lint, unit tests, `assembleDebug`, and `scripts/check-fastlane` (the store listing). It
 records each exit code, prints a per-gate summary, and exits non-zero if any
 gate failed.
 
