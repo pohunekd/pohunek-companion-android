@@ -81,7 +81,7 @@ private const val CHEVRON_INSET_DIVISOR = 4f
 
 /** Points right when the group is collapsed and down when it is expanded; drawn here because the Material icon set is not a dependency. */
 @Composable
-private fun Chevron(collapsed: Boolean) {
+internal fun Chevron(collapsed: Boolean) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Canvas(Modifier.size(PohunekTheme.chevronSize)) {
         val inset = size.width / CHEVRON_INSET_DIVISOR

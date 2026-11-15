@@ -820,6 +820,19 @@ EOF2
   create_tree_session labelled-session pohunek-companion reviewer idle ""
 }
 
+# `start --showcase --sub-sessions`: one idle parent with two children, one of them blocked, and a grandchild under the idle child.
+create_sub_sessions_tree() {
+  local project=pohunek-companion parent child
+  create_tree_session fold-manager "$project" claude idle ""
+  parent=$(iso_run "$cli" session list --json | jq -r '.ok[] | select(.name == "fold-manager") | .id')
+  [ -n "$parent" ] || die "the sub-sessions parent is not listed"
+  create_tree_session fold-worker-idle "$project" claude idle "$parent"
+  create_tree_session fold-worker-blocked "$project" claude blocked "$parent"
+  child=$(iso_run "$cli" session list --json | jq -r '.ok[] | select(.name == "fold-worker-idle") | .id')
+  [ -n "$child" ] || die "the sub-sessions child is not listed"
+  create_tree_session fold-grandchild "$project" claude idle "$child"
+}
+
 # Starts the second host on the protocol-4 daemon of the legacy toolchain directory: no projects and no sessions,
 # because it only has to be there and refuse this app's protocol.
 start_legacy_host2() {
@@ -1604,8 +1617,8 @@ pohunek_cli() {
 
 # Boots the device and starts the daemon and bridge; run in the background by
 # scripts/ui-agent, which polls the status file.
-up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2 [ATTENTION_TREE [PROFILES]]]
-  local extra="${1:-0}" showcase="${2:-0}" legacy="${3:-0}" tree="${4:-0}" profiles="${5:-0}"
+up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2 [ATTENTION_TREE [PROFILES [SUB_SESSIONS]]]]
+  local extra="${1:-0}" showcase="${2:-0}" legacy="${3:-0}" tree="${4:-0}" profiles="${5:-0}" subs="${6:-0}"
   rm -f "$up_status"
   exec >"$run_dir/up.log" 2>&1
   trap 'rc=$?; if [ "$rc" -eq 0 ]; then echo ok >"$up_status"; else echo "failed: $(tail -n 5 "$run_dir/up.log" | tr "\n" " ")" >"$up_status"; fi' EXIT
@@ -1615,6 +1628,7 @@ up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2 [ATTENTION_TREE [PROFILES]]]
     start_daemon "$extra" "$showcase"
     [ "$tree" -eq 0 ] || create_attention_tree
     [ "$profiles" -eq 0 ] || create_audience_profiles
+    [ "$subs" -eq 0 ] || create_sub_sessions_tree
     start_bridge
     if [ "$showcase" -eq 1 ]; then
       if [ "$legacy" -eq 1 ]; then

@@ -47,6 +47,7 @@ internal fun FilterBarChips(state: SessionListState, onEvent: (SessionListEvent)
         StateFilter(state, onEvent)
         ProjectFilter(state, onEvent, Modifier.weight(1f, fill = false))
         HostFilter(state, onEvent)
+        if (state.hasSubSessions) SubSessionsToggle(state.foldSubSessions, onEvent)
         if (state.filtersChanged) {
             IconButton(onClick = { onEvent(SessionListEvent.ClearFilters) }, modifier = Modifier.testTag("SessionList.clearFilters")) {
                 Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.filters_clear))
@@ -115,4 +116,17 @@ private fun OwnerState.chipLabelRes(): Int = when (this) {
     OwnerState.RuntimeProblem -> R.string.state_chip_problem
     OwnerState.Ended -> R.string.state_chip_ended
     OwnerState.NoAgentState -> R.string.state_chip_no_agent
+}
+
+/** Folds sub-sessions under the session that spawned them, or shows every session in its own place; present only while some session has a parent. */
+@Composable
+private fun SubSessionsToggle(fold: Boolean, onEvent: (SessionListEvent) -> Unit) {
+    val description = stringResource(if (fold) R.string.sub_sessions_toggle_on else R.string.sub_sessions_toggle_off)
+    BarChip(
+        selected = fold,
+        onClick = { onEvent(SessionListEvent.SetSubSessionFold(!fold)) },
+        label = stringResource(R.string.sub_sessions_toggle),
+        dropdown = false,
+        modifier = Modifier.semantics { contentDescription = description }.testTag("SessionList.filter.subSessions"),
+    )
 }

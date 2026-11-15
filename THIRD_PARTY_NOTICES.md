@@ -186,7 +186,8 @@ packages. Re-take it when `ghostty_commit` changes.
   `core/domain/.../newsession/CreateOutcome.kt`.
   `filter.rs` (state selection, state chips, query matching, `filter_sections`) as
   `core/domain/.../layout/SessionFilter.kt` and (`ProjectSelection`, `project_chips`, `host_options`) as
-  `core/domain/.../layout/ProjectHostFilter.kt`.
+  `core/domain/.../layout/ProjectHostFilter.kt`; `sub_sessions.rs` (`SubSessionTree`, `fold_sections`, at
+  `b743aa2`, without the `work.role=manager` fallback) as `core/domain/.../layout/SubSessions.kt`.
   Planned: `view.rs`. Pinned commit for the license text:
   `0b9d150170bb4829ad59ddcead9d4a4cd02b00b8`.
 

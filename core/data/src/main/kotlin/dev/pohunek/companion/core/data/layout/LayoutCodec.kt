@@ -37,6 +37,7 @@ private data class FilterEntry(
     @SerialName("project_label") val projectLabel: String? = null,
     @SerialName("no_project") val noProject: Boolean = false,
     val host: String? = null,
+    val unfolded: Boolean = false,
 )
 
 @Serializable
@@ -67,7 +68,7 @@ internal object LayoutCodec {
         LayoutFile(
             version = Layout.FORMAT_VERSION,
             view = layout.storedView,
-            filters = layout.filters.mapValues { (_, f) -> FilterEntry(f.states, f.projectLabel, f.noProject, f.host) },
+            filters = layout.filters.mapValues { (_, f) -> FilterEntry(f.states, f.projectLabel, f.noProject, f.host, f.unfolded) },
             collapsedSections = layout.collapsedSections.mapValues { (_, ids) -> ids.sorted() },
             groups = layout.groups.map { GroupEntry(it.id, it.name, it.order, it.collapsed, it.origin.stored()) },
             items = layout.items.map { ItemEntry(it.key.host, it.key.sessionId, it.group, it.order, it.manual) },
@@ -99,7 +100,7 @@ internal object LayoutCodec {
         val load = Layout.load(
             version = file.version,
             view = file.view,
-            filters = file.filters.mapValues { (_, f) -> StoredFilter(f.states, f.projectLabel, f.noProject, f.host) },
+            filters = file.filters.mapValues { (_, f) -> StoredFilter(f.states, f.projectLabel, f.noProject, f.host, f.unfolded) },
             collapsedSections = file.collapsedSections.mapValues { (_, ids) -> ids.toSet() },
             groups = groups,
             items = file.items.map { Item(SessionKey(it.host, it.sessionId), it.group, it.order, it.manual) },

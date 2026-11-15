@@ -64,6 +64,12 @@ data class Layout private constructor(
     /** The key of the host [view] is narrowed to, or null for every host. */
     fun host(view: LayoutView): String? = filter(view).host?.ifEmpty { null }
 
+    /** Whether [view] folds sub-sessions under their parent; the default. */
+    fun folds(view: LayoutView): Boolean = !filter(view).unfolded
+
+    /** Stores whether [view] folds sub-sessions and keeps the rest of its filter. */
+    fun withFold(view: LayoutView, fold: Boolean): Layout = withFilter(view, filter(view).copy(unfolded = !fold))
+
     /** Stores the host of [view] (null: every host) and keeps the rest of its filter. */
     fun withHost(view: LayoutView, host: String?): Layout = withFilter(view, filter(view).copy(host = host))
 
