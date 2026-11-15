@@ -141,3 +141,17 @@ signing variables. `assembleRelease` then produces
 still fails unless it is signed; with it and any signing variable set, the build
 fails and names the conflict. `.github/workflows/release.yml` never passes the
 property, so a published release is always signed.
+
+`scripts/rebuild-release <tag>` does this end to end and compares the result with
+the published APK. It downloads the tag's APK and `.sha256` from the GitHub
+release and checks the checksum, then runs `apksigcopier compare` of the
+published APK against itself as a control (a failure there means the tool cannot
+handle the signature, not that the build differs). It clones the tag into
+`work_dir` of `config/rebuild-release.toml`, a path outside every worktree,
+builds libghostty-vt and `:app:assembleRelease` unsigned in the toolchain
+container, and compares with `apksigcopier compare` (version and checksum pinned
+in `container/Containerfile`). Exit 0 means identical apart from the signature;
+exit 1 prints the differing ZIP entries with the sha256 of each side; exit 2 is a
+failure of the script, the download, the build or the control. A tag that
+predates `-PunsignedRelease` is rebuilt with its tag guard relaxed in the clone,
+and the script says so.

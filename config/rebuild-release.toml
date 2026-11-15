@@ -1,0 +1,20 @@
+# Settings read by scripts/rebuild-release. Flat `key = value` lines only.
+
+# GitHub repository whose release APK is downloaded (gh -R).
+release_repo = "pohunekd/pohunek-companion-android"
+
+# Git URL the tag is cloned from.
+source_url = "https://github.com/pohunekd/pohunek-companion-android.git"
+
+# Host directory holding the fresh checkout and the downloaded APK. It is
+# created if missing and mounted read-write into the toolchain container at the
+# same path. It must not be inside any worktree, so the rebuild runs at a path
+# the published build never used. One rebuild at a time (the script locks it).
+work_dir = "/tmp/pohunek-rebuild-release"
+
+# Name of the APK Gradle writes for an unsigned release build, relative to the checkout.
+unsigned_apk = "app/build/outputs/apk/release/app-release-unsigned.apk"
+
+# apksigner of the toolchain container (the build-tools pinned in container/Containerfile),
+# which apksigcopier runs to verify the signed result.
+apksigner = "/opt/android-sdk/build-tools/37.0.0/apksigner"
