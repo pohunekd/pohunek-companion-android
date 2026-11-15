@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "appTree": "6d5cd52ff4c98fc9ccdbcfe3777b9e6b9b81567b",
+  "appTree": "eb06fcab0ac4c7d4cc2a40c40bf0194d7203eaca",
   "device": "720x1600x320",
   "poster": "poster.png",
   "width": 720,
   "height": 1600,
-  "durationMs": 34533,
+  "durationMs": 34633,
   "alt": "Screen recording of the Pohunek Companion app on demo data: it filters the session list, then opens a live terminal and scrolls through its history.",
   "description": [
     "The session list puts the sessions that need you first, with a chip for the host.",
     "Scrolling down hides the filter bar and scrolling up brings it back.",
     "The Project chip opens a picker; typing narrows it and a tap picks a project.",
-    "The State chip limits the list to the sessions that need you, and Clear resets the filters.",
+    "The State chip opens a sheet where unchecking a state, here Needs you, hides those sessions from the list, and Clear resets the filters.",
     "A tap opens the session as a live terminal, and a fling scrolls through its history and back.",
     "Back returns to the list."
   ],
@@ -20,15 +20,15 @@
       "file": "demo.webm",
       "type": "video/webm",
       "codecs": "vp9",
-      "bytes": 1921755,
-      "sha256": "6bf8f96dc4a3363c1e5c0675733806b4d4bbe0f0748b6c420fb576c6775eb6b2"
+      "bytes": 2012160,
+      "sha256": "3b2a10a205286dc033621b3d3fcbca9ad8bcd6181b9d4c76ca57bf1ab8824bb1"
     },
     {
       "file": "demo.mp4",
       "type": "video/mp4",
       "codecs": "avc1.640028",
-      "bytes": 2747059,
-      "sha256": "abe471aa069b482311974011ae99b08b3c193212d8b8ca717eb6079a3a1a437e"
+      "bytes": 2733072,
+      "sha256": "8a82d29051550c53fb82829803dc2dd0b78095e4fc43bd04c64c2ff29c40cdb0"
     },
     {
       "file": "poster.png",
