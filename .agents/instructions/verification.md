@@ -10,6 +10,7 @@ each with its own exit code:
 3. Android lint (`lintDebug`)
 4. unit tests (`unitTest`, `maxParallelForks` = `test_forks` in `config/dev.toml`)
 5. `assembleDebug`
+6. `scripts/check-fastlane` (the F-Droid store listing in `fastlane/`)
 
 Every gate runs even when an earlier one fails. The script prints one result per
 gate (`passed` or `failed (exit N)`) and exits non-zero if any failed. A
