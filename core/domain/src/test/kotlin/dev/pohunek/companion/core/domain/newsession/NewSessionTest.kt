@@ -348,4 +348,14 @@ class NewSessionTest {
             assertTrue(code, outcome is CreateOutcome.Refused)
         }
     }
+
+    @Test
+    fun `a template that names another agent drops the picks`() {
+        val supported = optionChoices()
+        val picked = selectAgentOption(optionForm, supported, "mode", "bold")
+        val other = Recipe(agent = "claude", branch = null, baseBranch = null, prompt = "p")
+        assertTrue((applyRecipe(picked, supported, "t", other) as TemplateStep.Applied).value.agentOptions.isEmpty())
+        val same = other.copy(agent = "work")
+        assertEquals(picked.agentOptions, (applyRecipe(picked, supported, "t", same) as TemplateStep.Applied).value.agentOptions)
+    }
 }

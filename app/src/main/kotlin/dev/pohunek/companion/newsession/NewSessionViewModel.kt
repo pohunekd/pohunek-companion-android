@@ -108,7 +108,7 @@ class NewSessionViewModel(
         val token = ++generation
         updateState {
             it.copy(
-                form = it.form.copy(host = route),
+                form = it.form.copy(host = route, agentOptions = if (route == it.form.host) it.form.agentOptions else emptyMap()),
                 projects = null,
                 choices = null,
                 projectQuery = "",

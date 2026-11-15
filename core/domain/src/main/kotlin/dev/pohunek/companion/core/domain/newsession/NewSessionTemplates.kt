@@ -48,7 +48,17 @@ internal fun String?.trimmedOrNull(): String? = this?.trim()?.ifEmpty { null }
  */
 fun applyRecipe(form: NewSessionForm, choices: NewSessionChoices, template: String, recipe: Recipe): TemplateStep<NewSessionForm> =
     if (choices.launchable(recipe.agent)) {
-        TemplateStep.Applied(form.copy(template = template, recipe = recipe, templateLoading = false, agent = recipe.agent, prompt = recipe.prompt))
+        val agentOptions = if (recipe.agent == form.agent) form.agentOptions else emptyMap()
+        TemplateStep.Applied(
+            form.copy(
+                template = template,
+                recipe = recipe,
+                templateLoading = false,
+                agent = recipe.agent,
+                prompt = recipe.prompt,
+                agentOptions = agentOptions,
+            ),
+        )
     } else {
         TemplateStep.Failed(TemplateError.AgentNotLaunchable(recipe.agent))
     }
