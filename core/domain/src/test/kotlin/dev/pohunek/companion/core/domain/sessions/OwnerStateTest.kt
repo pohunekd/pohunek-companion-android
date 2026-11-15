@@ -315,6 +315,15 @@ class OwnerStateTest {
     }
 
     @Test
+    fun `a re-seed whose cursor only advanced with an applied event reports no change`() {
+        store.applySeed(listOf(session(activity = AgentActivity.Working, cursorEpoch = "e-1", cursorRevision = 5)), emptyList())
+        store.applyEvent(agentState(AgentActivity.Idle, revision = 6))
+
+        val change = store.applySeed(listOf(session(activity = AgentActivity.Idle, cursorEpoch = "e-1", cursorRevision = 6)), emptyList())
+        assertEquals(SeedChange(), change)
+    }
+
+    @Test
     fun `a re-seed reports changed attention`() {
         store.applySeed(listOf(session()), listOf(notification("n-1")))
         assertEquals(SeedChange(attention = 0), store.applySeed(listOf(session()), listOf(notification("n-1"))))

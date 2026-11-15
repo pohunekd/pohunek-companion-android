@@ -269,14 +269,17 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
 }
 
 /**
- * Whether two snapshots of one session differ beyond the activity timestamps and the state source. The daemon advances the timestamps
- * while a session works and switches the source between detectors without an event for each step.
+ * Whether two snapshots of one session differ beyond the activity timestamps, the state source and the activity cursor. The daemon
+ * advances the timestamps while a session works and switches the source between detectors without an event for each step; the cursor
+ * advances with every activity change, which an applied event reflects in the activity but not in the stored cursor.
  */
 private fun differsMaterially(old: SessionInfo, new: SessionInfo): Boolean {
     val aligned = new.copy(
         updatedAt = old.updatedAt,
         nativeLastActivityAt = old.nativeLastActivityAt,
         stateSource = old.stateSource,
+        activityEpoch = old.activityEpoch,
+        activityRevision = old.activityRevision,
         // Events omit the label that a seed carries.
         projectLabel = if (old.projectLabel == null) null else new.projectLabel,
     )
