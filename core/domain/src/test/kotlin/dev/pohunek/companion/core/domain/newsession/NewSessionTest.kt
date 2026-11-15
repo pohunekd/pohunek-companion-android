@@ -1,6 +1,9 @@
 package dev.pohunek.companion.core.domain.newsession
 
 import dev.pohunek.companion.protocol.ActionSummary
+import dev.pohunek.companion.protocol.AgentOption
+import dev.pohunek.companion.protocol.AgentOptionChoice
+import dev.pohunek.companion.protocol.AgentOptionUnavailable
 import dev.pohunek.companion.protocol.AgentRuntime
 import dev.pohunek.companion.protocol.ErrorClass
 import dev.pohunek.companion.protocol.HostRoute
@@ -270,5 +273,89 @@ class NewSessionTest {
         assertEquals(CreateBlocker.AgentNotLaunchable("codex"), blocker(loading.copy(agent = "codex")))
         val noGit = choices.copy(gitAvailable = false)
         assertEquals(LaunchBlocker.TemplateLoading, blocker(loading.copy(branch = "b"), noGit))
+    }
+
+    private val withOptions = AgentRuntime(
+        "work",
+        available = true,
+        options = listOf(
+            AgentOption(
+                "mode",
+                "Mode",
+                "calm",
+                listOf(
+                    AgentOptionChoice("calm", "Calm", true),
+                    AgentOptionChoice("bold", "Bold", true),
+                    AgentOptionChoice("next", "Next", false, AgentOptionUnavailable.RuntimeTooOld, "2.2.0"),
+                ),
+            ),
+            AgentOption("depth", "Depth", "shallow", listOf(AgentOptionChoice("shallow", "Shallow", true), AgentOptionChoice("deep", "Deep", true))),
+        ),
+    )
+
+    private fun optionChoices(supported: Boolean = true) = choices.copy(agents = agentChoices(listOf(withOptions, runtime("claude")), supported))
+
+    private val optionForm = form.copy(agent = "work")
+
+    @Test
+    fun `the defaults are preselected and a host without support shows no options`() {
+        val supported = optionChoices()
+        assertEquals(listOf("calm", "shallow"), supported.optionsOf("work").map { effectiveChoice(optionForm, it)?.id })
+        assertTrue(optionChoices(supported = false).optionsOf("work").isEmpty())
+        assertTrue(supported.optionsOf("claude").isEmpty())
+    }
+
+    @Test
+    fun `an unavailable choice cannot be selected and states its reason`() {
+        val supported = optionChoices()
+        assertEquals(optionForm, selectAgentOption(optionForm, supported, "mode", "next"))
+        assertEquals("needs runtime 2.2.0 or newer", supported.optionsOf("work")[0].choice("next")?.unavailable)
+        assertEquals(optionForm, selectAgentOption(optionForm, supported, "mode", "missing"))
+        assertEquals(optionForm, selectAgentOption(optionForm, supported, "nope", "calm"))
+    }
+
+    @Test
+    fun `only the picks that differ from the defaults are sent`() {
+        val supported = optionChoices()
+        assertNull(sessionNewParams(optionForm, 80, 24, choices = supported)?.agentOptions)
+        val picked = selectAgentOption(selectAgentOption(optionForm, supported, "mode", "bold"), supported, "depth", "shallow")
+        assertEquals(mapOf("mode" to "bold"), sessionNewParams(picked, 80, 24, choices = supported)?.agentOptions)
+        val stale = picked.copy(agentOptions = mapOf("mode" to "gone", "removed" to "x", "depth" to "deep"))
+        assertEquals(mapOf("depth" to "deep"), sessionNewParams(stale, 80, 24, choices = supported)?.agentOptions)
+        assertNull(sessionNewParams(picked, 80, 24, choices = optionChoices(supported = false))?.agentOptions)
+    }
+
+    @Test
+    fun `picks do not survive a change of agent and an unavailable default blocks create`() {
+        val supported = optionChoices()
+        val picked = selectAgentOption(optionForm, supported, "mode", "bold")
+        assertTrue(settleSelection(picked.copy(agent = "gone"), supported).agentOptions.isEmpty())
+        assertEquals(picked.agentOptions, settleSelection(picked, supported).agentOptions)
+        val badDefault = supported.copy(
+            agents = agentChoices(
+                listOf(withOptions.copy(options = listOf(withOptions.options[0].copy(default = "next")))),
+                optionsSupported = true,
+            ),
+        )
+        assertEquals(CreateBlocker.OptionChoiceUnavailable("Mode", "needs runtime 2.2.0 or newer"), blocker(optionForm, badDefault))
+        assertNull(blocker(selectAgentOption(optionForm, badDefault, "mode", "bold"), badDefault))
+    }
+
+    @Test
+    fun `an option refusal is definite and names what to do`() {
+        for (code in listOf("agent_option_unknown", "agent_option_choice_unavailable", "agent_options_locked")) {
+            val outcome = classifyCreateFailure(ProtocolClientException.Daemon(ProtocolError(ErrorClass.Runtime, code, "refused", null)))
+            assertTrue(code, outcome is CreateOutcome.Refused)
+        }
+    }
+
+    @Test
+    fun `a template that names another agent drops the picks`() {
+        val supported = optionChoices()
+        val picked = selectAgentOption(optionForm, supported, "mode", "bold")
+        val other = Recipe(agent = "claude", branch = null, baseBranch = null, prompt = "p")
+        assertTrue((applyRecipe(picked, supported, "t", other) as TemplateStep.Applied).value.agentOptions.isEmpty())
+        val same = other.copy(agent = "work")
+        assertEquals(picked.agentOptions, (applyRecipe(picked, supported, "t", same) as TemplateStep.Applied).value.agentOptions)
     }
 }

@@ -818,6 +818,29 @@ audience = "$audience"
 EOF2
   done
   create_tree_session labelled-session pohunek-companion reviewer idle ""
+  create_options_profile
+}
+
+# The profile `tuned` declares two options; its `next` choice needs a runtime release the host cannot report, so it is unavailable.
+create_options_profile() {
+  cat >"$iso/config/pohunek/agents/tuned.toml" <<EOF2
+base = "shell"
+manifest = "showcase"
+program = "$iso/bin/showcase-agent"
+args = []
+display_name = "Tuned agent"
+[options.mode]
+label = "Mode"
+default = "calm"
+choices.calm = { label = "Calm" }
+choices.bold = { label = "Bold" }
+choices.next = { label = "Next", min_runtime = "2.2.0" }
+[options.depth]
+label = "Depth"
+default = "shallow"
+choices.shallow = { label = "Shallow" }
+choices.deep = { label = "Deep" }
+EOF2
 }
 
 # `start --showcase --sub-sessions`: one idle parent with two children, one of them blocked, and a grandchild under the idle child.

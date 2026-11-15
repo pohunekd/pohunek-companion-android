@@ -73,7 +73,7 @@ class NewSessionViewModel(
                 templates.sync()
             }
             is NewSessionEvent.SelectTemplate -> if (!busy) templates.select(event.name)
-            is NewSessionEvent.FormEdit -> edit(event::applyTo)
+            is NewSessionEvent.FormEdit -> edit { event.applyTo(it, currentState.choices) }
             NewSessionEvent.ToggleAdvanced -> updateState { it.copy(advancedOpen = !it.advancedOpen) }
             NewSessionEvent.ToggleShowAllAgents -> updateState { it.copy(showAllAgents = !it.showAllAgents) }
             is NewSessionEvent.EditProjectQuery -> updateState { it.copy(projectQuery = event.text) }
@@ -108,7 +108,7 @@ class NewSessionViewModel(
         val token = ++generation
         updateState {
             it.copy(
-                form = it.form.copy(host = route),
+                form = it.form.copy(host = route, agentOptions = if (route == it.form.host) it.form.agentOptions else emptyMap()),
                 projects = null,
                 choices = null,
                 projectQuery = "",
@@ -144,11 +144,11 @@ class NewSessionViewModel(
         val settings = config()
         val cols = settings.newSession.cols
         val rows = settings.newSession.rows
-        if (state.blocker != null || route == null || sessionNewParams(state.form, cols, rows) == null) return
+        if (state.blocker != null || route == null || sessionNewParams(state.form, cols, rows, choices = state.choices) == null) return
         updateState { it.copy(activity = it.activity.copy(inFlight = true), notice = null) }
         viewModelScope.launch {
             val group = groupNameFor(layouts, log, requested.group, settings.display.groupNameMaxBytes)
-            val params = checkNotNull(sessionNewParams(state.form, cols, rows, group)) { "the same form passed the guard in create()" }
+            val params = checkNotNull(sessionNewParams(state.form, cols, rows, group, state.choices)) { "the same form passed the guard in create()" }
             finish(route, newSessions.create(route, params))
         }
     }

@@ -23,10 +23,44 @@ enum class ProfileAudience(override val wire: String, override val isUnknown: Bo
 
 internal object ProfileAudienceSerializer : WireEnumSerializer<ProfileAudience>("ProfileAudience", ProfileAudience.entries, ProfileAudience.Unknown)
 
+/** Why an [AgentOptionChoice] cannot be selected (`AgentOptionUnavailable`); a reason this client does not model decodes to [Unknown]. */
+@Serializable(with = AgentOptionUnavailableSerializer::class)
+enum class AgentOptionUnavailable(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    RuntimeTooOld("runtime_too_old"),
+    RuntimeVersionUnknown("runtime_version_unknown"),
+    Unknown("", true),
+}
+
+internal object AgentOptionUnavailableSerializer :
+    WireEnumSerializer<AgentOptionUnavailable>("AgentOptionUnavailable", AgentOptionUnavailable.entries, AgentOptionUnavailable.Unknown)
+
+/**
+ * One choice of an [AgentOption]. A choice with [available] false cannot be selected; [reason] says why and [minRuntime] is the floor as
+ * the profile wrote it.
+ */
+@Serializable
+data class AgentOptionChoice(
+    val id: String,
+    val label: String,
+    val available: Boolean,
+    val reason: AgentOptionUnavailable? = null,
+    @SerialName("min_runtime") val minRuntime: String? = null,
+)
+
+/** One option a host profile declares: [default] is the id of the choice a launch takes when the selection does not name the option. */
+@Serializable
+data class AgentOption(
+    val id: String,
+    val label: String,
+    val default: String,
+    val choices: List<AgentOptionChoice>,
+)
+
 /**
  * One agent of `host.inspect`'s `runtimes`. A launch is possible when [available] holds and [supported] is not false; an absent
  * [supported] means the runtime has no version policy. [displayName] is the profile's label for pickers and [audience] the pickers it
- * belongs in; an absent [audience] means [ProfileAudience.Owner]. Neither changes launchability.
+ * belongs in; an absent [audience] means [ProfileAudience.Owner]. Neither changes launchability. [options] are the profile's declared
+ * options in option-id order; empty for a bare runtime, a profile without options and a daemon that predates them.
  */
 @Serializable
 data class AgentRuntime(
@@ -36,17 +70,20 @@ data class AgentRuntime(
     val supported: Boolean? = null,
     @SerialName("display_name") val displayName: String? = null,
     val audience: ProfileAudience? = null,
+    val options: List<AgentOption> = emptyList(),
 )
 
 /**
  * The part of `host.inspect`'s `HostCapabilities` the app reads. [gitAvailable] and [worktreeSupported] have no wire default at the
- * pinned tag, so a snapshot without them fails to decode.
+ * pinned tag, so a snapshot without them fails to decode. [sessionNewAgentOptionsSupported] is false on a daemon that predates the
+ * flag, which would drop `agent_options` silently.
  */
 @Serializable
 data class HostCapabilities(
     val runtimes: List<AgentRuntime>,
     @SerialName("git_available") val gitAvailable: Boolean,
     @SerialName("worktree_supported") val worktreeSupported: Boolean,
+    @SerialName("session_new_agent_options_supported") val sessionNewAgentOptionsSupported: Boolean = false,
 )
 
 /**
@@ -101,6 +138,8 @@ data class SessionNewParams(
     val baseBranch: String? = null,
     /** Session metadata written at creation; omitted when null. The daemon validates it like `session.set_metadata`. */
     val metadata: Map<String, String>? = null,
+    /** Option id to choice id for the options that differ from the profile's defaults; omitted when null or empty. */
+    val agentOptions: Map<String, String>? = null,
 )
 
 /**

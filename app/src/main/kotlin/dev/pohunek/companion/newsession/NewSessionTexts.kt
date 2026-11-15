@@ -29,6 +29,8 @@ internal fun blockerText(blocker: CreateBlocker?): String? = when (blocker) {
     CreateBlocker.NoLaunchableAgent -> stringResource(R.string.new_session_blocker_no_launchable)
     CreateBlocker.NoAgent -> stringResource(R.string.new_session_blocker_no_agent)
     is CreateBlocker.AgentNotLaunchable -> stringResource(R.string.new_session_blocker_not_launchable, sanitizeText(blocker.agent))
+    is CreateBlocker.OptionChoiceUnavailable ->
+        stringResource(R.string.new_session_blocker_option_unavailable, sanitizeText(blocker.option), sanitizeText(blocker.reason))
     is LaunchBlocker -> launchBlockerText(blocker)
 }
 

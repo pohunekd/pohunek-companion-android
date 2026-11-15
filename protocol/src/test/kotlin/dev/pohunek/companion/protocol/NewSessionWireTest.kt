@@ -38,6 +38,34 @@ class NewSessionWireTest {
     }
 
     @Test
+    fun `agent options are sent as an object only when non-empty`() {
+        val params = SessionNewParams("claude", cols = 80, rows = 24, project = "p-1")
+        assertTrue("agent_options" !in Requests.sessionNew("req-1", params).toLine())
+        assertTrue("agent_options" !in Requests.sessionNew("req-1", params.copy(agentOptions = emptyMap())).toLine())
+        val picked = params.copy(agentOptions = mapOf("effort" to "high"))
+        assertTrue(Requests.sessionNew("req-1", picked).toLine().contains("\"agent_options\":{\"effort\":\"high\"}"))
+    }
+
+    @Test
+    fun `a runtime decodes its options and an unmodelled unavailable reason is Unknown`() {
+        val json = Wire.json.parseToJsonElement(
+            """{"runtimes":[{"agent":"work","available":true,"options":[
+              {"id":"mode","label":"Mode","default":"calm","choices":[
+                {"id":"calm","label":"Calm","available":true},
+                {"id":"next","label":"Next","available":false,"reason":"runtime_too_old","min_runtime":"2.2.0"},
+                {"id":"odd","label":"Odd","available":false,"reason":"something-new"}]}]},
+              {"agent":"bare","available":true}],
+              "git_available":true,"worktree_supported":true,"session_new_agent_options_supported":true}""",
+        )
+        val capabilities = json.decodeResult(HostCapabilities.serializer())
+        assertTrue(capabilities.sessionNewAgentOptionsSupported)
+        val choices = capabilities.runtimes[0].options.single().choices
+        assertEquals(listOf(null, AgentOptionUnavailable.RuntimeTooOld, AgentOptionUnavailable.Unknown), choices.map { it.reason })
+        assertEquals("2.2.0", choices[1].minRuntime)
+        assertTrue(capabilities.runtimes[1].options.isEmpty())
+    }
+
+    @Test
     fun `project actions decode every provider and keep an unknown one as text`() {
         val actions = decode("project-actions-response").decodeResult(ProjectActionsResult.serializer()).actions
         assertEquals(listOf("fix-bug", "from-linear", "ghost-agent", "with-vars"), actions.map { it.name })

@@ -59,7 +59,7 @@ class NewSessions(
                 val projects = projectChoices(connection.listProjects())
                 emit(ChoicesUpdate.Projects(projects))
                 val capabilities = connection.inspectHost()
-                val agents = agentChoices(capabilities.runtimes)
+                val agents = agentChoices(capabilities.runtimes, capabilities.sessionNewAgentOptionsSupported)
                 emit(ChoicesUpdate.Loaded(NewSessionChoices(projects, agents, capabilities.gitAvailable, capabilities.worktreeSupported)))
                 val counts = listOf(LogField.number("projects", projects.size.toLong()), LogField.number("agents", agents.size.toLong()))
                 log.info("new_session.choices_loaded", fields + counts)
