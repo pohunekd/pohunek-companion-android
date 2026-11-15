@@ -112,6 +112,12 @@ android {
         }
     }
     buildFeatures { compose = true }
+
+    // The encrypted dependency metadata block in the APK Signing Block is opaque to F-Droid and IzzyOnDroid scanners.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
 }
 
 dependencies {
