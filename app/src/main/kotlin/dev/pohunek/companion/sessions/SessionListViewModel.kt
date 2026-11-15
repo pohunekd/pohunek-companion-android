@@ -688,6 +688,8 @@ private fun SessionListState.filtered(): SessionListState {
     val needs = filter.filterRows(needsYou, SessionRow::filterFacts)
     val sections = filter.filterSections(groups, SessionRow::filterFacts)
     val tree = SubSessionTree.build((needsYou + rows.orEmpty()).map { it.layoutKey to it.spawnedBy })
+    // Needs you holds exactly the reachable, non-isolated sessions that wait for the owner.
+    val waiting = needsYou.mapTo(HashSet(), SessionRow::layoutKey)
     // A search lists every match in its own place.
     val fold = foldSubSessions && query.isBlank()
     val shownKeys = (needs + sections.filterNot { it.collapsed }.flatMap { it.rows }).mapTo(HashSet(), SessionRow::layoutKey)
@@ -697,8 +699,9 @@ private fun SessionListState.filtered(): SessionListState {
         projectPool = filter.narrowedIgnoringProject((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         hostPool = filter.narrowedIgnoringHost((needsYou + rows.orEmpty()).map(SessionRow::filterFacts)),
         hasSubSessions = !tree.isEmpty,
-        shownNeedsYou = countSubSessions(needs, tree, shownKeys, SessionRow::layoutKey, SessionRow::withTree),
-        shownGroups = foldSections(sections, tree, expandedSubSessions, fold, SessionRow::layoutKey, SessionRow::withTree),
+        shownNeedsYou = countSubSessions(needs, tree, shownKeys, SessionRow::layoutKey, SessionRow::withTree).map { it.withRollUp(tree, waiting) },
+        shownGroups = foldSections(sections, tree, expandedSubSessions, fold, SessionRow::layoutKey, SessionRow::withTree)
+            .map { section -> section.copy(rows = section.rows.map { it.withRollUp(tree, waiting) }) },
         noMatch = filter.isActive && listed && needs.isEmpty() && sections.all { it.rows.isEmpty() },
     )
 }
@@ -752,6 +755,9 @@ private fun LayoutState.Available?.foldsSubSessions(view: LayoutView): Boolean =
 
 private fun SessionListState.withSubSessionsToggled(key: SessionKey): SessionListState =
     copy(expandedSubSessions = if (key in expandedSubSessions) expandedSubSessions - key else expandedSubSessions + key).filtered()
+
+private fun SessionRow.withRollUp(tree: SubSessionTree, waiting: Set<SessionKey>): SessionRow =
+    copy(tree = this.tree.copy(waitingSubSessions = tree.countDescendantsIn(layoutKey, waiting)))
 
 private fun SessionRow.withTree(position: TreePosition): SessionRow = copy(tree = position)
 

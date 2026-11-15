@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -57,6 +58,7 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
                 if (work.isNotEmpty()) {
                     Text(work.joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.rowWork"))
                 }
+                if (row.tree.waitingSubSessions > 0) WaitingSubSessionsLabel(row.tree.waitingSubSessions, color = ownerStateColor(OwnerState.NeedsOwner))
                 if (row.notShared) NotSharedLabel()
                 row.runtimeDetail?.let { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("SessionList.runtimeDetail")) }
                 if (row.link == HostLink.Down) {
@@ -87,6 +89,18 @@ internal fun SessionRowItem(row: SessionRow, onClick: () -> Unit, onMore: () -> 
             )
             .semantics(mergeDescendants = true) {}
             .testTag("SessionList.row"),
+    )
+}
+
+/** The roll-up mark: how many of the row's sub-sessions wait for the owner. */
+@Composable
+private fun WaitingSubSessionsLabel(count: Int, color: Color) {
+    Text(
+        pluralStringResource(R.plurals.sub_sessions_waiting, count, count),
+        color = color,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.testTag("SessionList.subSessionsWaiting"),
     )
 }
 

@@ -65,6 +65,10 @@
         <item quantity="one">%d sub-session</item>
         <item quantity="other">%d sub-sessions</item>
     </plurals>
+    <plurals name="sub_sessions_waiting">
+        <item quantity="one">%d sub-session needs you</item>
+        <item quantity="other">%d sub-sessions need you</item>
+    </plurals>
     <string name="sub_sessions_expand">Show sub-sessions</string>
     <string name="sub_sessions_collapse">Hide sub-sessions</string>
     <string name="sub_sessions_expanded">Shown</string>
