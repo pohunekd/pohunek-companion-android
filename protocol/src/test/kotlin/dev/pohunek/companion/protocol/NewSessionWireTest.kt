@@ -124,4 +124,12 @@ class NewSessionWireTest {
         assertEquals("project_not_found", failure.error.code)
         assertEquals(ErrorClass.Runtime, failure.error.errorClass)
     }
+
+    @Test
+    fun `the feature flag inspect skips runtime probes and reads the isolation flag, absent meaning unsupported`() {
+        assertTrue(Requests.hostInspectFlags("req-1").toLine().contains("\"params\":{\"skip_runtime_probes\":true}"))
+        val flags = Wire.json.decodeFromString(HostFeatureFlags.serializer(), """{"session_attention_isolation_supported":true,"runtimes":[]}""")
+        assertTrue(flags.sessionAttentionIsolationSupported)
+        assertEquals(false, Wire.json.decodeFromString(HostFeatureFlags.serializer(), "{}").sessionAttentionIsolationSupported)
+    }
 }
