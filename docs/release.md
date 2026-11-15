@@ -161,3 +161,33 @@ exit 1 prints the differing ZIP entries with the sha256 of each side; exit 2 is 
 failure of the script, the download, the build or the control. A tag that
 predates `-PunsignedRelease` is rebuilt with its tag guard relaxed in the clone,
 and the script says so.
+
+### The reproducibility check of a release
+
+Between `build` and `publish`, the job `reproducible` of `release.yml` runs
+`scripts/rebuild-release --commit "$GITHUB_SHA" --apk <signed APK of build> <tag>`.
+It holds no secret and a read-only token. It clones the tag into a fresh directory
+at another path, builds libghostty-vt without the cache, assembles the unsigned
+release and compares it with the signed APK apart from the signature. `publish`
+needs it, so a tag whose rebuild differs publishes nothing.
+
+When it fails:
+
+- Exit 1: the log lists the differing ZIP entries with the sha256 of each side. An
+  entry that depends on the checkout path, the time or the build order is a
+  nondeterminism bug: file it, fix it on `main`, and release a new tag. A difference
+  outside the entries (ZIP layout, the APK Signing Block) is listed as such.
+- Exit 2: the script, the build or the apksigcopier control failed; the message
+  names the step. Rerun the job once; if it fails again, treat it as a defect of
+  the tooling.
+
+Either way no release exists yet, so delete the remote tag
+(`git push --delete origin <tag>`) after the fix and push the tag again.
+`scripts/rebuild-release <tag>` reproduces the check locally against a published
+release.
+
+`scripts/rebuild-release` also takes `--apk <file>` (compare with a local signed
+APK and its `.sha256` instead of the published one; the release workflow uses it
+before the release exists), `--commit <sha>` (fail when the tag points elsewhere)
+and `--source <url>` (clone from another repository, for a dry run with a local
+tag).

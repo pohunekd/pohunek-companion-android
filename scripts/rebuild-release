@@ -2,10 +2,18 @@
 # Rebuild a release tag from source the way an independent rebuilder would and
 # compare the result with the published APK apart from the signature.
 #
-# Usage: scripts/rebuild-release <tag>      (vX.Y.Z or vX.Y.Z-pre.N)
+# Usage: scripts/rebuild-release [--apk <file>] [--commit <sha>] <tag>
+#        <tag> is vX.Y.Z or vX.Y.Z-pre.N
+#   --apk <file>    compare with this signed APK instead of the one published on the
+#                   GitHub release (the release workflow uses it before the release
+#                   exists); <file>.sha256 must sit next to it and the file must be
+#                   named pohunek-companion-<version>.apk
+#   --source <url>  clone the tag from this git URL or path instead of source_url
+#                   (a dry run against a local repository)
+#   --commit <sha>  fail when the tag does not point at this commit
 #
-# Steps: download the tag's APK and .sha256 from the GitHub release and check the
-# checksum; run apksigcopier on the published APK against itself as a control
+# Steps: download the tag's APK and .sha256 from the GitHub release (or take --apk)
+# and check the checksum; run apksigcopier on the published APK against itself as a control
 # (proves the tool can handle its signature); clone the tag into a fresh directory
 # outside every worktree; build libghostty-vt; run :app:assembleRelease unsigned;
 # apksigcopier compare. On a mismatch the differing ZIP entries are listed.
@@ -22,8 +30,21 @@ die() { echo "rebuild-release: $*" >&2; exit 2; }
 # Any unguarded command that fails is an error of the script (2), never a "differs" (1).
 trap 'echo "rebuild-release: command failed at line $LINENO" >&2; exit 2' ERR
 
-[ "$#" -eq 1 ] || die "usage: scripts/rebuild-release <tag>"
+usage="usage: scripts/rebuild-release [--apk <file>] [--source <url>] [--commit <sha>] <tag>"
+source_override=""
+local_apk=""
+expect_commit=""
+while [ "$#" -gt 1 ]; do
+  case "$1" in
+    --apk) [ "$#" -ge 3 ] || die "$usage"; local_apk="$2"; shift 2 ;;
+    --source) [ "$#" -ge 3 ] || die "$usage"; source_override="$2"; shift 2 ;;
+    --commit) [ "$#" -ge 3 ] || die "$usage"; expect_commit="$2"; shift 2 ;;
+    *) die "$usage" ;;
+  esac
+done
+[ "$#" -eq 1 ] || die "$usage"
 tag="$1"
+[ -z "$expect_commit" ] || [[ "$expect_commit" =~ ^[0-9a-f]{40}$ ]] || die "--commit must be a full lowercase sha"
 [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-pre\.[1-9][0-9]*)?$ ]] \
   || die "tag '$tag' is not vX.Y.Z or vX.Y.Z-pre.N"
 version="${tag#v}"
@@ -44,7 +65,7 @@ apksigner="$(config_value apksigner)"
 [[ "$work" =~ ^/tmp/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]] || die "$config: work_dir must be /tmp/<name>"
 [ "$work" != "$root" ] && [[ "$root/" != "$work/"* ]] || die "work_dir must not contain the worktree"
 
-command -v gh >/dev/null || die "gh is not installed"
+[ -n "$local_apk" ] || command -v gh >/dev/null || die "gh is not installed"
 command -v git >/dev/null || die "git is not installed"
 
 lock="$work.lock"
@@ -59,10 +80,18 @@ in_dir() { local dir="$1"; shift; "$root/scripts/dev" --rw-dir "$dir" bash -c 'c
 
 published="$work/download/pohunek-companion-$version.apk"
 
-echo "rebuild-release: downloading $tag from $release_repo"
-gh release download "$tag" -R "$release_repo" -D "$work/download" \
-  -p "pohunek-companion-$version.apk" -p "pohunek-companion-$version.apk.sha256" \
-  || die "cannot download the release assets of $tag"
+if [ -n "$local_apk" ]; then
+  [ "$(basename "$local_apk")" = "pohunek-companion-$version.apk" ] \
+    || die "--apk must be named pohunek-companion-$version.apk"
+  [ -f "$local_apk" ] && [ -f "$local_apk.sha256" ] || die "--apk needs $local_apk and $local_apk.sha256"
+  echo "rebuild-release: using $local_apk"
+  cp -- "$local_apk" "$local_apk.sha256" "$work/download/"
+else
+  echo "rebuild-release: downloading $tag from $release_repo"
+  gh release download "$tag" -R "$release_repo" -D "$work/download" \
+    -p "pohunek-companion-$version.apk" -p "pohunek-companion-$version.apk.sha256" \
+    || die "cannot download the release assets of $tag"
+fi
 (cd "$work/download" && sha256sum --check --strict --quiet "pohunek-companion-$version.apk.sha256") \
   || die "the published APK does not match its .sha256"
 echo "rebuild-release: published APK matches its checksum"
@@ -79,10 +108,12 @@ echo "rebuild-release: control passed"
 
 src="$work/src"
 echo "rebuild-release: cloning $tag into $src"
-git clone --quiet --no-checkout "$source_url" "$src"
+git clone --quiet --no-checkout "${source_override:-$source_url}" "$src"
 git -C "$src" checkout --quiet --detach "refs/tags/$tag"
 commit="$(git -C "$src" rev-parse HEAD)"
 echo "rebuild-release: $tag is commit $commit"
+[ -z "$expect_commit" ] || [ "$commit" = "$expect_commit" ] \
+  || die "$tag points at $commit, expected $expect_commit"
 
 # A tag from before the -PunsignedRelease opt-in refuses an unsigned tagged
 # build. The one guard line is relaxed in the clone so such a tag can still be
