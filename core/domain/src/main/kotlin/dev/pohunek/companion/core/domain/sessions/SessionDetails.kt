@@ -60,7 +60,8 @@ private fun agentFields(session: OwnerSession) = fields {
     val info = session.info
     val state = if (info.state.isUnknown) UNKNOWN_STATE_TEXT else info.state.wire
     val detail = runtimeDetail(info)
-    add("agent", "Agent", sanitizeText(info.agent))
+    add("agent", "Agent", sessionAgentLabel(info))
+    add("agent_profile", "Profile", sanitizeText(info.agent).takeIf { info.agentDisplayName != null && it != sessionAgentLabel(info) })
     add("state", "State", if (detail == null) state else "$state ($detail)")
     add("waiting_since", "Waiting since", session.waitingSince?.let(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format))
     add("resume", "Resume", resumeText(resumeOffer(info)))

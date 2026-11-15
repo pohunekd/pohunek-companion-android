@@ -4,6 +4,7 @@ import dev.pohunek.companion.protocol.ActionSummary
 import dev.pohunek.companion.protocol.AgentRuntime
 import dev.pohunek.companion.protocol.ErrorClass
 import dev.pohunek.companion.protocol.HostRoute
+import dev.pohunek.companion.protocol.ProfileAudience
 import dev.pohunek.companion.protocol.ProjectActionResult
 import dev.pohunek.companion.protocol.ProtocolClientException
 import dev.pohunek.companion.protocol.ProtocolError
@@ -51,6 +52,33 @@ class NewSessionTest {
             listOf(null, "not available: binary not found on the daemon's PATH", "unsupported version (0.1.2)", "unsupported version"),
             agents.map { it.unlaunchable },
         )
+    }
+
+    @Test
+    fun `the picker lists owner profiles and bare runtimes by label and keeps the rest behind show all`() {
+        val agents = agentChoices(
+            listOf(
+                AgentRuntime("bare", true),
+                AgentRuntime("reviewer", true, displayName = " Code\n reviewer ", audience = ProfileAudience.Owner),
+                AgentRuntime("spawned", true, audience = ProfileAudience.Agent),
+                AgentRuntime("secret", true, displayName = "Secret", audience = ProfileAudience.Hidden),
+                AgentRuntime("future", true, audience = ProfileAudience.Unknown),
+            ),
+        )
+        val all = NewSessionChoices(emptyList(), agents, gitAvailable = true, worktreeSupported = true)
+        assertEquals(listOf("bare", "Code reviewer"), all.visibleAgents(showAll = false, selected = null).map { it.label })
+        assertEquals(listOf("bare", "reviewer", "spawned", "secret", "future"), all.visibleAgents(showAll = true, selected = null).map { it.name })
+        assertEquals(listOf("bare", "reviewer", "spawned"), all.visibleAgents(showAll = false, selected = "spawned").map { it.name })
+    }
+
+    @Test
+    fun `settling prefers an agent the picker lists and falls back to a hidden one`() {
+        val form = NewSessionForm(host = route)
+        val mixed =
+            NewSessionChoices(emptyList(), agentChoices(listOf(AgentRuntime("spawned", true, audience = ProfileAudience.Agent), runtime("claude"))), true, true)
+        assertEquals("claude", settleSelection(form, mixed).agent)
+        val onlyHidden = NewSessionChoices(emptyList(), agentChoices(listOf(AgentRuntime("spawned", true, audience = ProfileAudience.Agent))), true, true)
+        assertEquals("spawned", settleSelection(form, onlyHidden).agent)
     }
 
     @Test

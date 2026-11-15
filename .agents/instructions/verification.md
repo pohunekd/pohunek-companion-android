@@ -70,7 +70,7 @@ runtime directory or real daemon, never run the toolchain on the host outside
 `scripts/dev`, and never point an emulator at the owner's daemon.
 
 ```bash
-scripts/ui-agent start [--sessions N] [--showcase [--legacy-host2] [--attention-tree]] [--device phone] [--owner-daemon]
+scripts/ui-agent start [--sessions N] [--showcase [--legacy-host2] [--attention-tree] [--profiles]] [--device phone] [--owner-daemon]
 scripts/ui-agent install | restart | stop | status
 scripts/ui-agent screenshot OUT.png | tree | find TAG | click TAG [N]
 scripts/ui-agent type TEXT [--enter] | key esc|ctrl-c|tab|up|down|left|right|enter
@@ -134,6 +134,9 @@ scripts/ui-agent pohunek ARGS...
   worker spawned by each (created with the manager's `POHUNEK_SESSION_ID` and a fixed
   synthetic `POHUNEK_DAEMON_ID`), to check that Needs you skips the isolated worker; it
   needs a Pohunek that reports `session_attention_isolation_supported` (v0.43.0 or newer).
+  `--profiles` (with `--showcase`) adds to the first host the profiles `reviewer` (label "PR reviewer", audience `owner`),
+  `spawned-worker` (`agent`) and `internal-probe` (`hidden`) and an idle `labelled-session` from `reviewer`, to check the New
+  session picker's labels and "Show all agents"; it needs a Pohunek that reports `audience` (v0.43.0 or newer).
   `type` cannot
   enter a literal `%s` (`input text` turns it into a space).
 - **Install and restart.** `install` builds the debug APK and installs it; it

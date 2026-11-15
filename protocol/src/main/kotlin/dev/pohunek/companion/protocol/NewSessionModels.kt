@@ -12,9 +12,21 @@ import kotlinx.serialization.json.booleanOrNull
 @Serializable
 data class ProjectInfo(val id: String, val label: String)
 
+/** Who a host profile is shown to (`ProfileAudience`); a value this client does not model decodes to [Unknown]. */
+@Serializable(with = ProfileAudienceSerializer::class)
+enum class ProfileAudience(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Owner("owner"),
+    Agent("agent"),
+    Hidden("hidden"),
+    Unknown("", true),
+}
+
+internal object ProfileAudienceSerializer : WireEnumSerializer<ProfileAudience>("ProfileAudience", ProfileAudience.entries, ProfileAudience.Unknown)
+
 /**
  * One agent of `host.inspect`'s `runtimes`. A launch is possible when [available] holds and [supported] is not false; an absent
- * [supported] means the runtime has no version policy.
+ * [supported] means the runtime has no version policy. [displayName] is the profile's label for pickers and [audience] the pickers it
+ * belongs in; an absent [audience] means [ProfileAudience.Owner]. Neither changes launchability.
  */
 @Serializable
 data class AgentRuntime(
@@ -22,6 +34,8 @@ data class AgentRuntime(
     val available: Boolean,
     val version: String? = null,
     val supported: Boolean? = null,
+    @SerialName("display_name") val displayName: String? = null,
+    val audience: ProfileAudience? = null,
 )
 
 /**

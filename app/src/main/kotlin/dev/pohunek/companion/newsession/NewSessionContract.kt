@@ -49,6 +49,8 @@ data class NewSessionState(
     val templateError: TemplateError? = null,
     /** The Advanced section (branch and base branch of a Blank session) is open. */
     val advancedOpen: Boolean = false,
+    /** The agent picker lists every profile, not only the owner's. */
+    val showAllAgents: Boolean = false,
     val activity: NewSessionActivity = NewSessionActivity(),
     /** The "Open after creating" switch. */
     val attachAfterCreate: Boolean = false,
@@ -102,6 +104,9 @@ sealed interface NewSessionEvent {
     }
 
     data object ToggleAdvanced : NewSessionEvent
+
+    /** Lists the profiles meant for agents or hidden from every picker, or goes back to the owner's. */
+    data object ToggleShowAllAgents : NewSessionEvent
 
     data class EditPrompt(val text: String) : FormEdit {
         override fun applyTo(form: NewSessionForm) = form.copy(prompt = text)

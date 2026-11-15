@@ -69,7 +69,7 @@ fun AppNavHost(
             val koin = remember { KoinPlatform.getKoin() }
             val viewModel: NewSessionViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { NewSessionViewModel(koin.get(), koin.get(), koin.get(), koin.get(), runtime::current, destination) }
+                    initializer { NewSessionViewModel(koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), runtime::current, destination) }
                 },
             )
             NewSessionScreen(

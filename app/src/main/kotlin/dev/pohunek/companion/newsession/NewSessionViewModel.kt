@@ -6,6 +6,7 @@ import dev.pohunek.companion.core.data.hosts.HostOffers
 import dev.pohunek.companion.core.data.hosts.KnownHosts
 import dev.pohunek.companion.core.data.layout.LayoutRepository
 import dev.pohunek.companion.core.data.layout.LayoutState
+import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.newsession.ChoicesUpdate
 import dev.pohunek.companion.core.data.newsession.NewSessions
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
@@ -37,6 +38,7 @@ class NewSessionViewModel(
     private val newSessions: NewSessions,
     private val layouts: LayoutRepository,
     private val log: AppLog,
+    private val registry: HostRegistry,
     private val config: () -> AppConfig,
     private val requested: NewSessionDestination,
 ) : BaseViewModel<NewSessionState, NewSessionEvent, NewSessionEffect>(
@@ -73,6 +75,7 @@ class NewSessionViewModel(
             is NewSessionEvent.SelectTemplate -> if (!busy) templates.select(event.name)
             is NewSessionEvent.FormEdit -> edit(event::applyTo)
             NewSessionEvent.ToggleAdvanced -> updateState { it.copy(advancedOpen = !it.advancedOpen) }
+            NewSessionEvent.ToggleShowAllAgents -> updateState { it.copy(showAllAgents = !it.showAllAgents) }
             is NewSessionEvent.EditProjectQuery -> updateState { it.copy(projectQuery = event.text) }
             is NewSessionEvent.SetAttachAfterCreate -> updateState { it.copy(attachAfterCreate = event.attach) }
             NewSessionEvent.Create -> create()
@@ -164,6 +167,8 @@ class NewSessionViewModel(
         val session = outcome.result.session
         if (!outcome.promptDelivered) return settle(CreateNotice.PromptUnconfirmed, unconfirmed = true)
         updateState { it.copy(activity = it.activity.copy(inFlight = false)) }
+        // `session.new` and `session_created` carry no profile label; a re-seed brings it to the new row at once.
+        registry.requestReseed()
         // A session that is not running yet cannot be attached; the list shows it as it starts.
         val open = currentState.attachAfterCreate && session.state == SessionState.Running
         if (currentState.attachAfterCreate && !open) {

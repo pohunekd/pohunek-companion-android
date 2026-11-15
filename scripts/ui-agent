@@ -4,7 +4,7 @@
 # touching the owner's desktop, phone, or daemon. All of it runs in one Podman
 # container per run (a slot), started through scripts/dev.
 #
-#   scripts/ui-agent start [--sessions N] [--showcase [--legacy-host2] [--attention-tree]] [--device phone] [--owner-daemon]
+#   scripts/ui-agent start [--sessions N] [--showcase [--legacy-host2] [--attention-tree] [--profiles]] [--device phone] [--owner-daemon]
 #                                          claim a slot, boot, build, install, launch
 #   scripts/ui-agent install               build the debug APK and install it (fails if the device runs another build)
 #   scripts/ui-agent restart               install, then force-stop and launch the app again
@@ -236,7 +236,7 @@ cleanup_failed_start() {
 }
 
 start() {
-  local sessions=0 showcase=0 legacy=0 tree=0 device=emulator daemon=isolated slot name phone_adb="" deadline timeout state
+  local sessions=0 showcase=0 legacy=0 tree=0 profiles=0 device=emulator daemon=isolated slot name phone_adb="" deadline timeout state
   while [ $# -gt 0 ]; do
     case "$1" in
       --sessions)
@@ -246,6 +246,7 @@ start() {
       --showcase) showcase=1; shift ;;
       --legacy-host2) legacy=1; shift ;;
       --attention-tree) tree=1; shift ;;
+      --profiles) profiles=1; shift ;;
       --device)
         [ "${2:-}" = phone ] || die "--device takes only 'phone'; the default is the emulator"
         device=phone; shift 2 ;;
@@ -258,6 +259,7 @@ start() {
   [ "$sessions" -eq 0 ] || [ "$showcase" -eq 0 ] || die "--showcase and --sessions cannot be combined"
   [ "$legacy" -eq 0 ] || [ "$showcase" -eq 1 ] || die "--legacy-host2 needs --showcase"
   [ "$tree" -eq 0 ] || [ "$showcase" -eq 1 ] || die "--attention-tree needs --showcase"
+  [ "$profiles" -eq 0 ] || [ "$showcase" -eq 1 ] || die "--profiles needs --showcase"
   if [ "$device" = phone ]; then
     phone_adb="${UI_AGENT_PHONE_ADB:-}"
     [ -n "$phone_adb" ] || die "--device phone needs UI_AGENT_PHONE_ADB=HOST:PORT (the phone's adb Wi-Fi address)"
@@ -273,7 +275,7 @@ start() {
   echo "slot=$slot container=$name"
 
   podman exec "$name" "$guest_script" init "$slot" "$device" "$daemon" $phone_adb
-  podman exec -d "$name" "$guest_script" up "$sessions" "$showcase" "$legacy" "$tree"
+  podman exec -d "$name" "$guest_script" up "$sessions" "$showcase" "$legacy" "$tree" "$profiles"
   # The device boots and the daemon starts while the APK builds.
   build_app
 

@@ -216,6 +216,8 @@
     <string name="new_session_selected">Selected</string>
     <string name="new_session_agent">Agent</string>
     <string name="new_session_agent_unavailable">%1$s: %2$s</string>
+    <string name="new_session_agents_show_all">Show all agents</string>
+    <string name="new_session_agents_show_owner">Show only my agents</string>
     <string name="new_session_template">Template</string>
     <string name="new_session_template_blank">Blank</string>
     <string name="new_session_template_loading">Reading the template...</string>
