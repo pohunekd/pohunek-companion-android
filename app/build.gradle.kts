@@ -90,6 +90,8 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = releaseVersionCode ?: 1
         versionName = releaseVersionName ?: "0.1.0"
+        // Must match :terminal; otherwise libraries merged from dependencies add ABIs the terminal library lacks.
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
     signingConfigs {
