@@ -130,6 +130,9 @@ data class SessionInfo(
     val metadata: Map<String, String>? = null,
     /** The session that sent the creating request; omitted by the daemon when the session was not spawned by another. */
     @SerialName("spawned_by") val spawnedBy: SpawnedBy? = null,
+    /** With [activityRevision], the newest `agent_state` the daemon had recorded when it took a `session.list` or `session.inspect` snapshot. */
+    @SerialName("activity_epoch") val activityEpoch: String? = null,
+    @SerialName("activity_revision") val activityRevision: DecimalWire? = null,
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String,
     @SerialName("exit_code") val exitCode: Int? = null,

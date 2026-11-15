@@ -157,9 +157,11 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
 
     /**
      * Replaces all state with the `session.list` and attention `notification.list` results and returns what differs from the state that
-     * was replaced. A session keeps its `agent_state` baseline while its runtime is unchanged, because the seed carries no activity
-     * revision and a buffered older event must not replace newer activity, and keeps its idle clock while it stays idle on that same
-     * runtime. A different worker instance or runtime generation (a restarted daemon or session) starts the clock again.
+     * was replaced. A row's activity cursor (`activity_epoch` and `activity_revision`) is the session's `agent_state` baseline, so a
+     * buffered event the snapshot already includes is dropped. Without a cursor, or with one older than the baseline an applied event
+     * set, the baseline stays while the runtime is unchanged, because a buffered older event must not replace newer activity. A
+     * session keeps its idle clock while it stays idle on that same runtime. A different worker instance or runtime generation (a
+     * restarted daemon or session) starts the clock again.
      * [attentionIsolationSupported] is what `host.inspect` reported for the host; the isolation rule applies only while it holds.
      */
     fun applySeed(seed: List<SessionInfo>, notifications: List<NotificationRecord>, attentionIsolationSupported: Boolean = false): SeedChange {
@@ -175,7 +177,8 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
         for (info in seed) {
             val old = previous[key(info.id)]
             val tracked = TrackedSession(info, baseline = null, idleSince = null)
-            tracked.baseline = old?.baseline?.takeIf { tracked.runsOn(it.workerInstanceId, it.generation) }
+            val kept = old?.baseline?.takeIf { tracked.runsOn(it.workerInstanceId, it.generation) }
+            tracked.baseline = seededBaseline(kept, info.cursorBaseline())
             val sameRuntime = old != null && old.sameRuntimeAs(info)
             tracked.idleSince = if (isIdleWithoutWork(info)) old?.idleSince?.takeIf { sameRuntime } ?: now else null
             sessions[key(info.id)] = tracked
