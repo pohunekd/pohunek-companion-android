@@ -42,6 +42,7 @@ Builds:
 AllowedAPKSigningKeys: fc598490d61c2c652205b129f88c1e0a88c36d3db63be31eed22b4b516445127
 
 AutoUpdateMode: Version
-UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
+UpdateCheckMode: HTTP
+UpdateCheckData: https://api.github.com/repos/pohunekd/pohunek-companion-android/releases/latest|versionCode\s+(\d+)|.|"tag_name":\s*"v([0-9]+\.[0-9]+\.[0-9]+)"
 CurrentVersion: 0.1.0
 CurrentVersionCode: 100999

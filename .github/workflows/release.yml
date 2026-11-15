@@ -313,9 +313,13 @@ jobs:
           flags=(--draft --verify-tag --title "$TAG")
           [ "$PRERELEASE" = true ] && flags+=(--prerelease)
           # The notes are data from prepare: the changelog marker block, then the footer.
+          # F-Droid's `fdroid checkupdates` reads the `versionCode N` line of the latest release (fdroid/metadata/).
+          code="$(scripts/changelog version-code "$VERSION")"
           footer="Signed APK \`pohunek-companion-${VERSION}.apk\` built from commit ${GITHUB_SHA}.
 
           Signing certificate SHA-256: \`${CERT_SHA256}\`
+
+versionCode ${code}
 
           Verify the download with \`sha256sum -c pohunek-companion-${VERSION}.apk.sha256\` and the signer with \`apksigner verify --print-certs\`; see docs/release.md."
           { cat "$RUNNER_TEMP/changelog/notes.md"; echo; printf '%s\n' "$footer"; } > "$RUNNER_TEMP/release-notes.md"
