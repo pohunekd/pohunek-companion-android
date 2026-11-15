@@ -17,15 +17,18 @@ interface EventStream : AutoCloseable {
     val events: Flow<DaemonEvent>
 }
 
-/** What one seed fetch read: `session.list` and the attention notifications that `notification.list` holds. */
-data class Seed(val sessions: List<SessionInfo>, val notifications: List<NotificationRecord>)
+/**
+ * What one seed fetch read: `session.list`, the attention notifications that `notification.list` holds, and whether `host.inspect`
+ * reported `session_attention_isolation_supported`.
+ */
+data class Seed(val sessions: List<SessionInfo>, val notifications: List<NotificationRecord>, val attentionIsolationSupported: Boolean = false)
 
 /** What the live loop needs from one daemon. Every failure is a [dev.pohunek.companion.protocol.ProtocolClientException]. */
 interface HostTransport {
     /** Returns once the daemon acknowledged the subscription. */
     suspend fun subscribe(): EventStream
 
-    /** Reads `session.list` and the attention notifications over a connection of its own. */
+    /** Reads `session.list`, the attention notifications and the isolation capability over a connection of its own. */
     suspend fun fetchSeed(): Seed
 
     /** Sends `daemon.health` over a connection of its own. */
@@ -53,7 +56,7 @@ class TcpHostTransport(
         val notifications = NotificationKind.ATTENTION.flatMap { kind ->
             listAllNotifications(kind, notificationPageSize) { connection.listNotifications(it) }
         }
-        Seed(sessions, notifications)
+        Seed(sessions, notifications, connection.inspectHostFlags().sessionAttentionIsolationSupported)
     }
 
     override suspend fun probe() {

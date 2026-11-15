@@ -26,6 +26,7 @@ private data class SessionEntry(
     val info: SessionInfo,
     @SerialName("owner_state") val ownerState: String,
     @SerialName("waiting_since") val waitingSince: String? = null,
+    @SerialName("attention_isolated") val attentionIsolated: Boolean = false,
 )
 
 /** The JSON form of every host's last published session list, keyed by the route's text. */
@@ -44,7 +45,7 @@ internal object LastSessionsCodec {
                 try {
                     json.encodeToJsonElement(
                         SessionEntry.serializer(),
-                        SessionEntry(session.info, session.ownerState.name, session.waitingSince?.toString()),
+                        SessionEntry(session.info, session.ownerState.name, session.waitingSince?.toString(), session.attentionIsolated),
                     )
                 } catch (_: SerializationException) {
                     null
@@ -83,6 +84,6 @@ internal object LastSessionsCodec {
         } catch (_: DateTimeParseException) {
             return null
         }
-        return OwnerSession(info, state, waiting)
+        return OwnerSession(info, state, waiting, attentionIsolated)
     }
 }

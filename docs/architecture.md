@@ -35,15 +35,21 @@ Open folder, iOS (out of scope for now).
 ## Protocol boundary
 
 The app speaks the Pohunek public protocol only, pinned to one Pohunek tag:
-`v0.42.0` today. The desktop companion is on its own schedule and does not set
+`v0.43.0` today. The desktop companion is on its own schedule and does not set
 the tag. The app follows the oldest release whose protocol window it speaks, so
 a host that upgrades to that release or newer keeps working; the pin moves when
 a Pohunek release changes the protocol version, and the toolchain image and
 `scripts/ui-agent` run the same tag so every feature is verified against it.
 
+- Attention isolation: on a host that reports `session_attention_isolation_supported`
+  (read with `host.inspect {skip_runtime_probes: true}` on every seed), a session below a
+  parent that carries `pohunek.attention.children=isolate` in its `spawned_by` chain is
+  never lifted into Needs you and never counted in it; it keeps its own state on its row.
+  The rule is `isolatingAncestor` in `:core:domain`, and the M4 notification work must use
+  the same rule.
 - Transport: newline-delimited JSON over TCP on the overlay.
 - Version: the request envelope advertises `v:{5,5}`, the single-version window
-  of Pohunek 0.42. There are no adapters for older protocols; a
+  of Pohunek 0.43. There are no adapters for older protocols; a
   `daemon/version_mismatch` answer is shown clearly.
 - State: seed with `session.list` and `notification.list`, then keep current
   with one `subscribe` connection. Re-seed on every reconnect and
@@ -316,7 +322,7 @@ updates its entry.
   `live.rs`, `needs_you.rs`, `filter.rs`, `layout.rs`, `discovery.rs`,
   `view.rs`, `sort_key.rs`.
 - **Pohunek wire fixtures** (MIT): `sdk/ts/protocol/fixtures` at the pinned tag
-  `v0.42.0`.
+  `v0.43.0`.
 
 ## Development environment
 

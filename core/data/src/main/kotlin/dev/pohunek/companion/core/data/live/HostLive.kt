@@ -187,7 +187,7 @@ class HostLive(
                 }
             }
             failedChecks = 0
-            val change = store.applySeed(seed.sessions, seed.notifications)
+            val change = store.applySeed(seed.sessions, seed.notifications, seed.attentionIsolationSupported)
             val buffered = drain()
             val counts = listOf(
                 hostKey,

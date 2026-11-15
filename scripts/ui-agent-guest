@@ -764,6 +764,40 @@ start_daemon() { # EXTRA_SESSIONS SHOWCASE(0|1)
   fi
 }
 
+# Daemon id the tree's children claim as their parent's launch daemon; the daemon matches ancestors by session id only.
+attention_tree_daemon_id="ui-agent-synthetic-daemon"
+
+# Creates one session of the attention tree under PARENT_ID (empty for a root) and waits until the daemon reports ACTIVITY.
+create_tree_session() { # NAME PROJECT AGENT STATE PARENT_ID [META...]
+  local name="$1" project="$2" agent="$3" state="$4" parent="$5" kv out i
+  shift 5
+  local -a args=(session new --agent "$agent" --name "$name" --project "$project" --input "$state" --json)
+  for kv in "$@"; do args+=(--meta "$kv"); done
+  if [ -n "$parent" ]; then
+    out=$(iso_run env POHUNEK_SESSION_ID="$parent" POHUNEK_DAEMON_ID="$attention_tree_daemon_id" "$cli" "${args[@]}")
+  else
+    out=$(iso_run "$cli" "${args[@]}")
+  fi || die "attention tree session $name: $(jq -r '.err.msg // empty' <<<"$out")"
+  for i in $(seq 1 100); do
+    [ "$(iso_run "$cli" session list --json | jq -r --arg n "$name" '.ok[] | select(.name == $n) | .activity // "none"')" = "$state" ] && return 0
+    sleep 0.3
+  done
+  die "attention tree session $name did not become $state"
+}
+
+# `start --showcase --attention-tree`: a parent that flags attention isolation with a blocked child, and an unflagged parent with a
+# blocked child, both children spawned with the parent's origin pair. Needs a Pohunek that supports attention isolation.
+create_attention_tree() {
+  local flagged plain project=pohunek-companion
+  create_tree_session isolating-manager "$project" claude idle "" pohunek.attention.children=isolate
+  create_tree_session plain-manager "$project" claude idle ""
+  flagged=$(iso_run "$cli" session list --json | jq -r '.ok[] | select(.name == "isolating-manager") | .id')
+  plain=$(iso_run "$cli" session list --json | jq -r '.ok[] | select(.name == "plain-manager") | .id')
+  [ -n "$flagged" ] && [ -n "$plain" ] || die "the attention tree managers are not listed"
+  create_tree_session isolated-worker "$project" claude blocked "$flagged"
+  create_tree_session plain-worker "$project" claude blocked "$plain"
+}
+
 # Starts the second host on the protocol-4 daemon of the legacy toolchain directory: no projects and no sessions,
 # because it only has to be there and refuse this app's protocol.
 start_legacy_host2() {
@@ -1548,8 +1582,8 @@ pohunek_cli() {
 
 # Boots the device and starts the daemon and bridge; run in the background by
 # scripts/ui-agent, which polls the status file.
-up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2]
-  local extra="${1:-0}" showcase="${2:-0}" legacy="${3:-0}"
+up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2 [ATTENTION_TREE]]
+  local extra="${1:-0}" showcase="${2:-0}" legacy="${3:-0}" tree="${4:-0}"
   rm -f "$up_status"
   exec >"$run_dir/up.log" 2>&1
   trap 'rc=$?; if [ "$rc" -eq 0 ]; then echo ok >"$up_status"; else echo "failed: $(tail -n 5 "$run_dir/up.log" | tr "\n" " ")" >"$up_status"; fi' EXIT
@@ -1557,6 +1591,7 @@ up() { # EXTRA_SESSIONS SHOWCASE [LEGACY_HOST2]
   if [ "$DEVICE" = emulator ]; then boot_emulator; else connect_phone; fi
   if [ "$DAEMON" = isolated ]; then
     start_daemon "$extra" "$showcase"
+    [ "$tree" -eq 0 ] || create_attention_tree
     start_bridge
     if [ "$showcase" -eq 1 ]; then
       if [ "$legacy" -eq 1 ]; then

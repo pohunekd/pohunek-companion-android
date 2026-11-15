@@ -121,4 +121,13 @@ class NeedsYouListingTest {
         assertNull(detail(RuntimeState.Lost, "gone"))
         assertNull(runtimeDetail(info("s")))
     }
+
+    @Test
+    fun `an isolated session that waits stays out of Needs you and keeps its own state`() {
+        val isolated = OwnerSession(info("iso"), OwnerState.NeedsOwner, null, attentionIsolated = true)
+        val listing = partition(session("1", OwnerState.NeedsOwner), isolated)
+        assertEquals(listOf("1"), ids(listing.needsYou))
+        assertEquals(listOf("iso"), ids(listing.others))
+        assertEquals(OwnerState.NeedsOwner, listing.others.single().session.ownerState)
+    }
 }

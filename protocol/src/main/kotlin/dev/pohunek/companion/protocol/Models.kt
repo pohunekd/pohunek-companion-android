@@ -128,9 +128,18 @@ data class SessionInfo(
     @SerialName("worktree_path") val worktreePath: String? = null,
     @SerialName("output_force_closed") val outputForceClosed: Boolean? = null,
     val metadata: Map<String, String>? = null,
+    /** The session that sent the creating request; omitted by the daemon when the session was not spawned by another. */
+    @SerialName("spawned_by") val spawnedBy: SpawnedBy? = null,
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String,
     @SerialName("exit_code") val exitCode: Int? = null,
+)
+
+/** The request origin of a spawned session: the creating [sessionId] and the [daemonId] that launched its runtime. */
+@Serializable
+data class SpawnedBy(
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("daemon_id") val daemonId: String,
 )
 
 /** Exact-match `session.list` filter; filters combine with AND. */

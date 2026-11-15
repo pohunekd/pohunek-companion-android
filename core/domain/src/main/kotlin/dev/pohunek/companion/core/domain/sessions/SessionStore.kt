@@ -73,8 +73,22 @@ data class ReconcileReport(
     val unorderedSnapshots: Int = 0,
 )
 
-/** A session with the state the owner sees; [waitingSince] is when its longest-open attention notification was created. */
-data class OwnerSession(val info: SessionInfo, val ownerState: OwnerState, val waitingSince: OffsetDateTime?)
+/**
+ * A session with the state the owner sees; [waitingSince] is when its longest-open attention notification was created. An
+ * [attentionIsolated] session keeps its [ownerState] on its own row but never counts as needing the owner.
+ */
+data class OwnerSession(
+    val info: SessionInfo,
+    val ownerState: OwnerState,
+    val waitingSince: OffsetDateTime?,
+    val attentionIsolated: Boolean = false,
+) {
+    /** Whether the session belongs in Needs you and its counts. */
+    val needsOwner: Boolean get() = ownerState == OwnerState.NeedsOwner && !attentionIsolated
+
+    /** The state that state filters, chip counts and state groups use: an isolated session that waits for its manager counts as working. */
+    val listState: OwnerState get() = if (attentionIsolated && ownerState == OwnerState.NeedsOwner) OwnerState.Working else ownerState
+}
 
 /**
  * Sessions and open attention notifications of one daemon, seeded by `session.list` and `notification.list` and kept current by the
@@ -94,6 +108,9 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
     private val applied = HashMap<String, Int>()
     private val ignored = HashMap<Pair<String, IgnoreReason>, Int>()
     private var unorderedSnapshots = 0
+
+    /** Whether the host reported `session_attention_isolation_supported` in the last seed; without it no session is isolated. */
+    private var attentionIsolationSupported = false
 
     /** Current sessions in seed-then-arrival order. */
     fun sessions(): Map<SessionKey, SessionInfo> = sessions.mapValuesTo(LinkedHashMap()) { it.value.info }
@@ -143,8 +160,10 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
      * was replaced. A session keeps its `agent_state` baseline while its runtime is unchanged, because the seed carries no activity
      * revision and a buffered older event must not replace newer activity, and keeps its idle clock while it stays idle on that same
      * runtime. A different worker instance or runtime generation (a restarted daemon or session) starts the clock again.
+     * [attentionIsolationSupported] is what `host.inspect` reported for the host; the isolation rule applies only while it holds.
      */
-    fun applySeed(seed: List<SessionInfo>, notifications: List<NotificationRecord>): SeedChange {
+    fun applySeed(seed: List<SessionInfo>, notifications: List<NotificationRecord>, attentionIsolationSupported: Boolean = false): SeedChange {
+        this.attentionIsolationSupported = attentionIsolationSupported
         for (info in seed) {
             val projectId = info.projectId ?: continue
             seededProjects += projectId
@@ -241,7 +260,8 @@ class SessionStore(val host: String, private val timeSource: TimeSource.WithComp
     private fun ownerSession(tracked: TrackedSession, waiting: Map<String, OffsetDateTime?>): OwnerSession {
         val info = tracked.info
         val state = deriveOwnerState(info, openAttention = info.id in waiting, idleFor = tracked.idleSince?.elapsedNow(), idleThreshold = idleThreshold)
-        return OwnerSession(info, state, waiting[info.id])
+        val isolated = attentionIsolationSupported && isolatingAncestor(info) { sessions[key(it)]?.info } != null
+        return OwnerSession(info, state, waiting[info.id], isolated)
     }
 }
 

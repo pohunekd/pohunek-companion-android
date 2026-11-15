@@ -29,7 +29,10 @@ data class SessionRow(
     val sessionId: String,
     val title: String,
     val agent: String,
+    /** The state the row itself shows. */
     val ownerState: OwnerState,
+    /** The state filters, counts and groups use; differs from [ownerState] only for a session whose attention is isolated. */
+    val listState: OwnerState,
     /** The project label, or null for a session outside a project. */
     val project: String?,
     /** The Pohunek Work item the session is linked to, for the By Work item view; the badge above is its clipped text. */
@@ -60,12 +63,12 @@ data class SessionRow(
     val reachable: Boolean get() = link.reachable
 
     /** What the derived views group by. */
-    val facts: RowFacts get() = RowFacts(ownerState, project, workItem)
+    val facts: RowFacts get() = RowFacts(listState, project, workItem)
 
     /** What the search matches: name, project, agent and the full Work badge as text, session id and Work id as identifiers. */
     val filterFacts: FilterFacts
         get() = FilterFacts(
-            ownerState,
+            listState,
             listOfNotNull(title, project, agent, workItem?.title),
             listOfNotNull(sessionId, workItem?.id),
             project,
