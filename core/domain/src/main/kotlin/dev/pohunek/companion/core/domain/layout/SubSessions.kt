@@ -90,7 +90,8 @@ fun <R> foldSections(
     withPosition: (R, TreePosition) -> R,
 ): List<GroupSection<R>> {
     val placed = LinkedHashMap<SessionKey, R>()
-    for (row in sections.flatMap { it.rows }) placed.putIfAbsent(keyOf(row), row)
+    // Rows of a collapsed section are not drawn, so they can neither host nor receive a folded sub-session.
+    for (row in sections.filterNot { it.collapsed }.flatMap { it.rows }) placed.putIfAbsent(keyOf(row), row)
     val order = placed.keys.withIndex().associate { it.value to it.index }
     fun plain(row: R) = withPosition(row, TreePosition(subSessions = tree.children(keyOf(row)).size))
 
@@ -105,7 +106,7 @@ fun <R> foldSections(
         }
     }
     return sections.mapNotNull { section ->
-        if (!fold) return@mapNotNull section.copy(rows = section.rows.map(::plain))
+        if (!fold || section.collapsed) return@mapNotNull section.copy(rows = section.rows.map(::plain))
         val rows = mutableListOf<R>()
         val visited = HashSet<SessionKey>()
         for (row in section.rows) {

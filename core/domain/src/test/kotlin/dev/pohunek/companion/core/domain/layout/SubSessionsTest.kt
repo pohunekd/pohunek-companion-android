@@ -96,4 +96,15 @@ class SubSessionsTest {
         val rows = countSubSessions(listOf(Placed(key("p"), TreePosition())), tree, Placed::key) { row, position -> row.copy(tree = position) }
         assertEquals(TreePosition(subSessions = 1, folding = false), rows.single().tree)
     }
+
+    @Test
+    fun `a sub-session whose parent sits in a collapsed section stays in its own open section`() {
+        val tree = tree("p" to null, "a" to "p")
+        val sections = listOf(
+            GroupSection("s0", "s0", true, listOf(Placed(key("p"), TreePosition()))),
+            GroupSection("s1", "s1", false, listOf(Placed(key("a"), TreePosition()))),
+        )
+        val folded = foldSections(sections, tree, setOf(key("p")), true, Placed::key) { row, position -> row.copy(tree = position) }
+        assertEquals(listOf(listOf("p"), listOf("a")), folded.map { s -> s.rows.map { it.key.sessionId } })
+    }
 }
