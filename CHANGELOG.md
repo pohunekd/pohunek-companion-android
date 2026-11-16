@@ -3,6 +3,20 @@
 User-facing changes of Pohunek Companion Android, newest version first. Each
 section is folded from the fragments in `changelog.d/` when its release is prepared.
 
+## 0.1.0-pre.13 - 2026-11-16
+
+### Added
+
+- The New session agent picker lists your profiles by their labels and hides the ones meant for agents or hidden from pickers behind "Show all agents"; session rows and details show the label too (Pohunek v0.43.0 hosts). ([#263](https://github.com/pohunekd/pohunek-companion-android/issues/263))
+- New session shows a picker for each option a host profile declares, such as model, effort or mode, with the defaults preselected and the choices the host cannot run disabled with their reason. A session's details list the choices it launched with. ([#264](https://github.com/pohunekd/pohunek-companion-android/issues/264))
+- Sessions that another session spawned fold under their parent, which shows how many sub-sessions it has and expands them in place; the Sub-sessions chip in the filter bar shows every session in its own place again. ([#265](https://github.com/pohunekd/pohunek-companion-android/issues/265))
+- A session row shows how many of its sub-sessions, at any depth, wait for you, unless the nearest ancestor that flags attention isolation withholds them. ([#266](https://github.com/pohunekd/pohunek-companion-android/issues/266))
+
+### Fixed
+
+- A session list refresh no longer lets a delayed activity update that the refresh already includes show an older activity on a row. ([#262](https://github.com/pohunekd/pohunek-companion-android/issues/262))
+- The app no longer declares support for 32-bit ABIs (armeabi-v7a and x86), where its terminal library cannot load, so 32-bit-only devices are no longer offered it. ([#274](https://github.com/pohunekd/pohunek-companion-android/issues/274))
+
 ## 0.1.0-pre.12 - 2026-11-15
 
 ### Added
