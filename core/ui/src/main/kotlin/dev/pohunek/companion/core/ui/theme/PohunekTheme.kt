@@ -80,9 +80,12 @@ object PohunekTheme {
     val filterBarChipIconSize: Dp = 24.dp
     val chipBorderWidth: Dp = 1.dp
 
-    /** Widest the selected project and host labels on the bar's chips grow before they are cut. */
-    val filterBarProjectMaxWidth: Dp = 64.dp
+    /** Widest the selected project and host labels on the bar's chips grow before they are cut; the project one fits a name like "pohunek-companion". */
+    val filterBarProjectMaxWidth: Dp = 144.dp
     val filterBarHostMaxWidth: Dp = 56.dp
+
+    /** Width of the fade at the end of the scrolling chip row that hints more chips lie beyond it. */
+    val filterBarFadeWidth: Dp = 24.dp
 
     /** Least height of a check row in a filter sheet. */
     val stateRowHeight: Dp = 56.dp
