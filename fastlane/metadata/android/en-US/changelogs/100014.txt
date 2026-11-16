@@ -1,0 +1,3 @@
+Fixed
+- The Project chip in the filter bar keeps its label when the Sub-sessions chip is shown; the chips scroll sideways when they do not all fit. (#307)
+- The picked project on the filter bar's Project chip shows a longer name instead of cutting it to a few letters, and the scrolling chip row fades at the edge that has more chips beyond it. (#311)
