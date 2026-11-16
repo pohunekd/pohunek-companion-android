@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "appTree": "46ac26da3c5edf6f775ddf3ba579c6f612ec7f55",
+  "appTree": "6d22b849ad3e47901ea9d2c7ff92834c7ec44cf8",
   "device": "720x1600x320",
   "shots": [
     {
@@ -10,7 +10,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the My groups view selected: a Needs you section with two blocked agent sessions, the Inbox group collapsed to its header, and the Dependencies group listing sessions of a second host. The bottom bar has a search icon and the State, Project and Host filter chips.",
       "width": 720,
       "height": 1600,
-      "sha256": "74e61d21c43d4373caa8332f6a6cca67999fbb8492122ced5bcd444df95ef5ce"
+      "sha256": "e78f34d3deb09125968b6f9ed96f4e9657d3d934c7ff076057e7961d935c34c9"
     },
     {
       "id": "search",
@@ -28,7 +28,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the bottom filter bar showing a search icon, a State chip with a count of four, a project chip and a Host chip, over the sessions of that one project including an ended one.",
       "width": 720,
       "height": 1600,
-      "sha256": "dd1dd470c734a9ba66bb0d91d47687099daf21d04b2aff63754bf43731d27408"
+      "sha256": "aa368bd0f044bbc8657f45eedbd3959c6707313cafcdffb5956836797c19a15b"
     },
     {
       "id": "project-picker",
@@ -73,7 +73,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the By state view selected: sessions in Needs you, Working and Idle sections.",
       "width": 720,
       "height": 1600,
-      "sha256": "0e6c64ad2c7d93de93e8764898686358db02d8d1fb13679b6715f7b95080ed9f"
+      "sha256": "db616516c7b680eaf425f9ba22349594a0f1b8d63ba31041fdc81f0432aaa17c"
     },
     {
       "id": "groups",
@@ -82,7 +82,7 @@
       "alt": "Pohunek Companion My groups view in the dark theme: Needs you at the top, then the Dependencies group open with its sessions and a count, below the two blocked ones.",
       "width": 720,
       "height": 1600,
-      "sha256": "d048329feec42ced61ac44e18dccd858b6ef8da214e8d57f7596d1edbdea43b3"
+      "sha256": "4a47bc4e93ef398d54329814223bcee2c0d73c631981dd7c8d6a0da03f069c37"
     },
     {
       "id": "hosts",
@@ -109,7 +109,7 @@
       "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button.",
       "width": 720,
       "height": 1600,
-      "sha256": "002055224a894aa44f58161846f6a1bc7208364aad78eea0119510afa960078d"
+      "sha256": "88662f27e3d5c46ca44b210a87c30beab6d3a09f435f2c3d34209144d769235d"
     }
   ]
 }

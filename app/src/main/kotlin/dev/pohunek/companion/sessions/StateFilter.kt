@@ -1,6 +1,7 @@
 package dev.pohunek.companion.sessions
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -43,8 +50,9 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 internal fun FilterBarChips(state: SessionListState, onEvent: (SessionListEvent) -> Unit) {
     // The chips scroll sideways inside the width Clear leaves, so every chip keeps its full label and Clear stays on screen.
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.xs)) {
+        val scroll = rememberScrollState()
         Row(
-            modifier = Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()),
+            modifier = Modifier.weight(1f, fill = false).fadeScrollEdges(scroll).horizontalScroll(scroll),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.xs),
         ) {
@@ -58,6 +66,24 @@ internal fun FilterBarChips(state: SessionListState, onEvent: (SessionListEvent)
                 Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.filters_clear))
             }
         }
+    }
+}
+
+/** Fades the edges of the row that more content can be scrolled to, so a chip is never cut without a hint. */
+private fun Modifier.fadeScrollEdges(scroll: ScrollState): Modifier = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+    drawContent()
+    val fade = PohunekTheme.filterBarFadeWidth.toPx()
+    if (scroll.canScrollBackward) {
+        drawRect(
+            brush = Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = fade),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+    if (scroll.canScrollForward) {
+        drawRect(
+            brush = Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
+            blendMode = BlendMode.DstIn,
+        )
     }
 }
 
