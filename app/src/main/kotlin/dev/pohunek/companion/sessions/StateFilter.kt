@@ -52,7 +52,7 @@ internal fun FilterBarChips(state: SessionListState, onEvent: (SessionListEvent)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.xs)) {
         val scroll = rememberScrollState()
         Row(
-            modifier = Modifier.weight(1f, fill = false).fadeScrollEnd(scroll).horizontalScroll(scroll),
+            modifier = Modifier.weight(1f, fill = false).fadeScrollEdges(scroll).horizontalScroll(scroll),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(PohunekTheme.spacing.xs),
         ) {
@@ -69,11 +69,17 @@ internal fun FilterBarChips(state: SessionListState, onEvent: (SessionListEvent)
     }
 }
 
-/** Fades the right edge of the row while more content can be scrolled to, so a chip is never cut without a hint. */
-private fun Modifier.fadeScrollEnd(scroll: ScrollState): Modifier = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+/** Fades the edges of the row that more content can be scrolled to, so a chip is never cut without a hint. */
+private fun Modifier.fadeScrollEdges(scroll: ScrollState): Modifier = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
     drawContent()
+    val fade = PohunekTheme.filterBarFadeWidth.toPx()
+    if (scroll.canScrollBackward) {
+        drawRect(
+            brush = Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = fade),
+            blendMode = BlendMode.DstIn,
+        )
+    }
     if (scroll.canScrollForward) {
-        val fade = PohunekTheme.filterBarFadeWidth.toPx()
         drawRect(
             brush = Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
             blendMode = BlendMode.DstIn,

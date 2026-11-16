@@ -240,9 +240,12 @@ shot_filters() {
   "$agent" click StateSheet >/dev/null
   wait_no_tag StateSheet.state.ended
   wait_text "$ended_session"
+  # The chip row scrolls: show its end, where the picked project and the Host chip are whole.
+  "$agent" swipe SessionList.filter.project left >/dev/null
 }
 
 after_filters() {
+  "$agent" swipe SessionList.filter.project right >/dev/null
   "$agent" click SessionList.filter.state >/dev/null
   wait_tag StateSheet.state.ended
   "$agent" click StateSheet.state.ended >/dev/null

@@ -84,7 +84,7 @@ object PohunekTheme {
     val filterBarProjectMaxWidth: Dp = 144.dp
     val filterBarHostMaxWidth: Dp = 56.dp
 
-    /** Width of the fade at the end of the scrolling chip row that hints more chips lie beyond it. */
+    /** Width of the fade at an end of the scrolling chip row that hints more chips lie beyond it. */
     val filterBarFadeWidth: Dp = 24.dp
 
     /** Least height of a check row in a filter sheet. */
