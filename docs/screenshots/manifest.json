@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "appTree": "eb06fcab0ac4c7d4cc2a40c40bf0194d7203eaca",
+  "appTree": "e804ec50f5dac429712c8e7475d03663b6137c60",
   "device": "720x1600x320",
   "shots": [
     {
@@ -109,7 +109,7 @@
       "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button.",
       "width": 720,
       "height": 1600,
-      "sha256": "7cd9176ededa800b8154a02306e42991893f7c49b534526c2c4df76d1464d0d1"
+      "sha256": "665b734bb86d5fb4b29636cf1623859a3f64c29e29f8a745a3c780819257e67c"
     }
   ]
 }
