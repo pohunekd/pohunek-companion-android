@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "appTree": "e804ec50f5dac429712c8e7475d03663b6137c60",
+  "appTree": "46ac26da3c5edf6f775ddf3ba579c6f612ec7f55",
   "device": "720x1600x320",
   "shots": [
     {
@@ -28,7 +28,7 @@
       "alt": "Pohunek Companion session list in the dark theme with the bottom filter bar showing a search icon, a State chip with a count of four, a project chip and a Host chip, over the sessions of that one project including an ended one.",
       "width": 720,
       "height": 1600,
-      "sha256": "294b9a2b947449de558676499a5204d45d9d7043b202b4e8f5769aa49aa82715"
+      "sha256": "dd1dd470c734a9ba66bb0d91d47687099daf21d04b2aff63754bf43731d27408"
     },
     {
       "id": "project-picker",
@@ -109,7 +109,7 @@
       "alt": "Pohunek Companion session details screen in the dark theme: identity, agent and location fields of one session, each with a Copy button.",
       "width": 720,
       "height": 1600,
-      "sha256": "665b734bb86d5fb4b29636cf1623859a3f64c29e29f8a745a3c780819257e67c"
+      "sha256": "002055224a894aa44f58161846f6a1bc7208364aad78eea0119510afa960078d"
     }
   ]
 }
