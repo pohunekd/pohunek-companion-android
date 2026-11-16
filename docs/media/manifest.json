@@ -11,7 +11,7 @@
     "The session list puts the sessions that need you first, with a chip for the host.",
     "Scrolling down hides the filter bar and scrolling up brings it back.",
     "The Project chip opens a picker; typing narrows it and a tap picks a project.",
-    "The State chip opens a sheet where unchecking a state, here Needs you, hides those sessions from the list, and Clear resets the filters.",
+    "The State chip opens a sheet where unchecking a state, here Needs you, adds it to the chip's count of hidden states, and the X beside the chips resets the filters.",
     "A tap opens the session as a live terminal, and a fling scrolls through its history and back.",
     "Back returns to the list."
   ],
