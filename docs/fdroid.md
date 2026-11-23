@@ -90,7 +90,9 @@ mode works. The recipe uses `UpdateCheckMode: HTTP` instead (decision on #297):
   and the APK and its signing are not touched by it.
 - The check is an unauthenticated request to `api.github.com` (60 per hour per IP);
   F-Droid's infrastructure shares that limit, so a failed run is retried by the next.
-- With `AutoUpdateMode: Version` the F-Droid bot then opens the version bump.
+- `AutoUpdateMode: Version v%v` makes the F-Droid bot open the version bump. `fdroid lint`
+  rejects a bare `Version` together with `UpdateCheckMode: HTTP`, because the commit of
+  the new build cannot be derived without a pattern (`%v` becomes the version, so `v0.1.0`).
   Pre-release tags never match, because the latest-release endpoint skips them.
 
 Proof so far: `fdroid checkupdates --allow-dirty dev.pohunek.companion` (fdroidserver
