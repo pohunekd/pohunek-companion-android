@@ -25,6 +25,8 @@ class KnownHosts(
     private val configured: HostsRepository,
     private val discovery: HostDiscovery,
     private val registry: HostRegistry,
+    /** False for a graph whose hosts have no overlay, so discovery never runs. */
+    private val discover: Boolean,
 ) {
     /** The configured hosts followed by the discovered ones; any state other than loaded is the repository's own. */
     val state: Flow<HostsState> = combine(configured.state, discovery.state) { hosts, found ->
@@ -51,7 +53,7 @@ class KnownHosts(
         }.distinctUntilChanged()
         val connected =
             combine(manual, registry.state) { hosts, feeds -> hosts.map { it.route }.filter { feeds[it]?.connection == HostConnection.Connected }.toSet() }
-        launch { discovery.run(manual, connected) }
+        if (discover) launch { discovery.run(manual, connected) }
         registry.run(followed)
     }
 }

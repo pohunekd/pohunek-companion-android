@@ -21,6 +21,7 @@ import dev.pohunek.companion.core.data.layout.RecentProjectsStore
 import dev.pohunek.companion.core.data.live.HostLiveFactory
 import dev.pohunek.companion.core.data.live.HostRegistry
 import dev.pohunek.companion.core.data.live.LastSessionsStore
+import dev.pohunek.companion.core.data.live.TcpHostTransport
 import dev.pohunek.companion.core.data.log.HOST_KEY_SALT_BYTES
 import dev.pohunek.companion.core.data.log.HostKeyer
 import dev.pohunek.companion.core.data.log.JsonLineLog
@@ -101,7 +102,16 @@ val appModule = module {
     // One registry for the process: the session list and the hosts screen read the same loops.
     single {
         val runtime = get<RuntimeConfig>()
-        HostRegistry(HostLiveFactory({ runtime.current().client }, { runtime.current().live }, get(ioDispatcher), TimeSource.Monotonic, get()), get())
+        val io = get<CoroutineDispatcher>(ioDispatcher)
+        HostRegistry(
+            HostLiveFactory(
+                { runtime.current().live },
+                TimeSource.Monotonic,
+                get(),
+                { route, live -> TcpHostTransport(route, runtime.current().client, io, live.notificationPageSize) },
+            ),
+            get(),
+        )
     }
     single { LastSessionsStore(AtomicFile(File(get<Context>().filesDir, LAST_SESSIONS_FILE)), get(ioDispatcher), get()) }
     single { NetworkMonitor(get<Context>().getSystemService(ConnectivityManager::class.java), get(), get()) }
@@ -110,7 +120,7 @@ val appModule = module {
         val runtime = get<RuntimeConfig>()
         HostDiscovery({ runtime.current().client }, { runtime.current().discovery }, get(ioDispatcher), get())
     }
-    single { KnownHosts(get(), get(), get()) }
+    single { KnownHosts(get(), get(), get(), discover = true) }
     single {
         val runtime = get<RuntimeConfig>()
         SessionCommands({ runtime.current().client }, get(ioDispatcher), get())
