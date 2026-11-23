@@ -15,6 +15,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
 import java.net.StandardSocketOptions
+import java.net.UnknownHostException
 import java.nio.ByteBuffer
 import java.nio.channels.ClosedByInterruptException
 import java.nio.channels.SocketChannel
@@ -226,6 +227,7 @@ class PohunekConnection private constructor(
             ioDispatcher: CoroutineDispatcher,
             resolver: (String) -> InetAddress = InetAddress::getByName,
         ): SocketChannel {
+            if (isReservedInvalidName(route.host)) throw ProtocolClientException.ConnectionFailed(route, UnknownHostException("reserved name"))
             // A connect that finishes as the timeout fires or the caller is cancelled has its result discarded by
             // the coroutine machinery, so the channel is recorded here and closed unless it is handed to the caller.
             val connected = AtomicReference<SocketChannel?>(null)
@@ -246,6 +248,12 @@ class PohunekConnection private constructor(
                     }
                 }
             }
+        }
+
+        /** RFC 6761 reserves `.invalid`; such a name never resolves, so it is refused before a lookup. */
+        private fun isReservedInvalidName(host: String): Boolean {
+            val name = host.trimEnd('.').lowercase()
+            return name == "invalid" || name.endsWith(".invalid")
         }
 
         /**
