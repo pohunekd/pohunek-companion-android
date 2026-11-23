@@ -44,15 +44,13 @@ with Obtainium 1.7.4 on Android 16 (API 36), installing `0.1.0-pre.14`.
    pairs separated by colons. It must be the **Signing certificate SHA-256** of
    the release notes, the same on every release:
    `FC:59:84:90:...:51:27` equals `fc598490...445127` for `0.1.0-pre.14`.
-   Compare the full value, not the first characters. Android's own settings do
-   not show this hash.
+   Compare the full value, not the first characters. `apksigner` (step 3 of the
+   manual install above) prints the same digest as plain lowercase hex.
 
 To update, open the app page in Obtainium: the button at the bottom reads
-**Update** and is greyed out while the installed version is the latest. An
-update installs over the old one and keeps the data, for the reason given in
-step 4 of the manual install above. If the certificate hash on the app page ever
-differs from the release notes, do not install the build.
-
+**Update** and is greyed out while the installed version is the latest. If the
+certificate hash on the app page ever differs from the release notes, do not
+install the build.
 ## Versions
 
 The tag gives `versionName` (`0.1.0-pre.1`) and `versionCode`
