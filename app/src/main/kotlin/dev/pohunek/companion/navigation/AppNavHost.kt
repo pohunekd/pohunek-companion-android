@@ -15,6 +15,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.pohunek.companion.config.RuntimeConfig
+import dev.pohunek.companion.demo.DemoMode
+import dev.pohunek.companion.demo.demoGraph
 import dev.pohunek.companion.hosts.HostsScreen
 import dev.pohunek.companion.hosts.HostsViewModel
 import dev.pohunek.companion.newsession.NewSessionScreen
@@ -38,11 +40,13 @@ fun AppNavHost(
     NavHost(navController = navController, startDestination = StartDestination, modifier = modifier) {
         composable<StartDestination> {
             val koin = remember { KoinPlatform.getKoin() }
+            val demo = remember { koin.get<DemoMode>().active.value }
+            val graph = if (demo) demoGraph else null
             val viewModel: SessionListViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
                         SessionListViewModel(
-                            koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(),
+                            koin.get(graph), koin.get(graph), koin.get(graph), koin.get(graph), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(),
                             runtime.configs.map { it.display }.distinctUntilChanged(),
                         )
                     }
@@ -86,8 +90,14 @@ fun AppNavHost(
         }
         composable<HostsDestination> {
             val koin = remember { KoinPlatform.getKoin() }
-            val viewModel: HostsViewModel = viewModel(factory = viewModelFactory { initializer { HostsViewModel(koin.get(), koin.get(), koin.get()) } })
-            HostsScreen(viewModel, onBack = { navController.popBackStack() })
+            val factory = viewModelFactory { initializer { HostsViewModel(koin.get(), koin.get(), koin.get(), koin.get()) } }
+            val viewModel: HostsViewModel = viewModel(factory = factory)
+            HostsScreen(viewModel, onBack = { navController.popBackStack() }, onDemoChanged = {
+                navController.navigate(StartDestination) {
+                    popUpTo<StartDestination> { inclusive = true }
+                    launchSingleTop = true
+                }
+            })
         }
         composable<SettingsDestination> {
             val koin = remember { KoinPlatform.getKoin() }

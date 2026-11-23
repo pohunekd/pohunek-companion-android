@@ -36,6 +36,8 @@ data class HostsScreenState(
     val discoveryErrors: List<DiscoveryErrorItem> = emptyList(),
     /** Non-null while the form is shown; an empty host list always shows it. */
     val form: HostForm? = null,
+    /** The demo is active; the screen shows only the demo card. */
+    val demo: Boolean = false,
 )
 
 sealed interface HostsEvent {
@@ -52,9 +54,16 @@ sealed interface HostsEvent {
     data class RouteChanged(val route: String) : HostsEvent
 
     data class LabelChanged(val label: String) : HostsEvent
+
+    data object TryDemo : HostsEvent
+
+    data object LeaveDemo : HostsEvent
 }
 
 sealed interface HostsEffect {
     /** The first host was saved: the owner goes back to the list. */
     data object Close : HostsEffect
+
+    /** The demo was entered or left; the session list is rebuilt for the other graph. */
+    data object DemoChanged : HostsEffect
 }

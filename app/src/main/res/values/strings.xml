@@ -173,6 +173,11 @@
     <string name="host_storage_unreadable">The saved hosts cannot be read and are left untouched: %1$s</string>
     <string name="hosts_title">Hosts</string>
     <string name="hosts_add">Add a host</string>
+    <string name="hosts_try_demo">Try the demo</string>
+    <string name="hosts_try_demo_hint">No host yet? Explore the app with synthetic sessions. The demo connects to nothing.</string>
+    <string name="demo_title">Demo mode</string>
+    <string name="demo_body">You are looking at synthetic sessions on two made-up hosts. Nothing is sent over the network. Leave the demo to add your own Pohunek host.</string>
+    <string name="demo_leave">Leave demo</string>
     <string name="host_state_connected">Connected</string>
     <string name="host_state_connecting">Connecting</string>
     <string name="host_state_reconnecting">Reconnecting (attempt %1$d): %2$s</string>

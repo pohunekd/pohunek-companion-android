@@ -11,6 +11,7 @@ import dev.pohunek.companion.core.domain.hosts.ConfiguredHost
 import dev.pohunek.companion.core.domain.hosts.hostDisplayLabel
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.core.mvi.BaseViewModel
+import dev.pohunek.companion.demo.DemoMode
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.ProtocolClientException
 import kotlinx.coroutines.flow.combine
@@ -24,9 +25,11 @@ class HostsViewModel(
     private val hosts: HostsRepository,
     registry: HostRegistry,
     discovery: HostDiscovery,
+    private val demoMode: DemoMode,
 ) : BaseViewModel<HostsScreenState, HostsEvent, HostsEffect>(HostsScreenState()) {
     init {
         viewModelScope.launch { hosts.load() }
+        viewModelScope.launch { demoMode.active.collect { active -> updateState { it.copy(demo = active) } } }
         viewModelScope.launch {
             combine(hosts.state, registry.state, discovery.state) { configured, feeds, found ->
                 Triple(configured, feeds, found)
@@ -65,6 +68,25 @@ class HostsViewModel(
             HostsEvent.RemoveHost -> removeHost()
             is HostsEvent.RouteChanged -> updateForm { it.copy(route = event.route, error = null) }
             is HostsEvent.LabelChanged -> updateForm { it.copy(label = event.label) }
+            HostsEvent.TryDemo -> tryDemo()
+            HostsEvent.LeaveDemo -> {
+                demoMode.leave()
+                sendEffect(HostsEffect.DemoChanged)
+            }
+        }
+    }
+
+    private fun tryDemo() {
+        if (currentState.form?.saving == true) return
+        updateForm { it.copy(saving = true) }
+        viewModelScope.launch {
+            val failure = demoMode.enter()
+            if (failure == null) {
+                updateForm { it.copy(saving = false) }
+                sendEffect(HostsEffect.DemoChanged)
+            } else {
+                updateForm { it.copy(saving = false, error = failure) }
+            }
         }
     }
 
