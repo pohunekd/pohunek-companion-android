@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The idle threshold of the demo's live loops, so its idle showcase sessions show as Idle within seconds. Not a Settings entry. -->
+    <integer name="demo_idle_threshold_secs">5</integer>
+</resources>

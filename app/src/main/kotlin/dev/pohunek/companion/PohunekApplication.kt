@@ -3,6 +3,7 @@ package dev.pohunek.companion
 
 import android.app.Application
 import dev.pohunek.companion.core.data.di.dataModule
+import dev.pohunek.companion.demo.demoModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 
@@ -11,7 +12,7 @@ class PohunekApplication : Application() {
         super.onCreate()
         startKoin {
             androidContext(this@PohunekApplication)
-            modules(dataModule, appModule)
+            modules(dataModule, appModule, demoModule)
         }
     }
 }
