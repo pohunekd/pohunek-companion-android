@@ -17,6 +17,42 @@ passed is built.
    A later release installs over it and keeps the data, because it carries the
    same key and a higher version code.
 
+### Install and update with Obtainium
+
+[Obtainium](https://github.com/ImranR98/Obtainium) installs and updates apps
+straight from GitHub releases, so no store is involved. The steps below were run
+with Obtainium 1.7.4 on Android 16 (API 36), installing `0.1.0-pre.14`.
+
+1. Install Obtainium from its
+   [releases page](https://github.com/ImranR98/Obtainium/releases) and open it.
+   Pick the APK that matches the phone's CPU (`app-arm64-v8a-release.apk` for
+   most phones) and check it against the `.sha256` file next to it.
+2. Tap **Add**, paste `https://github.com/pohunekd/pohunek-companion-android`
+   into **App source URL**, and turn on **Include prereleases** before tapping
+   the **+** next to the URL. While only `v0.1.0-pre.N` releases exist, every
+   one of them is a GitHub prerelease: with the switch off, Obtainium answers
+   `Could not find a suitable release` and adds nothing.
+3. Obtainium opens the app page for **Pohunek Companion**
+   (`dev.pohunek.companion`) and lists the latest release with its asset
+   `pohunek-companion-<version>.apk`. That is the only APK among the release
+   assets (the other one is the `.sha256` checksum), so Obtainium picks it
+   without asking.
+4. Tap **Install**. On the first install Android asks to allow Obtainium to
+   install unknown apps: switch **Allow from this source** on, go back, and
+   confirm **Install** in the system dialog.
+5. Check the signer. The app page shows **Certificate Hash** as uppercase hex
+   pairs separated by colons. It must be the **Signing certificate SHA-256** of
+   the release notes, the same on every release:
+   `FC:59:84:90:...:51:27` equals `fc598490...445127` for `0.1.0-pre.14`.
+   Compare the full value, not the first characters. Android's own settings do
+   not show this hash.
+
+To update, open the app page in Obtainium: the button at the bottom reads
+**Update** and is greyed out while the installed version is the latest. An
+update installs over the old one and keeps the data, for the reason given in
+step 4 of the manual install above. If the certificate hash on the app page ever
+differs from the release notes, do not install the build.
+
 ## Versions
 
 The tag gives `versionName` (`0.1.0-pre.1`) and `versionCode`

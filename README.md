@@ -15,6 +15,8 @@ remote session list with live state and an embedded terminal over the NetBird
 overlay (Kotlin, Jetpack Compose).
 
 Installing a release APK and publishing one: [docs/release.md](docs/release.md).
+Installing and updating with Obtainium:
+[docs/release.md#install-and-update-with-obtainium](docs/release.md#install-and-update-with-obtainium).
 
 Status: pre-release. The pre-release builds are on the
 [releases page](https://github.com/pohunekd/pohunek-companion-android/releases);
