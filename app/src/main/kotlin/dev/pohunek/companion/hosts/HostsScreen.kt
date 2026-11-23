@@ -2,6 +2,7 @@ package dev.pohunek.companion.hosts
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,11 +38,12 @@ import dev.pohunek.companion.sessions.Centered
 import dev.pohunek.companion.sessions.Message
 
 @Composable
-fun HostsScreen(viewModel: HostsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun HostsScreen(viewModel: HostsViewModel, onBack: () -> Unit, onDemoChanged: () -> Unit, modifier: Modifier = Modifier) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     CollectEffect(viewModel.effect) { effect ->
         when (effect) {
             HostsEffect.Close -> onBack()
+            HostsEffect.DemoChanged -> onDemoChanged()
         }
     }
     // The form of a list that has hosts closes first; with no host the form is the screen and back leaves it.
@@ -70,8 +72,35 @@ private fun HostsContent(state: HostsScreenState, onEvent: (HostsEvent) -> Unit,
             state.storageError != null -> Centered(body) {
                 Message(stringResource(R.string.host_storage_unreadable, state.storageError), "HostStorage.error", error = true)
             }
-            form != null -> HostFormContent(form, state.hosts.isNotEmpty(), onEvent, body)
+            state.demo -> DemoCard(onEvent, body)
+            form != null -> HostFormContent(
+                form,
+                state.hosts.isNotEmpty(),
+                onEvent,
+                body,
+                onTryDemo = if (state.hosts.isEmpty()) {
+                    { onEvent(HostsEvent.TryDemo) }
+                } else {
+                    null
+                },
+            )
             else -> HostList(state, onEvent, body)
+        }
+    }
+}
+
+/** Shown while the demo is active; it replaces the form and the host list, so no real host can be added then. */
+@Composable
+private fun DemoCard(onEvent: (HostsEvent) -> Unit, modifier: Modifier) {
+    val spacing = PohunekTheme.spacing
+    Column(
+        modifier.padding(spacing.gutter),
+        verticalArrangement = Arrangement.spacedBy(spacing.md),
+    ) {
+        Text(stringResource(R.string.demo_title), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.demo_body))
+        Button(onClick = { onEvent(HostsEvent.LeaveDemo) }, modifier = Modifier.testTag("Hosts.leaveDemo")) {
+            Text(stringResource(R.string.demo_leave))
         }
     }
 }

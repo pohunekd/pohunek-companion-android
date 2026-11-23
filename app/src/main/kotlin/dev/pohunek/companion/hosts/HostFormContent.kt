@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -22,7 +23,13 @@ import dev.pohunek.companion.core.ui.theme.PohunekTheme
 
 /** The form that adds or edits a host; [canCancel] is false while no host exists, and removing is offered for a host being edited. */
 @Composable
-internal fun HostFormContent(form: HostForm, canCancel: Boolean, onEvent: (HostsEvent) -> Unit, modifier: Modifier = Modifier) {
+internal fun HostFormContent(
+    form: HostForm,
+    canCancel: Boolean,
+    onEvent: (HostsEvent) -> Unit,
+    modifier: Modifier = Modifier,
+    onTryDemo: (() -> Unit)? = null,
+) {
     val spacing = PohunekTheme.spacing
     Column(
         modifier.padding(spacing.gutter),
@@ -60,6 +67,14 @@ internal fun HostFormContent(form: HostForm, canCancel: Boolean, onEvent: (Hosts
             if (form.editing != null) {
                 TextButton(onClick = { onEvent(HostsEvent.RemoveHost) }, enabled = !form.saving, modifier = Modifier.testTag("HostForm.clear")) {
                     Text(stringResource(R.string.host_form_clear))
+                }
+            }
+        }
+        if (onTryDemo != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.hosts_try_demo_hint), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                OutlinedButton(onClick = onTryDemo, enabled = !form.saving, modifier = Modifier.testTag("HostForm.tryDemo")) {
+                    Text(stringResource(R.string.hosts_try_demo))
                 }
             }
         }
