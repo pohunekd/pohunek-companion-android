@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions") // The screen is the list, its banners, its bar and its windows, one small composable each.
+
 package dev.pohunek.companion.sessions
 
 import android.content.ActivityNotFoundException
@@ -34,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +60,7 @@ import dev.pohunek.companion.core.domain.hosts.HostStatusSummary
 import dev.pohunek.companion.core.mvi.CollectEffect
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.protocol.HostRoute
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
@@ -72,9 +76,11 @@ fun SessionListScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val linkUnavailable = stringResource(R.string.link_unavailable)
     val noLinkApp = stringResource(R.string.link_no_app)
     val editRefused = stringResource(R.string.group_edit_refused)
+    val demoUnavailable = stringResource(R.string.demo_unavailable)
     CollectEffect(viewModel.effect) { effect ->
         when (effect) {
             is SessionListEffect.OpenTerminal -> onOpenTerminal(effect.route, effect.sessionId)
@@ -88,6 +94,7 @@ fun SessionListScreen(
             }
             SessionListEffect.LinkUnavailable -> snackbar.showSnackbar(linkUnavailable)
             SessionListEffect.LayoutEditRefused -> snackbar.showSnackbar(editRefused)
+            SessionListEffect.DemoUnavailable -> snackbar.showSnackbar(demoUnavailable)
         }
     }
     // Hoisted so the list keeps its scroll position while the details cover it.
@@ -96,7 +103,22 @@ fun SessionListScreen(
     if (details != null) {
         DetailsScreen(details, detailValueMaxChars, viewModel::onEvent, modifier)
     } else {
-        SessionListContent(state, viewModel::onEvent, onOpenHosts, onOpenSettings, { onOpenNewSession(null, null, null) }, snackbar, listState, modifier)
+        SessionListContent(
+            state,
+            viewModel::onEvent,
+            onOpenHosts,
+            onOpenSettings,
+            {
+                if (state.demo) {
+                    scope.launch { snackbar.showSnackbar(demoUnavailable) }
+                } else {
+                    onOpenNewSession(null, null, null)
+                }
+            },
+            snackbar,
+            listState,
+            modifier,
+        )
     }
     state.actionDialog?.let { ActionDialog(it, viewModel::onEvent) }
 }
@@ -166,6 +188,7 @@ private fun SessionListBody(
             }
         }
         else -> Column(body) {
+            if (state.demo) DemoBanner(onOpenHosts)
             state.layoutIssue?.let { LayoutIssueBanner(it) }
             state.refusal?.let { RefusalBanner(it) { onEvent(SessionListEvent.DismissRefusal) } }
             state.resumeNote?.let { ResumeNoteBanner(it) { onEvent(SessionListEvent.DismissResumeNote) } }
@@ -174,6 +197,23 @@ private fun SessionListBody(
             SessionRows(state, onEvent, listState, bar, Modifier.weight(1f).fillMaxWidth())
             RowWindows(state, onEvent)
         }
+    }
+}
+
+/** Says the list shows synthetic data; a tap opens the Hosts screen, where the demo can be left. */
+@Composable
+private fun DemoBanner(onOpenHosts: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxWidth().heightIn(min = PohunekTheme.minTouchTarget)
+            .clickable(role = Role.Button, onClick = onOpenHosts)
+            .testTag("SessionList.demoBanner"),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(
+            text = stringResource(R.string.demo_banner),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(PohunekTheme.spacing.gutter),
+        )
     }
 }
 

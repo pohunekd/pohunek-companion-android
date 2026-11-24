@@ -116,6 +116,7 @@ class SessionListViewModel(
     private val log: AppLog,
     private val network: NetworkMonitor,
     limits: Flow<DisplayLimits>,
+    private val demo: Boolean,
 ) : BaseViewModel<SessionListState, SessionListEvent, SessionListEffect>(SessionListState()) {
     private var firstHostRequested = false
 
@@ -161,6 +162,7 @@ class SessionListViewModel(
     private var recentSize = 0
 
     init {
+        updateState { it.copy(demo = demo) }
         viewModelScope.launch { hosts.load() }
         viewModelScope.launch { recents.load() }
         viewModelScope.launch { recents.state.collect { recent -> updateState { it.copy(recentProjects = recent) } } }
@@ -231,7 +233,31 @@ class SessionListViewModel(
         }
     }
 
+    /** True for the events that ask a daemon to act: the demo has no daemon to answer them. */
+    private fun SessionListEvent.needsDaemon(): Boolean =
+        when (this) {
+            is SessionListEvent.RenameEvent,
+            is SessionListEvent.ResumeEvent,
+            is SessionListEvent.NewSessionHere,
+            is SessionListEvent.RequestAction,
+            SessionListEvent.OpenNewGroup,
+            is SessionListEvent.OpenRenameGroup,
+            is SessionListEvent.OpenNewGroupFor,
+            is SessionListEvent.DeleteGroup,
+            is SessionListEvent.OpenMoveToGroup,
+            is SessionListEvent.MoveToGroup,
+            is SessionListEvent.DropSession,
+            is SessionListEvent.StepSession,
+            -> true
+            else -> false
+        }
+
+    @Suppress("CyclomaticComplexMethod") // One branch per event; the demo guard adds two.
     override fun onEvent(event: SessionListEvent) {
+        if (demo && event.needsDaemon()) {
+            sendEffect(SessionListEffect.DemoUnavailable)
+            return
+        }
         when (event) {
             SessionListEvent.Refresh -> refresh()
             is SessionListEvent.OpenSession -> openSession(event.ref)
@@ -423,6 +449,8 @@ class SessionListViewModel(
      * it was armed with, so the placements it reads are the ones that list left.
      */
     private fun armMigrations(layout: LayoutState, feeds: Map<HostRoute, HostFeed>) {
+        // The demo has no daemon to write group values to.
+        if (demo) return
         val migrated = (layout as? LayoutState.Available)?.layout?.migratedHosts ?: return
         for ((route, facts) in reconciled) {
             val connected = feeds[route]?.let { it.connection == HostConnection.Connected && it.sessions != null } == true

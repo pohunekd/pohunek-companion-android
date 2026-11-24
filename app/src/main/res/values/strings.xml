@@ -178,6 +178,8 @@
     <string name="demo_title">Demo mode</string>
     <string name="demo_body">You are looking at synthetic sessions on two made-up hosts. Nothing is sent over the network. Leave the demo to add your own Pohunek host.</string>
     <string name="demo_leave">Leave demo</string>
+    <string name="demo_banner">Demo mode: synthetic sessions, nothing is sent over the network. Tap to leave the demo.</string>
+    <string name="demo_unavailable">Not available in the demo: it needs a Pohunek host.</string>
     <string name="host_state_connected">Connected</string>
     <string name="host_state_connecting">Connecting</string>
     <string name="host_state_reconnecting">Reconnecting (attempt %1$d): %2$s</string>

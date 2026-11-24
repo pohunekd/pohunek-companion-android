@@ -126,6 +126,8 @@ data class SessionListState(
     val hasHosts: Boolean = false,
     /** True with two or more hosts, when a message names the host its session lives on. */
     val multipleHosts: Boolean = false,
+    /** True while the list shows the demo graph: no daemon answers it, so the list says so and actions that need one are refused. */
+    val demo: Boolean = false,
     /** Sessions that need the owner on a connected host, longest waiting first. */
     val needsYou: List<SessionRow> = emptyList(),
     /** The other sessions in list order, or null until a list is shown: no host has sent one, or the first one is still expected. */
@@ -418,4 +420,7 @@ sealed interface SessionListEffect {
 
     /** A move or delete found its group or session gone. */
     data object LayoutEditRefused : SessionListEffect
+
+    /** The action needs a daemon, which the demo does not have. */
+    data object DemoUnavailable : SessionListEffect
 }
