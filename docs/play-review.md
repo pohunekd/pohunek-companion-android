@@ -45,3 +45,16 @@ scripts/ui-agent screen                   # the grid ends with "showcase demo: s
 scripts/ui-agent sockets                  # no connection of the app
 scripts/ui-agent stop
 ```
+
+## Screenshots
+
+The three screens below come from that isolated run, with the daemon's bridge
+cut (`scripts/ui-agent net-drop`) before the first tap: a fresh install with no
+host, the demo session list, and the scripted terminal after the second tap. All
+of the data is synthetic.
+
+![The Hosts screen on a fresh install, with the "Try the demo" button](play-review/demo-hosts.png)
+
+![The demo session list: synthetic sessions on two made-up hosts, with the demo banner above them](play-review/demo-list.png)
+
+![The scripted demo terminal after its showcase run, ending with "showcase demo: standing by"](play-review/demo-terminal.png)
