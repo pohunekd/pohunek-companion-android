@@ -25,8 +25,10 @@ import dev.pohunek.companion.config.AppConfig
 import dev.pohunek.companion.core.data.attach.AttachState
 import dev.pohunek.companion.core.data.attach.FailureKind
 import dev.pohunek.companion.core.data.attach.TerminalAttachment
+import dev.pohunek.companion.core.data.demo.DemoHosts
 import dev.pohunek.companion.core.ui.theme.PohunekTheme
 import dev.pohunek.companion.debug.RegisterScreenDump
+import dev.pohunek.companion.demo.DemoTerminal
 import dev.pohunek.companion.ioDispatcher
 import dev.pohunek.companion.mainDispatcher
 import dev.pohunek.companion.protocol.HostRoute
@@ -43,7 +45,11 @@ fun TerminalScreen(config: AppConfig, route: String, sessionId: String, onBack: 
     val parsed = remember(route) { parseRoute(route) }
     Box(modifier.fillMaxSize().safeDrawingPadding()) {
         when (parsed) {
-            is ParsedRoute.Valid -> AttachedTerminal(config, parsed.route, sessionId, onBack)
+            is ParsedRoute.Valid -> if (DemoHosts.isDemo(parsed.route)) {
+                DemoTerminal(config, parsed.route, sessionId)
+            } else {
+                AttachedTerminal(config, parsed.route, sessionId, onBack)
+            }
             is ParsedRoute.Invalid -> StatusPanel(Modifier.align(Alignment.TopCenter), onBack, showBack = true) {
                 Text(
                     stringResource(R.string.terminal_failed, parsed.message),
