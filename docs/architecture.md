@@ -282,6 +282,22 @@ a Pohunek release changes the protocol version, and the toolchain image and
   keeps its rows, dimmed. A failed question keeps what the host's last answer listed and is
   shown on the Hosts screen, logged once per distinct cause.
 
+### Demo mode
+
+A Google Play reviewer has no NetBird overlay and no Pohunek host, and the app
+needs both for real use, so the demo mode exists for the review and exposes no
+daemon: the sessions are synthetic and nothing leaves the app. It is entered
+only from the Hosts screen, and only while no host is configured; the flag
+lives in process memory only, so a new process always starts outside the demo.
+
+The demo runs on its own Koin graph (qualifier `demoGraph`) with its own hosts,
+layout, recent projects and last sessions files under
+`noBackupFilesDir/demo/`, and its live loops are fed by `DemoHostTransport` from
+the in-app copy of the showcase dataset; it runs no discovery. The demo routes
+use the reserved `.invalid` name, which the protocol client refuses before any
+lookup (#320), and a demo route opens the scripted terminal instead of an
+attachment.
+
 ## Security boundary
 
 The security boundary is the NetBird overlay. The daemon has no authentication
