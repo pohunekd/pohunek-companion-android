@@ -1,0 +1,4 @@
+Added
+- A fresh install offers Try the demo on the Hosts screen: synthetic sessions on two made-up hosts, with no network. Leave demo on the Hosts screen ends it. (#322)
+- In the demo, opening a session shows a terminal with a scripted run; nothing is sent anywhere. (#323)
+- In the demo, a banner marks the synthetic data, and actions that need a Pohunek host say so instead of failing. (#324)
