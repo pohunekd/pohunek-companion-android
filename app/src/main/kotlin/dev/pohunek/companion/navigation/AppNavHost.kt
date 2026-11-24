@@ -48,6 +48,7 @@ fun AppNavHost(
                         SessionListViewModel(
                             koin.get(graph), koin.get(graph), koin.get(graph), koin.get(graph), koin.get(), koin.get(), koin.get(), koin.get(), koin.get(),
                             runtime.configs.map { it.display }.distinctUntilChanged(),
+                            demo,
                         )
                     }
                 },
