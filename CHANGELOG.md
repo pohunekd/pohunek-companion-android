@@ -3,6 +3,14 @@
 User-facing changes of Pohunek Companion Android, newest version first. Each
 section is folded from the fragments in `changelog.d/` when its release is prepared.
 
+## 0.1.0-pre.15 - 2026-11-24
+
+### Added
+
+- A fresh install offers **Try the demo** on the Hosts screen: synthetic sessions on two made-up hosts, with no network. **Leave demo** on the Hosts screen ends it. ([#322](https://github.com/pohunekd/pohunek-companion-android/issues/322))
+- In the demo, opening a session shows a terminal with a scripted run; nothing is sent anywhere. ([#323](https://github.com/pohunekd/pohunek-companion-android/issues/323))
+- In the demo, a banner marks the synthetic data, and actions that need a Pohunek host say so instead of failing. ([#324](https://github.com/pohunekd/pohunek-companion-android/issues/324))
+
 ## 0.1.0-pre.14 - 2026-11-16
 
 ### Fixed
