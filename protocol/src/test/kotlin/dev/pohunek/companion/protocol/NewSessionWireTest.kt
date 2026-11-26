@@ -142,6 +142,30 @@ class NewSessionWireTest {
     }
 
     @Test
+    fun `a session new result decodes initial_input and keeps an unmodelled state and reason as Unknown`() {
+        fun initialInput(vararg fields: Pair<String, String>): SessionInitialInput? {
+            val session = (decode("session-new-response") as JsonObject) + (
+                "initial_input" to JsonObject(
+                    fields.associate {
+                        it.first to JsonPrimitive(it.second)
+                    },
+                )
+                )
+            return JsonObject(session).decodeSessionNewResult().session.initialInput
+        }
+        assertEquals(SessionInitialInput(SessionInitialInputState.Pending), initialInput("state" to "pending"))
+        assertEquals(
+            SessionInitialInput(SessionInitialInputState.Dropped, SessionInitialInputDrop.DaemonRestart),
+            initialInput("state" to "dropped", "reason" to "daemon_restart"),
+        )
+        assertEquals(
+            SessionInitialInput(SessionInitialInputState.Unknown, SessionInitialInputDrop.Unknown),
+            initialInput("state" to "expired", "reason" to "power_cut"),
+        )
+        assertNull(decode("session-new-response").decodeSessionNewResult().session.initialInput)
+    }
+
+    @Test
     fun `host inspect without worktree flags is malformed`() {
         val withoutGit = JsonObject((decode("host-inspect-response") as JsonObject) - "git_available")
         assertThrows(ProtocolClientException.MalformedResponse::class.java) { withoutGit.decodeResult(HostCapabilities.serializer()) }

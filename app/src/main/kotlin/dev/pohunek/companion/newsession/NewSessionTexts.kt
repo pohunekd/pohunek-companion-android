@@ -14,6 +14,7 @@ internal fun noticeText(notice: CreateNotice): String = when (notice) {
     is CreateNotice.NotSent -> stringResource(R.string.new_session_not_sent, notice.message)
     CreateNotice.Unconfirmed -> stringResource(R.string.new_session_unconfirmed)
     CreateNotice.PromptUnconfirmed -> stringResource(R.string.new_session_prompt_unconfirmed)
+    CreateNotice.PromptHeld -> stringResource(R.string.new_session_prompt_held)
 }
 
 /** The sentence for [blocker]; none for the ones another element already explains (a load failure, an unconfirmed create). */

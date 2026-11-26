@@ -324,7 +324,7 @@ scripts/ui-agent pohunek ARGS...
   git repositories under `/tmp/ui-agent/iso/work/`), check them with `ui-agent pohunek project actions ID`, and read a branch with
   `ui-agent pohunek session inspect ID`. The app log has `new_session.choices_loaded`, `new_session.choices_failed`, `new_session.templates_loaded` and `new_session.templates_failed` (a count or the error code), `new_session.template_loaded`, `new_session.template_refused` and `new_session.template_failed` (no template name), `new_session.create`, `new_session.created`,
   `new_session.create_refused` (a prompt too large for a control line), `new_session.create_failed` (error code only),
-  `new_session.prompt_unconfirmed`, `new_session.attach_skipped` (the new session was not running yet) and
+  `new_session.prompt_pending` (the daemon holds the prompt behind the agent's startup dialog), `new_session.prompt_unconfirmed`, `new_session.attach_skipped` (the new session was not running yet) and
   `new_session.group_skipped` (the requested group's name was not a valid `companion.group` value, so none was sent; error code only); none carries a name or a prompt.
   "New session here" on a row of a group other than Inbox sends `companion.group` in the `session.new` metadata (read it back with
   `pohunek session list --json`); `SessionList.notShared` marks a row whose group is only on this phone and

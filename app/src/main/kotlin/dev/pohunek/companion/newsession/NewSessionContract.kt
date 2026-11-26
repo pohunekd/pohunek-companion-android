@@ -29,6 +29,9 @@ sealed interface CreateNotice {
 
     /** The session was created but the daemon did not confirm delivering the prompt; Create stays disabled so that it is not repeated. */
     data object PromptUnconfirmed : CreateNotice
+
+    /** The session was created and the daemon holds the prompt until the agent's dialog is answered; Create stays disabled so that it is not repeated. */
+    data object PromptHeld : CreateNotice
 }
 
 data class NewSessionState(

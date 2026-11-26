@@ -5,12 +5,25 @@ package dev.pohunek.companion.core.domain.newsession
 import dev.pohunek.companion.core.domain.sessions.sanitizeText
 import dev.pohunek.companion.protocol.ProtocolClientException
 import dev.pohunek.companion.protocol.ProtocolError
+import dev.pohunek.companion.protocol.SessionInitialInputState
 import dev.pohunek.companion.protocol.SessionNewResult
+
+/** Where the initial prompt of a created session stands. */
+enum class PromptDelivery {
+    /** No prompt was sent, or the daemon confirmed injecting it. */
+    Delivered,
+
+    /** The daemon holds the prompt until the agent's startup dialog is answered; a daemon restart before that drops it. */
+    Held,
+
+    /** A prompt was sent and the daemon did not confirm injecting it, or reported it dropped or in a state this client does not model. */
+    Unconfirmed,
+}
 
 /** How a `session.new` ended. */
 sealed interface CreateOutcome {
-    /** The session exists. [promptDelivered] is false when a prompt was sent and the daemon did not confirm injecting it. */
-    data class Created(val result: SessionNewResult, val promptDelivered: Boolean) : CreateOutcome
+    /** The session exists. [prompt] says whether the initial prompt reached it. */
+    data class Created(val result: SessionNewResult, val prompt: PromptDelivery) : CreateOutcome
 
     /** The daemon refused before it recorded a session. [message] is its text with the recovery hint; the form stays editable. */
     data class Refused(val code: String, val message: String) : CreateOutcome
@@ -30,7 +43,18 @@ sealed interface CreateOutcome {
 
 /** The outcome of a `session.new` that answered [result]; [sentPrompt] is true when the request carried an initial prompt. */
 fun createdOutcome(result: SessionNewResult, sentPrompt: Boolean): CreateOutcome.Created =
-    CreateOutcome.Created(result, promptDelivered = !sentPrompt || result.appliedInput == true)
+    CreateOutcome.Created(result, promptDelivery(result, sentPrompt))
+
+/** `applied_input` is true on every successful create, so a daemon that reports `initial_input` (v0.44.0 and newer) has the last word. */
+private fun promptDelivery(result: SessionNewResult, sentPrompt: Boolean): PromptDelivery {
+    if (!sentPrompt) return PromptDelivery.Delivered
+    if (result.appliedInput != true) return PromptDelivery.Unconfirmed
+    return when (result.session.initialInput?.state) {
+        null, SessionInitialInputState.Delivered -> PromptDelivery.Delivered
+        SessionInitialInputState.Pending -> PromptDelivery.Held
+        SessionInitialInputState.Dropped, SessionInitialInputState.Unknown -> PromptDelivery.Unconfirmed
+    }
+}
 
 /**
  * The `session.new` errors the daemon documents as raised before anything is written or as rolled back with a definite verdict

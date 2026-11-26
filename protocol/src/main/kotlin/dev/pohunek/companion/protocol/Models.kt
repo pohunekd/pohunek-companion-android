@@ -27,6 +27,38 @@ enum class StateSource(override val wire: String, override val isUnknown: Boolea
 
 internal object StateSourceSerializer : WireEnumSerializer<StateSource>("StateSource", StateSource.entries, StateSource.Unknown)
 
+/** Where a session's initial prompt stands; [Unknown] stands for a state this client does not model. */
+@Serializable(with = SessionInitialInputStateSerializer::class)
+enum class SessionInitialInputState(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    Pending("pending"),
+    Delivered("delivered"),
+    Dropped("dropped"),
+    Unknown("", true),
+}
+
+internal object SessionInitialInputStateSerializer :
+    WireEnumSerializer<SessionInitialInputState>("SessionInitialInputState", SessionInitialInputState.entries, SessionInitialInputState.Unknown)
+
+/** Why a held initial prompt was dropped; [Unknown] stands for a reason this client does not model. */
+@Serializable(with = SessionInitialInputDropSerializer::class)
+enum class SessionInitialInputDrop(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
+    DaemonRestart("daemon_restart"),
+    SessionStopped("session_stopped"),
+    SessionExited("session_exited"),
+    DeliveryFailed("delivery_failed"),
+    Unknown("", true),
+}
+
+internal object SessionInitialInputDropSerializer :
+    WireEnumSerializer<SessionInitialInputDrop>("SessionInitialInputDrop", SessionInitialInputDrop.entries, SessionInitialInputDrop.Unknown)
+
+/** The initial prompt of a session; [reason] accompanies a dropped prompt. */
+@Serializable
+data class SessionInitialInput(
+    val state: SessionInitialInputState = SessionInitialInputState.Unknown,
+    val reason: SessionInitialInputDrop? = null,
+)
+
 @Serializable(with = AgentActivitySerializer::class)
 enum class AgentActivity(override val wire: String, override val isUnknown: Boolean = false) : WireEnum {
     Working("working"),
@@ -140,6 +172,8 @@ data class SessionInfo(
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String,
     @SerialName("exit_code") val exitCode: Int? = null,
+    /** The initial prompt of a session created with one; absent on a daemon older than v0.44.0 and on a session created without a prompt. */
+    @SerialName("initial_input") val initialInput: SessionInitialInput? = null,
 )
 
 /** The request origin of a spawned session: the creating [sessionId] and the [daemonId] that launched its runtime. */

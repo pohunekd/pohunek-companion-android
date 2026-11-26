@@ -10,6 +10,7 @@ import dev.pohunek.companion.core.domain.log.warn
 import dev.pohunek.companion.core.domain.newsession.CreateOutcome
 import dev.pohunek.companion.core.domain.newsession.NewSessionChoices
 import dev.pohunek.companion.core.domain.newsession.ProjectChoice
+import dev.pohunek.companion.core.domain.newsession.PromptDelivery
 import dev.pohunek.companion.core.domain.newsession.Recipe
 import dev.pohunek.companion.core.domain.newsession.TemplateError
 import dev.pohunek.companion.core.domain.newsession.TemplateStep
@@ -112,7 +113,11 @@ class NewSessions(
             val result = PohunekConnection.open(route, createClient(), ioDispatcher).use { it.newSession(params) }
             createdOutcome(result, sentPrompt = params.input != null).also { outcome ->
                 val created = fields + LogField.sessionId(result.session.id)
-                if (outcome.promptDelivered) log.info("new_session.created", created) else log.warn("new_session.prompt_unconfirmed", created)
+                when (outcome.prompt) {
+                    PromptDelivery.Delivered -> log.info("new_session.created", created)
+                    PromptDelivery.Held -> log.info("new_session.prompt_pending", created)
+                    PromptDelivery.Unconfirmed -> log.warn("new_session.prompt_unconfirmed", created)
+                }
             }
         } catch (e: ProtocolClientException) {
             log.error("new_session.create_failed", fields + LogField.errorCode(e.logCode()))

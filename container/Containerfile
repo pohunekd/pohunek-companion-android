@@ -114,11 +114,11 @@ RUN curl -fsSL --retry 5 -o /tmp/apksigcopier.whl "https://files.pythonhosted.or
     printf '#!/bin/sh\nPYTHONPATH=/opt/apksigcopier exec python3 -P -c "import sys; from apksigcopier import main; sys.exit(main())" "$@"\n' > /usr/local/bin/apksigcopier; \
     chmod 755 /usr/local/bin/apksigcopier
 
-# Pohunek release v0.43.0 (musl builds are static; sha256 published on the
+# Pohunek release v0.45.0 (musl builds are static; sha256 published on the
 # zajca/pohunek GitHub release).
-ARG POHUNEK_VERSION=0.43.0
-ARG POHUNEK_CLI_SHA256=28238f6b768a17f94ff8c66d411da2ea4a72f5b753d9a88b3a0fc2475c2a3f0c
-ARG POHUNEK_DAEMON_SHA256=f558fb931f075632f0fa6b15c16ae6209d9b3d13eea23706bb6ae930c7313621
+ARG POHUNEK_VERSION=0.45.0
+ARG POHUNEK_CLI_SHA256=ebe949a7ab2304fb87dfcabaff0830fc40ef5d212b30ce85a5a700ac50a1dc0a
+ARG POHUNEK_DAEMON_SHA256=035b060aa1176748c4d9142e92d5f377c827f335e03296899f73caaf130cb9d5
 RUN base="https://github.com/zajca/pohunek/releases/download/v${POHUNEK_VERSION}"; \
     cli="pohunek-cli-${POHUNEK_VERSION}-x86_64-unknown-linux-musl"; \
     dmn="pohunek-daemon-${POHUNEK_VERSION}-x86_64-unknown-linux-musl"; \

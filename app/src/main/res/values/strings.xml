@@ -259,6 +259,7 @@
     <string name="new_session_refused_maybe_created">The daemon reported an error that may have come after it created the session: %1$s. Check the list before trying again.</string>
     <string name="new_session_not_sent">Not sent: %1$s</string>
     <string name="new_session_unconfirmed">The daemon did not confirm the create; check the list before trying again.</string>
+    <string name="new_session_prompt_held">The session was created. The agent is waiting on a dialog; answer it in the terminal and your prompt is sent then.</string>
     <string name="new_session_prompt_unconfirmed">The session was created, but the daemon did not confirm delivering the prompt; check the list.</string>
     <string name="new_session_blocker_no_host">Choose a host.</string>
     <string name="new_session_blocker_loading">Reading projects and agents from the daemon...</string>
