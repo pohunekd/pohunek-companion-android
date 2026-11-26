@@ -10,7 +10,7 @@ Pohunek Companion is an Android app for people who run their own Pohunek hosts. 
 </ul>
 
 <b>What you need</b>
-This app is only a client. It needs your own Pohunek daemon on each host (the app currently supports Pohunek 0.43), and it reaches the hosts over a NetBird overlay network. The official NetBird client is distributed through Google Play only. JetBird (dev.bg.jetbird, GPL-3.0, available on F-Droid) is a free software NetBird client you can use instead.
+This app is only a client. It needs your own Pohunek daemon on each host (the app currently supports Pohunek 0.45), and it reaches the hosts over a NetBird overlay network. The official NetBird client is distributed through Google Play only. JetBird (dev.bg.jetbird, GPL-3.0, available on F-Droid) is a free software NetBird client you can use instead.
 
 <b>Privacy</b>
 The app connects only to Pohunek hosts: the ones you add, and the ones your hosts report as reachable on the overlay, which it follows automatically. It sends nothing anywhere else. It has no analytics, no tracking and no advertising, and it depends on no Google Play services.

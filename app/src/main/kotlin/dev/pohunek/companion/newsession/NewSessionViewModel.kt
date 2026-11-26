@@ -18,6 +18,7 @@ import dev.pohunek.companion.core.domain.log.LogField
 import dev.pohunek.companion.core.domain.log.warn
 import dev.pohunek.companion.core.domain.newsession.CreateOutcome
 import dev.pohunek.companion.core.domain.newsession.NewSessionForm
+import dev.pohunek.companion.core.domain.newsession.PromptDelivery
 import dev.pohunek.companion.core.domain.newsession.sessionNewParams
 import dev.pohunek.companion.core.domain.newsession.settleSelection
 import dev.pohunek.companion.core.mvi.BaseViewModel
@@ -165,8 +166,7 @@ class NewSessionViewModel(
 
     private fun created(route: HostRoute, outcome: CreateOutcome.Created) {
         val session = outcome.result.session
-        if (!outcome.promptDelivered) return settle(CreateNotice.PromptUnconfirmed, unconfirmed = true)
-        updateState { it.copy(activity = it.activity.copy(inFlight = false)) }
+        if (outcome.prompt == PromptDelivery.Unconfirmed) return settle(CreateNotice.PromptUnconfirmed, unconfirmed = true)
         // `session.new` and `session_created` carry no profile label; a re-seed brings it to the new row at once.
         registry.requestReseed()
         // A session that is not running yet cannot be attached; the list shows it as it starts.
@@ -174,6 +174,9 @@ class NewSessionViewModel(
         if (currentState.attachAfterCreate && !open) {
             log.warn("new_session.attach_skipped", listOf(LogField.sessionId(session.id), LogField.state(session.state.name)))
         }
+        // Answering the agent's dialog in the terminal releases a held prompt; without the terminal the form stays to say so.
+        if (outcome.prompt == PromptDelivery.Held && !open) return settle(CreateNotice.PromptHeld, unconfirmed = true)
+        updateState { it.copy(activity = it.activity.copy(inFlight = false)) }
         sendEffect(if (open) NewSessionEffect.OpenTerminal(route, session.id) else NewSessionEffect.Close)
     }
 

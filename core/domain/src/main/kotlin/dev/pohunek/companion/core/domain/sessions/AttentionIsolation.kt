@@ -1,4 +1,4 @@
-// Ported to Kotlin from Pohunek `crates/daemon/src/session/attention_isolation.rs` (isolating_ancestor) at v0.43.0.
+// Ported to Kotlin from Pohunek `crates/daemon/src/session/attention_isolation.rs` (isolating_ancestor) at v0.45.0.
 // Repository: https://github.com/zajca/pohunek, MIT. See THIRD_PARTY_NOTICES.md.
 package dev.pohunek.companion.core.domain.sessions
 
