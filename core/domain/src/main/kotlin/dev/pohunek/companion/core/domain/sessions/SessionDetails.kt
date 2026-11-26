@@ -4,6 +4,9 @@ package dev.pohunek.companion.core.domain.sessions
 
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.SessionInfo
+import dev.pohunek.companion.protocol.SessionInitialInput
+import dev.pohunek.companion.protocol.SessionInitialInputDrop
+import dev.pohunek.companion.protocol.SessionInitialInputState
 import dev.pohunek.companion.protocol.SessionState
 import java.time.format.DateTimeFormatter
 
@@ -64,10 +67,27 @@ private fun agentFields(session: OwnerSession) = fields {
     add("agent_profile", "Profile", sanitizeText(info.agent).takeIf { info.agentDisplayName != null && it != sessionAgentLabel(info) })
     add("agent_options", "Options", agentOptionsText(info))
     add("state", "State", if (detail == null) state else "$state ($detail)")
+    add("first_prompt", "First prompt", info.initialInput?.let(::firstPromptText))
     add("waiting_since", "Waiting since", session.waitingSince?.let(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format))
     add("resume", "Resume", resumeText(resumeOffer(info)))
     add("native_session_id", "Native session id", info.nativeSessionId?.let(::sanitizeText))
     add("native_session_path", "Native session path", info.nativeSessionPath?.let(::plainText))
+}
+
+/**
+ * The line about the first prompt while it matters: held behind the agent's startup dialog, or dropped. Null once it was delivered
+ * and for a state this client does not model.
+ */
+internal fun firstPromptText(input: SessionInitialInput): String? = when (input.state) {
+    SessionInitialInputState.Pending -> "waiting until you answer the agent's dialog"
+    SessionInitialInputState.Dropped -> when (input.reason) {
+        SessionInitialInputDrop.DaemonRestart -> "not delivered (daemon restarted)"
+        SessionInitialInputDrop.SessionStopped -> "not delivered (session stopped)"
+        SessionInitialInputDrop.SessionExited -> "not delivered (session exited)"
+        SessionInitialInputDrop.DeliveryFailed -> "not delivered (delivery failed)"
+        SessionInitialInputDrop.Unknown, null -> "not delivered"
+    }
+    SessionInitialInputState.Delivered, SessionInitialInputState.Unknown -> null
 }
 
 /** The choices the session launched with as `option=choice` pairs in option-id order; the wire carries ids only, so these are ids. */

@@ -3,6 +3,9 @@ package dev.pohunek.companion.core.domain.sessions
 import dev.pohunek.companion.protocol.HostRoute
 import dev.pohunek.companion.protocol.SessionCapabilities
 import dev.pohunek.companion.protocol.SessionInfo
+import dev.pohunek.companion.protocol.SessionInitialInput
+import dev.pohunek.companion.protocol.SessionInitialInputDrop
+import dev.pohunek.companion.protocol.SessionInitialInputState
 import dev.pohunek.companion.protocol.SessionState
 import dev.pohunek.companion.protocol.StateSource
 import org.junit.Assert.assertEquals
@@ -17,6 +20,7 @@ class SessionDetailsTest {
         projectId: String? = null,
         projectLabel: String? = null,
         metadata: Map<String, String>? = null,
+        initialInput: SessionInitialInput? = null,
     ) = SessionInfo(
         id = "s-1",
         capabilities = SessionCapabilities(resume = false, fork = false),
@@ -32,6 +36,7 @@ class SessionDetailsTest {
         projectLabel = projectLabel,
         worktreePath = worktree,
         metadata = metadata,
+        initialInput = initialInput,
         createdAt = "2026-01-01T09:00:00Z",
         updatedAt = "2026-01-01T10:00:00Z",
     )
@@ -78,6 +83,22 @@ class SessionDetailsTest {
         val safe = fields(details(info(metadata = meta + ("work.link.url" to "https://example.invalid/pull/12"))))
         assertEquals("https://example.invalid/pull/12", safe["work_link"])
         assertEquals("12", safe["work_id"])
+    }
+
+    @Test
+    fun `the first prompt line shows a held or dropped prompt and nothing otherwise`() {
+        fun line(input: SessionInitialInput?) = fields(details(info(initialInput = input)))["first_prompt"]
+        fun dropped(reason: SessionInitialInputDrop?) = SessionInitialInput(SessionInitialInputState.Dropped, reason)
+        assertEquals("waiting until you answer the agent's dialog", line(SessionInitialInput(SessionInitialInputState.Pending)))
+        assertEquals("not delivered (daemon restarted)", line(dropped(SessionInitialInputDrop.DaemonRestart)))
+        assertEquals("not delivered (session stopped)", line(dropped(SessionInitialInputDrop.SessionStopped)))
+        assertEquals("not delivered (session exited)", line(dropped(SessionInitialInputDrop.SessionExited)))
+        assertEquals("not delivered (delivery failed)", line(dropped(SessionInitialInputDrop.DeliveryFailed)))
+        assertEquals("not delivered", line(dropped(null)))
+        assertEquals("not delivered", line(dropped(SessionInitialInputDrop.Unknown)))
+        assertNull(line(SessionInitialInput(SessionInitialInputState.Delivered)))
+        assertNull(line(SessionInitialInput(SessionInitialInputState.Unknown)))
+        assertNull(line(null))
     }
 
     @Test
